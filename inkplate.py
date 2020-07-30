@@ -1,7 +1,7 @@
 # Copyright © 2020 by Thorsten von Eicken.
 import time
 import micropython
-from machine import Pin, mem32
+from machine import Pin
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -57,6 +57,7 @@ class Inkplate:
         self.TOUCH3 = self._mcp23017.pin(12, Pin.IN)
 
         self._on = False  # whether panel is powered on or not
+        self._framebuf = bytearray(60000)
 
         if len(Inkplate.byte2gpio) == 0:
             Inkplate.gen_byte2gpio()
@@ -125,12 +126,12 @@ class Inkplate:
         self.EPD_CKV(0)
         # latch row
         self.EPD_LE(1)
-        time.sleep_us(10)
+        # time.sleep_us(10)
         self.EPD_LE(0)
         # move to next row
         self.EPD_SPH(0)
         self.EPD_CL(1)
-        time.sleep_us(10)
+        # time.sleep_us(10)
         self.EPD_CL(0)
         self.EPD_SPH(1)
         # done
@@ -140,8 +141,8 @@ class Inkplate:
     def vscan_end(self):
         self.EPD_CKV(0)
         # latch row
-        self.EPD_LE(1)
-        self.EPD_LE(0)
+        # self.EPD_LE(1)
+        # self.EPD_LE(0)
         # done
         self.EPD_CKV(1)
 
@@ -162,22 +163,14 @@ class Inkplate:
             union |= cls.byte2gpio[i]
         assert union == EPD_DATA
 
-    # expand_pix expands 4 1-bit pixels to the 8 bits expected by the display
-    # display 2 bits per pixel: 00=no-action, 01=black, 10=white, 11=no-action
-    # expand_pix = [
-    #    0x55, 0x56, 0x59, 0x5A,
-    #    0x65, 0x66, 0x69, 0x6A,
-    #    0x95, 0x96, 0x99, 0x9A,
-    #    0xA5, 0xA6, 0xA9, 0xAA,
-    # ]
-
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
     @classmethod
     def gen_luts(cls):
-        cls.lut_wht = []  # bits to ship to gpio to make pixels white
-        cls.lut_blk = []  # bits to ship to gpio to make pixels black
-        cls.lut_bw = []  # bits to ship to gpio to make pixels black and white
+        b16 = bytes(4 * 16)  # is there a better way to init an array with 16 words???
+        cls.lut_wht = array("L", b16)  # bits to ship to gpio to make pixels white
+        cls.lut_blk = array("L", b16)  # bits to ship to gpio to make pixels black
+        cls.lut_bw = array("L", b16)  # bits to ship to gpio to make pixels black and white
         for i in range(16):
             wht = 0
             blk = 0
@@ -187,65 +180,94 @@ class Inkplate:
                 wht = wht | ((2 if (i >> bit) & 1 == 0 else 0) << (2 * bit))
                 blk = blk | ((1 if (i >> bit) & 1 == 1 else 0) << (2 * bit))
                 bw = bw | ((1 if (i >> bit) & 1 == 1 else 2) << (2 * bit))
-            cls.lut_wht.append(Inkplate.byte2gpio[wht] | EPD_CL)
-            cls.lut_blk.append(Inkplate.byte2gpio[blk] | EPD_CL)
-            cls.lut_bw.append(Inkplate.byte2gpio[bw] | EPD_CL)
+            cls.lut_wht[i] = Inkplate.byte2gpio[wht] | EPD_CL
+            cls.lut_blk[i] = Inkplate.byte2gpio[blk] | EPD_CL
+            cls.lut_bw[i] = Inkplate.byte2gpio[bw] | EPD_CL
         # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
 
-    @micropython.native
-    def fill_row(self, data):
+    # fill_row writes the same value to all bytes in a row, it is used for cleaning
+    @micropython.viper
+    def fill_row(self, data: int):
         # cache vars into locals
-        m32 = mem32
-        W1TS = ESP32_W1TS
-        W1TC = ESP32_W1TC
-        off = EPD_DATA | EPD_CL
+        w1ts = ptr32(int(ESP32_W1TS))
+        w1tc = ptr32(int(ESP32_W1TC))
+        epd_cl = int(EPD_CL)
+        # set the data output gpios
+        w1tc[0] = EPD_DATA | epd_cl
+        w1ts[0] = data
         # send first byte
         self.EPD_SPH(0)
-        m32[W1TS] = data
-        m32[W1TC] = off
+        w1ts[0] = epd_cl
+        w1tc[0] = epd_cl
         self.EPD_SPH(1)
-        m32[W1TS] = data
-        m32[W1TC] = off
+        w1ts[0] = epd_cl
+        w1tc[0] = epd_cl
         # send the remaining 99 bytes (792 pixels)
         for c in range(99):
-            m32[W1TS] = data
-            m32[W1TC] = off
-            m32[W1TS] = data
-            m32[W1TC] = off
+            w1ts[0] = epd_cl
+            w1tc[0] = epd_cl
+            w1ts[0] = epd_cl
+            w1tc[0] = epd_cl
 
     def clean_fast(self, color, rep):
+        t0 = time.ticks_ms()
         c = [0xAA, 0x55, 0x00, 0xFF][color]
-        data = Inkplate.byte2gpio[c] | EPD_CL
+        data = Inkplate.byte2gpio[c] & ~EPD_CL
+        for i in range(rep):
+            self.vscan_start()
+            for r in range(600):
+                self.fill_row(data)
+                self.vscan_write()  # half the time is in here...
+                # time.sleep_us(230)
+            self.vscan_end()
+        print("Clean: 0x%02x->0x%08x in %dms" % (c, data, time.ticks_diff(time.ticks_ms(), t0)))
+
+    def clean_fast2(self, color, rep):
+        t0 = time.ticks_ms()
+        c = color
+        data = Inkplate.byte2gpio[c] & ~EPD_CL
         for i in range(rep):
             self.vscan_start()
             for r in range(600):
                 self.fill_row(data)
                 self.vscan_write()
-                time.sleep_us(230)
+                # time.sleep_us(230)
             self.vscan_end()
+        print("Clean: 0x%02x->0x%08x in %dms" % (c, data, time.ticks_diff(time.ticks_ms(), t0)))
 
-    @micropython.native
-    def send_row(self, lut, row):
+    # send_row writes a row of data to the display
+    @micropython.viper
+    def send_row(self, lut_in, row: int):
         # cache vars into locals
-        m32 = mem32
-        W1TS = ESP32_W1TS
-        W1TC = ESP32_W1TC
-        off = EPD_DATA | EPD_CL
+        w1ts = ptr32(int(ESP32_W1TS))
+        w1tc = ptr32(int(ESP32_W1TC))
+        epd_cl = int(EPD_CL)  # clock bit as 32-bit gpio mask
+        off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
+        fb = ptr8(self._framebuf)
+        ix = int(row * 100)  # index into framebuffer
+        lut = ptr32(lut_in)
         # send first byte
-        data = row[0]
+        data = int(fb[ix])
+        ix += 1
+        w1tc[0] = off
         self.EPD_SPH(0)
-        m32[W1TS] = lut[data >> 4]
-        m32[W1TC] = off
+        w1ts[0] = lut[data >> 4]  # set data bits and assert clock
+        w1tc[0] = epd_cl  # clear clock, leaving data bits (unreliable if data also cleared)
+        w1tc[0] = off  # clear data bits as well ready for next byte
         self.EPD_SPH(1)
-        m32[W1TS] = lut[data & 0xF]
-        m32[W1TC] = off
+        w1ts[0] = lut[data & 0xF]
+        w1tc[0] = epd_cl
+        w1tc[0] = off
         # send the remaining 99 bytes (792 pixels)
         for c in range(99):
-            data = row[0]  # FIXME!
-            m32[W1TS] = lut[data >> 4]
-            m32[W1TC] = off
-            m32[W1TS] = lut[data & 0xF]
-            m32[W1TC] = off
+            data = int(fb[ix])
+            ix += 1
+            w1ts[0] = lut[data >> 4]
+            w1tc[0] = epd_cl
+            w1tc[0] = off
+            w1ts[0] = lut[data & 0xF]
+            w1tc[0] = epd_cl
+            w1tc[0] = off
 
     # display_mono sends the monochrome buffer to the display, clearing it first
     def display_mono(self):
@@ -254,8 +276,8 @@ class Inkplate:
         # clean the display
         self.clean_fast(0, 1)
         self.clean_fast(1, 1)
-        self.clean_fast(2, 1)
-        self.clean_fast(3, 1)
+        # self.clean_fast(2, 1)
+        # self.clean_fast(3, 1)
         self.clean_fast(0, 1)
         # self.clean_fast(2, 1)
         # self.clean_fast(1, 1)
@@ -263,21 +285,81 @@ class Inkplate:
         # self.clean_fast(0, 2)
 
         # the display gets written N times
+        t0 = time.ticks_ms()
+        n = 0
         for lut in [Inkplate.lut_blk, Inkplate.lut_blk, Inkplate.lut_bw]:
             self.vscan_start()
             # write 600 rows
             for r in range(600):
-                data = [1 << ((r // 50) % 8)]
-                self.send_row(lut, data)
+                self.send_row(lut, r)
                 self.vscan_write()
-                time.sleep_us(230)
+                # time.sleep_us(230)
             self.vscan_end()
+            n += 1
+        print("Mono: in %dms" % (time.ticks_diff(time.ticks_ms(), t0) // n))
 
         self.power_off()
+
+    @micropython.viper
+    def clear(self):
+        t0 = time.ticks_ms()
+        fb = ptr8(self._framebuf)
+        for ix in range(60000):
+            fb[ix] = 0
+        print("Clear: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
+
+    def display_test(self):
+        for r in range(600):
+            if r > 500:
+                for i in range(100):
+                    self._framebuf[r * 100 + i] = 0xFF
+            else:
+                for i in range(20):
+                    self._framebuf[r * 100 + i] = 1 << ((r // 50) % 8)
+                for i in range(20, 100):
+                    self._framebuf[r * 100 + i] = i
+
+    def pixel(self, x, y, color):
+        ix = 59999 - y * 100 - x // 8
+        bit = 1 << (x & 7)
+        if color:
+            self._framebuf[ix] |= bit
+        else:
+            self._framebuf[ix] &= ~bit
 
 
 if __name__ == "__main__":
     from machine import I2C
 
     ip = Inkplate(I2C(0, scl=Pin(22), sda=Pin(21)))
+    ip.display_test()
+    ip.display_mono()
+
+    ip.clear()
+    t0 = time.ticks_ms()
+    for y in range(100):
+        ip.pixel(y, y, 1)
+        ip.pixel(y, 0, 1)
+        ip.pixel(0, y, 1)
+        ip.pixel(799 - y, 599 - y, 1)
+        ip.pixel(799 - y, 599 - 0, 1)
+        ip.pixel(799 - 0, 599 - y, 1)
+    for y in range(100, 160):
+        for x in range(100, 120):
+            ip.pixel(x, y, 1)
+        ip.pixel(y, y, 0)
+        ip.pixel(y + 1, y, 0)  # makes white line more visible 'til waveforms are fixed
+    print("TestPatt: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
+    ip.display_mono()
+
+    ip.clear()
+    from gfx import GFX
+    #from gfx_standard_font_01 import text_dict as std_font
+    disp = GFX(800, 600, ip.pixel) # , font=std_font)
+    disp.circle(250, 250, 100, 1)
+    disp.rect(350, 250, 100, 100, 1)
+    disp.fill_circle(400, 300, 50, 1)
+    disp.text(304, 102, "HELLO WORLD!", 4, 1)
+    disp.round_rect(290, 90, 300, 50, 10, 1)
+    disp.round_rect(291, 91, 300, 50, 10, 1)
     ip.display_mono()
