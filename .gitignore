@@ -1,0 +1,4 @@
+board_config.py
+board_config_*.py
+init.mpf
+lib
