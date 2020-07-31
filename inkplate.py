@@ -133,14 +133,16 @@ class Inkplate:
 
     # vscan_write latches the row into the display pixels and moves to the next row
     @micropython.viper
-    def vscan_write(self):
-        GPIO = ptr32(int(ESP32_GPIO))
-        GPIO[W1TC1] = EPD_CKV  # remove gate drive
-        GPIO[W1TS0] = EPD_LE  # pulse to latch row --
-        GPIO[W1TS0] = EPD_LE  # delay a tiny bit
-        GPIO[W1TC0] = EPD_LE
-        GPIO[W1TC0] = EPD_LE  # delay a tiny bit
-        GPIO[W1TS1] = EPD_CKV  # apply gate drive to next row
+    @staticmethod
+    def vscan_write():
+        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
+        w1tc0[W1TC1-W1TC0] = EPD_CKV  # remove gate drive
+        w1ts0[0] = EPD_LE  # pulse to latch row --
+        w1ts0[0] = EPD_LE  # delay a tiny bit
+        w1tc0[0] = EPD_LE
+        w1tc0[0] = EPD_LE  # delay a tiny bit
+        w1ts0[W1TS1-W1TS0] = EPD_CKV  # apply gate drive to next row
 
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
@@ -183,69 +185,77 @@ class Inkplate:
 
     # fill_row writes the same value to all bytes in a row, it is used for cleaning
     @micropython.viper
-    def fill_row(self, data: int):
-        # cache vars into locals
-        GPIO = ptr32(int(ESP32_GPIO))
+    @staticmethod
+    def fill_row(data: int):
+        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
         # set the data output gpios
-        GPIO[W1TC0] = EPD_DATA | EPD_CL
-        GPIO[W1TS0] = data
+        w1tc0[0] = EPD_DATA | EPD_CL
+        w1ts0[0] = data
         # send first byte
-        GPIO[W1TC1] = EPD_SPH
-        GPIO[W1TS0] = EPD_CL
-        GPIO[W1TC0] = EPD_CL
-        GPIO[W1TS1] = EPD_SPH
-        GPIO[W1TS0] = EPD_CL
-        GPIO[W1TC0] = EPD_CL
-        # send the remaining 99 bytes (792 pixels)
-        for c in range(99):  # this is the most time critical loop in the driver
-            GPIO[W1TS0] = EPD_CL
-            GPIO[W1TC0] = EPD_CL
-            GPIO[W1TS0] = EPD_CL
-            GPIO[W1TC0] = EPD_CL
+        w1tc0[W1TC1-W1TC0] = EPD_SPH
+        w1ts0[0] = EPD_CL
+        w1tc0[0] = EPD_CL
+        w1ts0[W1TS1-W1TS0] = EPD_SPH
+        w1ts0[0] = EPD_CL
+        w1tc0[0] = EPD_CL
+
+        epd_cl = EPD_CL
+        i = int(99)
+        while i > 0:
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
+            i -= 1
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
 
     # clean fills the screen with one of the four possible pixel patterns
+    @micropython.native
     def clean(self, patt, rep):
         c = [0xAA, 0x55, 0x00, 0xFF][patt]
         data = Inkplate.byte2gpio[c] & ~EPD_CL
+        fill_row = Inkplate.fill_row
+        vscan_write = Inkplate.vscan_write
         for i in range(rep):
             self.vscan_start()
             for r in range(600):
-                self.fill_row(data)
-                self.vscan_write()
+                fill_row(data)
+                vscan_write()
                 # time.sleep_us(230)
 
     # send_row writes a row of data to the display
     @micropython.viper
-    def send_row(self, lut_in, row: int):
+    @staticmethod
+    def send_row(lut_in, framebuf, row:int):
         # cache vars into locals
-        GPIO = ptr32(int(ESP32_GPIO))
-        epd_cl = int(EPD_CL)  # clock bit as 32-bit gpio mask
+        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
         off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
-        fb = ptr8(self._framebuf)
+        fb = ptr8(framebuf)
         ix = int(row * 100)  # index into framebuffer
         lut = ptr32(lut_in)
         # send first byte
         data = int(fb[ix])
         ix += 1
-        GPIO[W1TC0] = off
-        GPIO[W1TC1] = EPD_SPH
-        GPIO[W1TS0] = lut[data >> 4]  # set data bits and assert clock
-        GPIO[W1TC0] = epd_cl  # clear clock, leaving data bits (unreliable if data also cleared)
-        GPIO[W1TC0] = off  # clear data bits as well ready for next byte
-        GPIO[W1TS1] = EPD_SPH
-        GPIO[W1TS0] = lut[data & 0xF]
-        GPIO[W1TC0] = epd_cl
-        GPIO[W1TC0] = off
+        w1tc0[0] = off
+        w1tc0[W1TC1-W1TC0] = EPD_SPH
+        w1ts0[0] = lut[data >> 4]  # set data bits and assert clock
+        #w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
+        w1tc0[0] = off  # clear data bits as well ready for next byte
+        w1ts0[W1TS1-W1TS0] = EPD_SPH
+        w1ts0[0] = lut[data & 0xF]
+        #w1tc0[0] = EPD_CL
+        w1tc0[0] = off
         # send the remaining 99 bytes (792 pixels)
         for c in range(99):
             data = int(fb[ix])
             ix += 1
-            GPIO[W1TS0] = lut[data >> 4]
-            GPIO[W1TC0] = epd_cl
-            GPIO[W1TC0] = off
-            GPIO[W1TS0] = lut[data & 0xF]
-            GPIO[W1TC0] = epd_cl
-            GPIO[W1TC0] = off
+            w1ts0[0] = lut[data >> 4]
+            #w1tc0[0] = EPD_CL
+            w1tc0[0] = off
+            w1ts0[0] = lut[data & 0xF]
+            #w1tc0[0] = EPD_CL
+            w1tc0[0] = off
 
     # display_mono sends the monochrome buffer to the display, clearing it first
     def display_mono(self):
@@ -265,12 +275,15 @@ class Inkplate:
         # the display gets written N times
         t1 = time.ticks_ms()
         n = 0
+        send_row = Inkplate.send_row
+        vscan_write = Inkplate.vscan_write
+        fb = self._framebuf
         for lut in self._mono_wave:
             self.vscan_start()
             # write 600 rows
             for r in range(600):
-                self.send_row(lut, r)
-                self.vscan_write()
+                send_row(lut, fb, r)
+                vscan_write()
                 # time.sleep_us(230)
             # self.vscan_end()
             n += 1
