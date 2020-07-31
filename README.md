@@ -7,6 +7,7 @@ a 6" E-paper display and three capacitive touch buttons/sensors.
 __THIS REPOSITORY IS WORK IN PROGRESS__
 
 ## How to test-drive:
+
 - Flash MicroPython v1.12 `GENERIC_SPIRAM` to your inkplate
 - Get the Adafruit CircuitPython GFX library: https://github.com/adafruit/Adafruit_CircuitPython_GFX
 - In that library, edit `adafruit_gfx/gfx.py` line 103 so it reads
