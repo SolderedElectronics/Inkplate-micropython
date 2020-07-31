@@ -193,19 +193,19 @@ class Inkplate:
         w1tc0[0] = EPD_DATA | EPD_CL
         w1ts0[0] = data
         vscan_write = Inkplate.vscan_write
+        epd_cl = EPD_CL
 
         # send 600 rows
         for r in range(600):
             # send first byte of row with start-row signal
             w1tc0[W1TC1-W1TC0] = EPD_SPH
-            w1ts0[0] = EPD_CL
-            w1tc0[0] = EPD_CL
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
             w1ts0[W1TS1-W1TS0] = EPD_SPH
-            w1ts0[0] = EPD_CL
-            w1tc0[0] = EPD_CL
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
 
             # send remaining 99 bytes
-            epd_cl = EPD_CL
             i = int(99)
             while i > 0:
                 w1ts0[0] = epd_cl
@@ -305,6 +305,8 @@ class Inkplate:
             % (tc, tc // (4 + 22 + 24), td, td // len(self._mono_wave), tt)
         )
 
+        self.clean(2, 2)
+        self.clean(3, 1)
         self.power_off()
 
     @micropython.viper
@@ -349,7 +351,7 @@ if __name__ == "__main__":
 
     iter = 0
     while True:
-        if True:
+        if False:
             ip.display_test()
             ip.display_mono()
             if iter > 0:
@@ -357,7 +359,7 @@ if __name__ == "__main__":
             else:
                 time.sleep_ms(1000)
 
-        if True:
+        if False:
             ip.clear()
             t0 = time.ticks_ms()
             for y in range(100):
@@ -389,6 +391,13 @@ if __name__ == "__main__":
             disp.circle(250, 250, 100, 1)
             disp.rect(350, 250, 100, 100, 1)
             disp.fill_circle(400, 300, 50, 1)
+            # some fine white lines (they tend to be hard to see in the end)
+            disp.circle(400, 300, 48, 0)
+            disp.line(400, 251, 400, 349, 0)
+            disp.line(351, 300, 449, 300, 0)
+            disp.line(351, 251, 449, 349, 0)
+            disp.line(351, 349, 449, 251, 0)
+            # hello world box
             disp.text(304, 102, "HELLO WORLD!", 4, 1)
             disp.round_rect(290, 90, 300, 50, 10, 1)
             disp.round_rect(291, 91, 300, 50, 10, 1)
