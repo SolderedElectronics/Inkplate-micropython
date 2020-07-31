@@ -183,45 +183,53 @@ class Inkplate:
             cls.lut_bw[i] = Inkplate.byte2gpio[bw] | EPD_CL
         # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
 
-    # fill_row writes the same value to all bytes in a row, it is used for cleaning
+    # fill_screen writes the same value to all bytes of the screen, it is used for cleaning
     @micropython.viper
     @staticmethod
-    def fill_row(data: int):
+    def fill_screen(data: int):
         w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
         w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
         # set the data output gpios
         w1tc0[0] = EPD_DATA | EPD_CL
         w1ts0[0] = data
-        # send first byte
-        w1tc0[W1TC1-W1TC0] = EPD_SPH
-        w1ts0[0] = EPD_CL
-        w1tc0[0] = EPD_CL
-        w1ts0[W1TS1-W1TS0] = EPD_SPH
-        w1ts0[0] = EPD_CL
-        w1tc0[0] = EPD_CL
+        vscan_write = Inkplate.vscan_write
 
-        epd_cl = EPD_CL
-        i = int(99)
-        while i > 0:
-            w1ts0[0] = epd_cl
-            w1tc0[0] = epd_cl
-            i -= 1
-            w1ts0[0] = epd_cl
-            w1tc0[0] = epd_cl
+        # send 600 rows
+        for r in range(600):
+            # send first byte of row with start-row signal
+            w1tc0[W1TC1-W1TC0] = EPD_SPH
+            w1ts0[0] = EPD_CL
+            w1tc0[0] = EPD_CL
+            w1ts0[W1TS1-W1TS0] = EPD_SPH
+            w1ts0[0] = EPD_CL
+            w1tc0[0] = EPD_CL
+
+            # send remaining 99 bytes
+            epd_cl = EPD_CL
+            i = int(99)
+            while i > 0:
+                w1ts0[0] = epd_cl
+                w1tc0[0] = epd_cl
+                i -= 1
+                w1ts0[0] = epd_cl
+                w1tc0[0] = epd_cl
+
+            # latch row and increment to next
+            # inlined vscan_write()
+            w1tc0[W1TC1-W1TC0] = EPD_CKV  # remove gate drive
+            w1ts0[0] = EPD_LE  # pulse to latch row --
+            w1ts0[0] = EPD_LE  # delay a tiny bit
+            w1tc0[0] = EPD_LE
+            w1tc0[0] = EPD_LE  # delay a tiny bit
+            w1ts0[W1TS1-W1TS0] = EPD_CKV  # apply gate drive to next row
 
     # clean fills the screen with one of the four possible pixel patterns
-    @micropython.native
     def clean(self, patt, rep):
         c = [0xAA, 0x55, 0x00, 0xFF][patt]
         data = Inkplate.byte2gpio[c] & ~EPD_CL
-        fill_row = Inkplate.fill_row
-        vscan_write = Inkplate.vscan_write
         for i in range(rep):
             self.vscan_start()
-            for r in range(600):
-                fill_row(data)
-                vscan_write()
-                # time.sleep_us(230)
+            self.fill_screen(data)
 
     # send_row writes a row of data to the display
     @micropython.viper
