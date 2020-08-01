@@ -1,6 +1,7 @@
 # Copyright © 2020 by Thorsten von Eicken.
 import time
 import micropython
+import framebuf
 from machine import Pin
 from uarray import array
 from mcp23017 import MCP23017
@@ -26,21 +27,25 @@ EPD_LE = const(0x00000004)  # in W1Tx0
 EPD_CKV = const(0x00000001)  # in W1Tx1
 EPD_SPH = const(0x00000002)  # in W1Tx1
 
+# Raw display constants
+D_ROWS = const(600)
+D_COLS = const(800)
 
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
 class Inkplate:
-    def __init__(self, i2c):
-        self._i2c = i2c
-        self._mcp23017 = MCP23017(i2c)
+    @classmethod
+    def init(cls, i2c):
+        cls._i2c = i2c
+        cls._mcp23017 = MCP23017(i2c)
         # Display control lines
-        self.EPD_CL = Pin(0, Pin.OUT, value=0)
-        self.EPD_LE = Pin(2, Pin.OUT, value=0)
-        self.EPD_CKV = Pin(32, Pin.OUT, value=0)
-        self.EPD_SPH = Pin(33, Pin.OUT, value=1)
-        self.EPD_OE = self._mcp23017.pin(0, Pin.OUT, value=0)
-        self.EPD_GMODE = self._mcp23017.pin(1, Pin.OUT, value=0)
-        self.EPD_SPV = self._mcp23017.pin(2, Pin.OUT, value=1)
+        cls.EPD_CL = Pin(0, Pin.OUT, value=0)
+        cls.EPD_LE = Pin(2, Pin.OUT, value=0)
+        cls.EPD_CKV = Pin(32, Pin.OUT, value=0)
+        cls.EPD_SPH = Pin(33, Pin.OUT, value=1)
+        cls.EPD_OE = cls._mcp23017.pin(0, Pin.OUT, value=0)
+        cls.EPD_GMODE = cls._mcp23017.pin(1, Pin.OUT, value=0)
+        cls.EPD_SPV = cls._mcp23017.pin(2, Pin.OUT, value=1)
         # Display data lines - we only use the Pin class to init the pins
         Pin(4, Pin.OUT)
         Pin(5, Pin.OUT)
@@ -51,83 +56,84 @@ class Inkplate:
         Pin(26, Pin.OUT)
         Pin(27, Pin.OUT)
         # TPS65186 power regulator control
-        self.TPS_WAKEUP = self._mcp23017.pin(3, Pin.OUT, value=0)
-        self.TPS_PWRUP = self._mcp23017.pin(4, Pin.OUT, value=0)
-        self.TPS_VCOM = self._mcp23017.pin(5, Pin.OUT, value=0)
-        self.TPS_INT = self._mcp23017.pin(6, Pin.IN)
-        self.TPS_PWR_GOOD = self._mcp23017.pin(7, Pin.IN)
+        cls.TPS_WAKEUP = cls._mcp23017.pin(3, Pin.OUT, value=0)
+        cls.TPS_PWRUP = cls._mcp23017.pin(4, Pin.OUT, value=0)
+        cls.TPS_VCOM = cls._mcp23017.pin(5, Pin.OUT, value=0)
+        cls.TPS_INT = cls._mcp23017.pin(6, Pin.IN)
+        cls.TPS_PWR_GOOD = cls._mcp23017.pin(7, Pin.IN)
         # Misc
-        self.GPIO0_PUP = self._mcp23017.pin(8, Pin.OUT, value=0)
-        self.VBAT_EN = self._mcp23017.pin(9, Pin.OUT, value=1)
+        cls.GPIO0_PUP = cls._mcp23017.pin(8, Pin.OUT, value=0)
+        cls.VBAT_EN = cls._mcp23017.pin(9, Pin.OUT, value=1)
         # Touch sensors
-        self.TOUCH1 = self._mcp23017.pin(10, Pin.IN)
-        self.TOUCH2 = self._mcp23017.pin(11, Pin.IN)
-        self.TOUCH3 = self._mcp23017.pin(12, Pin.IN)
+        cls.TOUCH1 = cls._mcp23017.pin(10, Pin.IN)
+        cls.TOUCH2 = cls._mcp23017.pin(11, Pin.IN)
+        cls.TOUCH3 = cls._mcp23017.pin(12, Pin.IN)
 
-        self._on = False  # whether panel is powered on or not
-        self._framebuf = bytearray(60000)
+        cls._on = False  # whether panel is powered on or not
 
         if len(Inkplate.byte2gpio) == 0:
-            ip = Inkplate
-            ip.gen_byte2gpio()
-            ip.gen_luts()
-            ip._mono_wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_bw]
+            Inkplate.gen_byte2gpio()
 
     # _tps65186_write writes an 8-bit value to a register
-    def _tps65186_write(self, reg, v):
-        self._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
+    @classmethod
+    def _tps65186_write(cls, reg, v):
+        cls._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
 
     # _tps65186_read reads an 8-bit value from a register
-    def _tps65186_read(self, reg):
-        self._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+    @classmethod
+    def _tps65186_read(cls, reg):
+        cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
 
     # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
-    def power_on(self):
-        if self._on:
+    @classmethod
+    def power_on(cls):
+        if cls._on:
             return
-        self._on = True
+        cls._on = True
         # turn on power regulator
-        self.TPS_WAKEUP(1)
-        self.TPS_PWRUP(1)
-        self.TPS_VCOM(1)
+        cls.TPS_WAKEUP(1)
+        cls.TPS_PWRUP(1)
+        cls.TPS_VCOM(1)
         # enable all rails
-        self._tps65186_write(0x01, 0x3F)  # ???
+        cls._tps65186_write(0x01, 0x3F)  # ???
         time.sleep_ms(40)
-        self._tps65186_write(0x0D, 0x80)  # ???
+        cls._tps65186_write(0x0D, 0x80)  # ???
         time.sleep_ms(2)
-        self._temperature = self._tps65186_read(1)
+        cls._temperature = cls._tps65186_read(1)
         # wake-up display
-        self.EPD_GMODE(1)
-        self.EPD_OE(1)
+        cls.EPD_GMODE(1)
+        cls.EPD_OE(1)
 
     # power_off puts the display to sleep and cuts the power
     # TODO: also tri-state gpio pins to avoid current leakage during deep-sleep
-    def power_off(self):
-        if not self._on:
+    @classmethod
+    def power_off(cls):
+        if not cls._on:
             return
-        self._on = False
+        cls._on = False
         # put display to sleep
-        self.EPD_GMODE(0)
-        self.EPD_OE(0)
+        cls.EPD_GMODE(0)
+        cls.EPD_OE(0)
         # turn off power regulator
-        self.TPS_PWRUP(0)
-        self.TPS_WAKEUP(0)
-        self.TPS_VCOM(0)
+        cls.TPS_PWRUP(0)
+        cls.TPS_WAKEUP(0)
+        cls.TPS_VCOM(0)
 
     # ===== Methods that are independent of pixel bit depth
 
     # vscan_start begins a vertical scan by toggling CKV and SPV
     # sleep_us calls are commented out 'cause MP is slow enough...
-    def vscan_start(self):
+    @classmethod
+    def vscan_start(cls):
         def ckv_pulse():
-            self.EPD_CKV(0)
-            self.EPD_CKV(1)
+            cls.EPD_CKV(0)
+            cls.EPD_CKV(1)
 
         # start a vertical scan pulse
-        self.EPD_CKV(1)  # time.sleep_us(7)
-        self.EPD_SPV(0)  # time.sleep_us(10)
+        cls.EPD_CKV(1)  # time.sleep_us(7)
+        cls.EPD_SPV(0)  # time.sleep_us(10)
         ckv_pulse()  # time.sleep_us(8)
-        self.EPD_SPV(1)  # time.sleep_us(10)
+        cls.EPD_SPV(1)  # time.sleep_us(10)
         # pulse through 3 scan lines that end up being invisible
         ckv_pulse()  # time.sleep_us(18)
         ckv_pulse()  # time.sleep_us(18)
@@ -137,14 +143,14 @@ class Inkplate:
     @micropython.viper
     @staticmethod
     def vscan_write():
-        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
-        w1tc0[W1TC1-W1TC0] = EPD_CKV  # remove gate drive
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
+        w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
         w1ts0[0] = EPD_LE  # pulse to latch row --
         w1ts0[0] = EPD_LE  # delay a tiny bit
         w1tc0[0] = EPD_LE
         w1tc0[0] = EPD_LE  # delay a tiny bit
-        w1ts0[W1TS1-W1TS0] = EPD_CKV  # apply gate drive to next row
+        w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
 
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
@@ -167,56 +173,66 @@ class Inkplate:
     @micropython.viper
     @staticmethod
     def fill_screen(data: int):
-        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
         # set the data output gpios
         w1tc0[0] = EPD_DATA | EPD_CL
         w1ts0[0] = data
         vscan_write = Inkplate.vscan_write
         epd_cl = EPD_CL
 
-        # send 600 rows
-        for r in range(600):
+        # send all rows
+        for r in range(D_ROWS):
             # send first byte of row with start-row signal
-            w1tc0[W1TC1-W1TC0] = EPD_SPH
+            w1tc0[W1TC1 - W1TC0] = EPD_SPH
             w1ts0[0] = epd_cl
             w1tc0[0] = epd_cl
-            w1ts0[W1TS1-W1TS0] = EPD_SPH
-            w1ts0[0] = epd_cl
-            w1tc0[0] = epd_cl
+            w1ts0[W1TS1 - W1TS0] = EPD_SPH
 
-            # send remaining 99 bytes
-            i = int(99)
+            # send remaining bytes (we overshoot by one, which is OK)
+            i = int(D_COLS >> 3)
             while i > 0:
                 w1ts0[0] = epd_cl
                 w1tc0[0] = epd_cl
-                i -= 1
                 w1ts0[0] = epd_cl
                 w1tc0[0] = epd_cl
+                i -= 1
 
             # latch row and increment to next
             # inlined vscan_write()
-            w1tc0[W1TC1-W1TC0] = EPD_CKV  # remove gate drive
+            w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
             w1ts0[0] = EPD_LE  # pulse to latch row --
             w1ts0[0] = EPD_LE  # delay a tiny bit
             w1tc0[0] = EPD_LE
             w1tc0[0] = EPD_LE  # delay a tiny bit
-            w1ts0[W1TS1-W1TS0] = EPD_CKV  # apply gate drive to next row
+            w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
 
     # clean fills the screen with one of the four possible pixel patterns
-    def clean(self, patt, rep):
+    @classmethod
+    def clean(cls, patt, rep):
         c = [0xAA, 0x55, 0x00, 0xFF][patt]
         data = Inkplate.byte2gpio[c] & ~EPD_CL
         for i in range(rep):
-            self.vscan_start()
-            self.fill_screen(data)
+            cls.vscan_start()
+            cls.fill_screen(data)
 
-    # ===== Methods for monochrome framebuffer
+
+class InkplateMono(framebuf.FrameBuffer):
+    def __init__(self):
+        self._framebuf = bytearray(D_ROWS * D_COLS // 8)
+        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
+        ip = InkplateMono
+        ip._gen_luts()
+        ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_bw]
+        InkplateMono.circle = InkplateShapes.circle
+        InkplateMono._circle = InkplateShapes._circle
+        InkplateMono.fill_circle = InkplateShapes.fill_circle
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
+    # The LUTs used here were copied from the e-Radionica Inkplate-6-Arduino-library.
     @classmethod
-    def gen_luts(cls):
+    def _gen_luts(cls):
         b16 = bytes(4 * 16)  # is there a better way to init an array with 16 words???
         cls.lut_wht = array("L", b16)  # bits to ship to gpio to make pixels white
         cls.lut_blk = array("L", b16)  # bits to ship to gpio to make pixels black
@@ -235,69 +251,70 @@ class Inkplate:
             cls.lut_bw[i] = Inkplate.byte2gpio[bw] | EPD_CL
         # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
 
-    # send_row writes a row of data to the display
+    # _send_row writes a row of data to the display
     @micropython.viper
     @staticmethod
-    def send_row(lut_in, framebuf, row:int):
+    def _send_row(lut_in, framebuf, row: int):
         # cache vars into locals
-        w1ts0 = ptr32(int(ESP32_GPIO+4*W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO+4*W1TC0))
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
         off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
         fb = ptr8(framebuf)
-        ix = int(row * 100)  # index into framebuffer
+        ix = int(row * (D_COLS >> 3) + 99)  # index into framebuffer
         lut = ptr32(lut_in)
         # send first byte
         data = int(fb[ix])
-        ix += 1
+        ix -= 1
         w1tc0[0] = off
-        w1tc0[W1TC1-W1TC0] = EPD_SPH
+        w1tc0[W1TC1 - W1TC0] = EPD_SPH
         w1ts0[0] = lut[data >> 4]  # set data bits and assert clock
-        #w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
+        # w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
         w1tc0[0] = off  # clear data bits as well ready for next byte
-        w1ts0[W1TS1-W1TS0] = EPD_SPH
+        w1ts0[W1TS1 - W1TS0] = EPD_SPH
         w1ts0[0] = lut[data & 0xF]
-        #w1tc0[0] = EPD_CL
+        # w1tc0[0] = EPD_CL
         w1tc0[0] = off
-        # send the remaining 99 bytes (792 pixels)
+        # send the remaining bytes (792 pixels)
         for c in range(99):
             data = int(fb[ix])
-            ix += 1
+            ix -= 1
             w1ts0[0] = lut[data >> 4]
-            #w1tc0[0] = EPD_CL
+            # w1tc0[0] = EPD_CL
             w1tc0[0] = off
             w1ts0[0] = lut[data & 0xF]
-            #w1tc0[0] = EPD_CL
+            # w1tc0[0] = EPD_CL
             w1tc0[0] = off
 
     # display_mono sends the monochrome buffer to the display, clearing it first
-    def display_mono(self):
-        self.power_on()
+    def display(self):
+        ip = Inkplate
+        ip.power_on()
 
         # clean the display
         t0 = time.ticks_ms()
-        self.clean(0, 1)
-        self.clean(1, 12)
-        self.clean(2, 1)
-        self.clean(0, 11)
-        self.clean(2, 1)
-        self.clean(1, 12)
-        self.clean(2, 1)
-        self.clean(0, 11)
+        ip.clean(0, 1)
+        ip.clean(1, 12)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+        ip.clean(2, 1)
+        ip.clean(1, 12)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
 
         # the display gets written N times
         t1 = time.ticks_ms()
         n = 0
-        send_row = Inkplate.send_row
-        vscan_write = Inkplate.vscan_write
+        send_row = InkplateMono._send_row
+        vscan_write = ip.vscan_write
         fb = self._framebuf
-        for lut in self._mono_wave:
-            self.vscan_start()
-            # write 600 rows
-            for r in range(600):
+        for lut in self._wave:
+            ip.vscan_start()
+            # write all rows
+            r = D_ROWS - 1
+            while r >= 0:
                 send_row(lut, fb, r)
                 vscan_write()
-                # time.sleep_us(230)
-            # self.vscan_end()
+                r -= 1
             n += 1
 
         t2 = time.ticks_ms()
@@ -306,47 +323,189 @@ class Inkplate:
         tt = time.ticks_diff(t2, t0)
         print(
             "Mono: clean %dms (%dms ea), draw %dms (%dms ea), total %dms"
-            % (tc, tc // (4 + 22 + 24), td, td // len(self._mono_wave), tt)
+            % (tc, tc // (4 + 22 + 24), td, td // len(self._wave), tt)
         )
 
-        self.clean(2, 2)
-        self.clean(3, 1)
-        self.power_off()
+        ip.clean(2, 2)
+        ip.clean(3, 1)
+        ip.power_off()
 
     @micropython.viper
     def clear(self):
         fb = ptr8(self._framebuf)
-        for ix in range(60000):
+        for ix in range(D_ROWS * D_COLS // 8):
             fb[ix] = 0
 
-    def display_test(self):
-        for r in range(600):
-            if r > 500:
-                for i in range(100):
-                    self._framebuf[r * 100 + i] = 0xFF
-            else:
-                for i in range(20):
-                    self._framebuf[r * 100 + i] = 1 << ((r // 50) % 8)
-                for i in range(20, 100):
-                    self._framebuf[r * 100 + i] = i
 
-    def pixel(self, x, y, color):
-        ix = 59999 - y * 100 - x // 8
-        bit = 1 << (x & 7)
-        if color:
-            self._framebuf[ix] |= bit
-        else:
-            self._framebuf[ix] &= ~bit
+# Inkplate display with 2 bits of gray scale (4 levels)
+class InkplateGS2(framebuf.FrameBuffer):
+    _wave = None
+
+    def __init__(self):
+        self._framebuf = bytearray(D_ROWS * D_COLS // 4)
+        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS2_HMSB)
+        if not InkplateGS2._wave:
+            InkplateGS2._gen_wave()
+
+    # _gen_wave generates the waveform table. The table consists of N phases or steps during
+    # each of which the entire display gets written. The array in each phase gets indexed with
+    # a nibble of data and contains the 32-bits that need to be pushed into the gpio port.
+    # The waveform used here was adapted from the e-Radionica Inkplate-6-Arduino-library
+    # by taking colors 0 (black), 3, 5, and 7 (white) from "waveform3Bit[8][7]".
+    @classmethod
+    def _gen_wave(cls):
+        # genlut generates the lookup table that maps a nibble (2 pixels, 4 bits) to a 32-bit
+        # word to push into the GPIO port
+        def genlut(op):
+            return bytes([op[j] | op[i] << 2 for i in range(4) for j in range(4)])
+
+        cls._wave = [
+            genlut([0, 0, 0, 0]),  # order: blk, dk-grey, light-grey, white
+            genlut([0, 0, 0, 0]),  # value: 0=dischg, 1=black, 2=white, 3=skip
+            genlut([0, 1, 1, 0]),
+            genlut([0, 1, 1, 0]),
+            genlut([1, 2, 1, 0]),
+            genlut([1, 1, 2, 0]),
+            genlut([1, 2, 2, 2]),
+        ]
+
+    # _send_row writes a row of data to the display
+    @micropython.viper
+    @staticmethod
+    def _send_row(lut_in, framebuf, row: int):
+        # cache vars into locals
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
+        off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
+        fb = ptr8(framebuf)
+        ix = int(row * 200 + 199)  # index into framebuffer
+        lut = ptr8(lut_in)
+        b2g = ptr32(Inkplate.byte2gpio)
+        # send first byte
+        data = int(fb[ix])
+        ix -= 1
+        w1tc0[0] = off
+        w1tc0[W1TC1 - W1TC0] = EPD_SPH
+        w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL  # set data bits and clock
+        # w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
+        w1tc0[0] = off  # clear data bits as well ready for next byte
+        w1ts0[W1TS1 - W1TS0] = EPD_SPH
+        # send the remaining bytes (792 pixels)
+        for c in range(199):
+            data = int(fb[ix])
+            ix -= 1
+            w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL
+            # w1tc0[0] = EPD_CL
+            w1tc0[0] = off
+
+    # display_mono sends the monochrome buffer to the display, clearing it first
+    def display(self):
+        ip = Inkplate
+        ip.power_on()
+
+        # clean the display
+        t0 = time.ticks_ms()
+        ip.clean(0, 1)
+        ip.clean(1, 12)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+        ip.clean(2, 1)
+        ip.clean(1, 12)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+
+        # the display gets written N times
+        t1 = time.ticks_ms()
+        n = 0
+        send_row = InkplateGS2._send_row
+        vscan_write = ip.vscan_write
+        fb = self._framebuf
+        for lut in InkplateGS2._wave:
+            ip.vscan_start()
+            # write all rows
+            r = D_ROWS - 1
+            while r >= 0:
+                send_row(lut, fb, r)
+                vscan_write()
+                r -= 1
+            n += 1
+
+        t2 = time.ticks_ms()
+        tc = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print(
+            "GS2: clean %dms (%dms ea), draw %dms (%dms ea), total %dms"
+            % (tc, tc // (4 + 22 + 24), td, td // len(InkplateGS2._wave), tt)
+        )
+
+        ip.clean(2, 1)  # ??
+        ip.clean(3, 1)
+        ip.power_off()
+
+    @micropython.viper
+    def clear(self):
+        fb = ptr8(self._framebuf)
+        for ix in range(int(len(self._framebuf))):
+            fb[ix] = 0xFF
+
+
+class InkplateShapes:
+    @staticmethod
+    def _circle(self, x0, y0, r, color):  # Single pixel circle
+        x = -r
+        y = 0
+        err = 2 - 2 * r
+        while x <= 0:
+            self.pixel(x0 - x, y0 + y, color)
+            self.pixel(x0 + x, y0 + y, color)
+            self.pixel(x0 + x, y0 - y, color)
+            self.pixel(x0 - x, y0 - y, color)
+            e2 = err
+            if e2 <= y:
+                y += 1
+                err += y * 2 + 1
+                if -x == y and e2 <= x:
+                    e2 = 0
+            if e2 > x:
+                x += 1
+                err += x * 2 + 1
+
+    @staticmethod
+    def circle(self, x0, y0, r, color, width=1):  # Draw circle
+        x0, y0, r = int(x0), int(y0), int(r)
+        for r in range(r, r - width, -1):
+            self._circle(x0, y0, r, color)
+
+    def fill_circle(self, x0, y0, r, color):  # Draw filled circle
+        x0, y0, r = int(x0), int(y0), int(r)
+        x = -r
+        y = 0
+        err = 2 - 2 * r
+        while x <= 0:
+            self.line(x0 - x, y0 - y, x0 - x, y0 + y, color)
+            self.line(x0 + x, y0 - y, x0 + x, y0 + y, color)
+            e2 = err
+            if e2 <= y:
+                y += 1
+                err += y * 2 + 1
+                if -x == y and e2 <= x:
+                    e2 = 0
+            if e2 > x:
+                x += 1
+                err += x * 2 + 1
 
 
 if __name__ == "__main__":
     from machine import I2C
 
-    ip = Inkplate(I2C(0, scl=Pin(22), sda=Pin(21)))
+    Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+    ipg = InkplateGS2()
+    ipm = InkplateMono()
 
     def wait_click(n):
         print("Press touch sensor %d to continue" % n)
-        t = [ip.TOUCH1, ip.TOUCH2, ip.TOUCH3][n-1]
+        t = [Inkplate.TOUCH1, Inkplate.TOUCH2, Inkplate.TOUCH3][n - 1]
         while t() == 0:
             time.sleep_ms(100)
         while t() == 1:
@@ -355,43 +514,62 @@ if __name__ == "__main__":
 
     iter = 0
     while True:
-        if False:
-            ip.display_test()
-            ip.display_mono()
-            if iter > 0:
-                wait_click(3)
-            else:
-                time.sleep_ms(1000)
-
-        if False:
-            ip.clear()
+        if True:
+            ipm.clear()
             t0 = time.ticks_ms()
+            for x in range(300, 500, 20):
+                ipm.line(x, 0, x + 10, 599, 1)
+            ipm.fill_rect(50, 300, 200, 100, 1)
+            ipm.fill_rect(400, 400, 300, 100, 1)
             for y in range(100):
-                ip.pixel(y, y, 1)
-                ip.pixel(y, 0, 1)
-                ip.pixel(0, y, 1)
-                ip.pixel(799 - y, 599 - y, 1)
-                ip.pixel(799 - y, 599 - 0, 1)
-                ip.pixel(799 - 0, 599 - y, 1)
+                ipm.pixel(y, y, 1)
+                ipm.pixel(y, 0, 1)
+                ipm.pixel(0, y, 1)
+                ipm.pixel(799 - y, 599 - y, 1)
+                ipm.pixel(799 - y, 599 - 0, 1)
+                ipm.pixel(799 - 0, 599 - y, 1)
             for y in range(100, 160):
                 for x in range(100, 200):
-                    ip.pixel(x, y, 1)
-                ip.pixel(y, y, 0)
-                ip.pixel(y + 1, y, 0)  # makes white line more visible 'til waveforms are fixed
+                    ipm.pixel(x, y, 1)
+                ipm.pixel(y, y, 0)
+                ipm.pixel(y + 1, y, 0)  # makes white line more visible 'til waveforms are fixed
+            ipm.circle(600, 200, 100, 1)
             print("TestPatt: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
-            ip.display_mono()
+            ipm.display()
             if iter > 0:
                 wait_click(3)
             else:
                 time.sleep_ms(1000)
 
         if True:
-            ip.clear()
+            ipg.clear()
+            for i in range(24):
+                c = i & 3
+                x = 100 + i * 20
+                ipg.line(x, 0, x + 10, 599, c)
+            for y in range(100):
+                ipg.pixel(y, y, 0)
+                ipg.pixel(y, 0, 0)
+                ipg.pixel(0, y, 0)
+                ipg.pixel(799 - y, 599 - y, 0)
+                ipg.pixel(799 - y, 599 - 0, 0)
+                ipg.pixel(799 - 0, 599 - y, 0)
+            ipg.line(800, 0, 600, 200, 0)
+            for i in range(4):
+                ipg.fill_rect(50, 300 + i * 50, 300, 50, i)
+            ipg.display()
+            if iter > 0:
+                wait_click(3)
+            else:
+                time.sleep_ms(1000)
+
+        if True:
+            ipm.clear()
             from gfx import GFX
 
             # from gfx_standard_font_01 import text_dict as std_font
             t0 = time.ticks_ms()
-            disp = GFX(800, 600, ip.pixel)  # , font=std_font)
+            disp = GFX(800, 600, ipm.pixel)  # , font=std_font)
             disp.circle(250, 250, 100, 1)
             disp.rect(350, 250, 100, 100, 1)
             disp.fill_circle(400, 300, 50, 1)
@@ -406,7 +584,7 @@ if __name__ == "__main__":
             disp.round_rect(290, 90, 300, 50, 10, 1)
             disp.round_rect(291, 91, 300, 50, 10, 1)
             print("GFXPatt: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
-            ip.display_mono()
+            ipm.display()
             if iter > 0:
                 wait_click(3)
             else:
