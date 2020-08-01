@@ -114,6 +114,8 @@ class Inkplate:
         self.TPS_WAKEUP(0)
         self.TPS_VCOM(0)
 
+    # ===== Methods that are independent of pixel bit depth
+
     # vscan_start begins a vertical scan by toggling CKV and SPV
     # sleep_us calls are commented out 'cause MP is slow enough...
     def vscan_start(self):
@@ -160,28 +162,6 @@ class Inkplate:
         for i in range(256):
             union |= cls.byte2gpio[i]
         assert union == EPD_DATA
-
-    # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
-    # 32-bits that need to be pushed into the gpio port.
-    @classmethod
-    def gen_luts(cls):
-        b16 = bytes(4 * 16)  # is there a better way to init an array with 16 words???
-        cls.lut_wht = array("L", b16)  # bits to ship to gpio to make pixels white
-        cls.lut_blk = array("L", b16)  # bits to ship to gpio to make pixels black
-        cls.lut_bw = array("L", b16)  # bits to ship to gpio to make pixels black and white
-        for i in range(16):
-            wht = 0
-            blk = 0
-            bw = 0
-            # display uses 2 bits per pixel: 00=discharge, 01=black, 10=white, 11=skip
-            for bit in range(4):
-                wht = wht | ((2 if (i >> bit) & 1 == 0 else 3) << (2 * bit))
-                blk = blk | ((1 if (i >> bit) & 1 == 1 else 3) << (2 * bit))
-                bw = bw | ((1 if (i >> bit) & 1 == 1 else 2) << (2 * bit))
-            cls.lut_wht[i] = Inkplate.byte2gpio[wht] | EPD_CL
-            cls.lut_blk[i] = Inkplate.byte2gpio[blk] | EPD_CL
-            cls.lut_bw[i] = Inkplate.byte2gpio[bw] | EPD_CL
-        # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
 
     # fill_screen writes the same value to all bytes of the screen, it is used for cleaning
     @micropython.viper
@@ -230,6 +210,30 @@ class Inkplate:
         for i in range(rep):
             self.vscan_start()
             self.fill_screen(data)
+
+    # ===== Methods for monochrome framebuffer
+
+    # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
+    # 32-bits that need to be pushed into the gpio port.
+    @classmethod
+    def gen_luts(cls):
+        b16 = bytes(4 * 16)  # is there a better way to init an array with 16 words???
+        cls.lut_wht = array("L", b16)  # bits to ship to gpio to make pixels white
+        cls.lut_blk = array("L", b16)  # bits to ship to gpio to make pixels black
+        cls.lut_bw = array("L", b16)  # bits to ship to gpio to make pixels black and white
+        for i in range(16):
+            wht = 0
+            blk = 0
+            bw = 0
+            # display uses 2 bits per pixel: 00=discharge, 01=black, 10=white, 11=skip
+            for bit in range(4):
+                wht = wht | ((2 if (i >> bit) & 1 == 0 else 3) << (2 * bit))
+                blk = blk | ((1 if (i >> bit) & 1 == 1 else 3) << (2 * bit))
+                bw = bw | ((1 if (i >> bit) & 1 == 1 else 2) << (2 * bit))
+            cls.lut_wht[i] = Inkplate.byte2gpio[wht] | EPD_CL
+            cls.lut_blk[i] = Inkplate.byte2gpio[blk] | EPD_CL
+            cls.lut_bw[i] = Inkplate.byte2gpio[bw] | EPD_CL
+        # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
 
     # send_row writes a row of data to the display
     @micropython.viper
