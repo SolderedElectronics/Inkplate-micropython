@@ -75,6 +75,8 @@ Info
   side-effects. For example, if the speed at which rows are _skipped_ is increased in the partial
   update, the rows that are updated are washed out (even if they are written as slowly as before)!
   It would be good to exert more care about the update speed in the future C primitives.
+- The font stuff is a dumb copy from some not very useful Adafruit GFX code, it should be
+  replaced by BFD support from github.com/adafruit/Adafruit_CircuitPython_Bitmap_Font
 
 
 ### Display info:
