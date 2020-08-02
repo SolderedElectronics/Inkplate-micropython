@@ -6,6 +6,7 @@ from machine import Pin
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
+from shapes import Shapes
 
 TPS65186_addr = const(0x48)  # I2C address
 
@@ -224,7 +225,6 @@ class InkplateMono(framebuf.FrameBuffer):
         ip = InkplateMono
         ip._gen_luts()
         ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_blk, ip.lut_bw]
-        InkplateShapes.__mix_me_in(InkplateMono)
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
@@ -335,6 +335,8 @@ class InkplateMono(framebuf.FrameBuffer):
         # for ix in range(D_ROWS * D_COLS // 8):
         #    fb[ix] = 0
 
+
+Shapes.__mix_me_in(InkplateMono)
 
 # Inkplate display with 2 bits of gray scale (4 levels)
 class InkplateGS2(framebuf.FrameBuffer):
@@ -449,6 +451,8 @@ class InkplateGS2(framebuf.FrameBuffer):
         # for ix in range(int(len(self._framebuf))):
         #    fb[ix] = 0xFF
 
+
+Shapes.__mix_me_in(InkplateGS2)
 
 # InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
 # and then when asked to draw it renders the differences between the copy and the new framebuffer
@@ -609,293 +613,6 @@ class InkplatePartial:
                 w1tc0[0] = off
 
 
-class InkplateShapes:
-    from gfx_standard_font_01 import text_dict as font
-
-    @classmethod
-    def __mix_me_in(cls, target):
-        for func in dir(cls):
-            if not callable(getattr(cls, func)) or func.startswith("__"):
-                continue
-            setattr(target, func, getattr(cls, func))
-            setattr(target, "font", cls.font)
-
-    # The following shapes are adapted from https://github.com/peterhinch/micropython-epaper
-    # Copyright 2015 Peter Hinch
-    #
-    # Licensed under the Apache License, Version 2.0 (the "License") you may not use this
-    # file except in compliance with the License.  You may obtain a copy of the License at:
-    #
-    #   http:#www.apache.org/licenses/LICENSE-2.0
-    #
-    # Unless required by applicable law or agreed to in writing, software distributed under
-    # the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-    # KIND, either express or implied.  See the License for the specific language governing
-    # permissions and limitations under the License.
-    # Code translated and developed from https://developer.mbed.org/users/dreschpe/code/EaEpaper/
-
-    @staticmethod
-    def _circle(self, x0, y0, r, color):  # Single pixel circle
-        x = -r
-        y = 0
-        err = 2 - 2 * r
-        while x <= 0:
-            self.pixel(x0 - x, y0 + y, color)
-            self.pixel(x0 + x, y0 + y, color)
-            self.pixel(x0 + x, y0 - y, color)
-            self.pixel(x0 - x, y0 - y, color)
-            e2 = err
-            if e2 <= y:
-                y += 1
-                err += y * 2 + 1
-                if -x == y and e2 <= x:
-                    e2 = 0
-            if e2 > x:
-                x += 1
-                err += x * 2 + 1
-
-    @staticmethod
-    def circle(self, x0, y0, r, color, width=1):  # Draw circle
-        x0, y0, r = int(x0), int(y0), int(r)
-        for r in range(r, r - width, -1):
-            self._circle(x0, y0, r, color)
-
-    def fill_circle(self, x0, y0, r, color):  # Draw filled circle
-        x0, y0, r = int(x0), int(y0), int(r)
-        x = -r
-        y = 0
-        err = 2 - 2 * r
-        while x <= 0:
-            self.line(x0 - x, y0 - y, x0 - x, y0 + y, color)
-            self.line(x0 + x, y0 - y, x0 + x, y0 + y, color)
-            e2 = err
-            if e2 <= y:
-                y += 1
-                err += y * 2 + 1
-                if -x == y and e2 <= x:
-                    e2 = 0
-            if e2 > x:
-                x += 1
-                err += x * 2 + 1
-
-    # The following shapes are adapted from https://github.com/adafruit/Adafruit_CircuitPython_GFX
-    # The MIT License (MIT)
-    #
-    # Copyright (c) 2018 Kattni Rembor for Adafruit Industries
-    #
-    # Permission is hereby granted, free of charge, to any person obtaining a copy
-    # of this software and associated documentation files (the "Software"), to deal
-    # in the Software without restriction, including without limitation the rights
-    # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    # copies of the Software, and to permit persons to whom the Software is
-    # furnished to do so, subject to the following conditions:
-    #
-    # The above copyright notice and this permission notice shall be included in
-    # all copies or substantial portions of the Software.
-    #
-    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    # THE SOFTWARE.
-
-    def triangle(self, x0, y0, x1, y1, x2, y2, color):
-        """Triangle drawing function.  Will draw a single pixel wide triangle
-        around the points (x0, y0), (x1, y1), and (x2, y2)."""
-        self.line(x0, y0, x1, y1, color)
-        self.line(x1, y1, x2, y2, color)
-        self.line(x2, y2, x0, y0, color)
-
-    def fill_triangle(self, x0, y0, x1, y1, x2, y2, color):
-        """Filled triangle drawing function.  Will draw a filled triangle around
-        the points (x0, y0), (x1, y1), and (x2, y2)."""
-        if y0 > y1:
-            y0, y1 = y1, y0
-            x0, x1 = x1, x0
-        if y1 > y2:
-            y2, y1 = y1, y2
-            x2, x1 = x1, x2
-        if y0 > y1:
-            y0, y1 = y1, y0
-            x0, x1 = x1, x0
-        a = 0
-        b = 0
-        y = 0
-        last = 0
-        if y0 == y2:
-            a = x0
-            b = x0
-            if x1 < a:
-                a = x1
-            elif x1 > b:
-                b = x1
-            if x2 < a:
-                a = x2
-            elif x2 > b:
-                b = x2
-            self.hline(a, y0, b - a + 1, color)
-            return
-        dx01 = x1 - x0
-        dy01 = y1 - y0
-        dx02 = x2 - x0
-        dy02 = y2 - y0
-        dx12 = x2 - x1
-        dy12 = y2 - y1
-        if dy01 == 0:
-            dy01 = 1
-        if dy02 == 0:
-            dy02 = 1
-        if dy12 == 0:
-            dy12 = 1
-        sa = 0
-        sb = 0
-        if y1 == y2:
-            last = y1
-        else:
-            last = y1 - 1
-        for y in range(y0, last + 1):
-            a = x0 + sa // dy01
-            b = x0 + sb // dy02
-            sa += dx01
-            sb += dx02
-            if a > b:
-                a, b = b, a
-            self.hline(a, y, b - a + 1, color)
-        sa = dx12 * (y - y1)
-        sb = dx02 * (y - y0)
-        while y <= y2:
-            a = x1 + sa // dy12
-            b = x0 + sb // dy02
-            sa += dx12
-            sb += dx02
-            if a > b:
-                a, b = b, a
-            self.hline(a, y, b - a + 1, color)
-            y += 1
-
-    def round_rect(self, x0, y0, width, height, radius, color):
-        """Rectangle with rounded corners drawing function.
-        This works like a regular rect though! if radius = 0
-        Will draw the outline of a rextabgle with rounded corners with (x0,y0) at the top left"""
-        # shift to correct for start point location
-        x0 += radius
-        y0 += radius
-
-        # ensure that the radius will only ever half of the shortest side or less
-        radius = int(min(radius, width / 2, height / 2))
-
-        if radius:
-            f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
-            x = 0
-            y = radius
-            self.vline(x0 - radius, y0, height - 2 * radius + 1, color)  # left
-            self.vline(x0 + width - radius, y0, height - 2 * radius + 1, color)  # right
-            self.hline(x0, y0 + height - radius + 1, width - 2 * radius + 1, color)  # bottom
-            self.hline(x0, y0 - radius, width - 2 * radius + 1, color)  # top
-            while x < y:
-                if f >= 0:
-                    y -= 1
-                    ddF_y += 2
-                    f += ddF_y
-                x += 1
-                ddF_x += 2
-                f += ddF_x
-                # angle notations are based on the unit circle and in diection of being drawn
-
-                # top left
-                self.pixel(x0 - y, y0 - x, color)  # 180 to 135
-                self.pixel(x0 - x, y0 - y, color)  # 90 to 135
-                # top right
-                self.pixel(x0 + x + width - 2 * radius, y0 - y, color)  # 90 to 45
-                self.pixel(x0 + y + width - 2 * radius, y0 - x, color)  # 0 to 45
-                # bottom right
-                self.pixel(
-                    x0 + y + width - 2 * radius, y0 + x + height - 2 * radius, color
-                )  # 0 to 315
-                self.pixel(
-                    x0 + x + width - 2 * radius, y0 + y + height - 2 * radius, color
-                )  # 270 to 315
-                # bottom left
-                self.pixel(x0 - x, y0 + y + height - 2 * radius, color)  # 270 to 255
-                self.pixel(x0 - y, y0 + x + height - 2 * radius, color)  # 180 to 225
-
-    def fill_round_rect(self, x0, y0, width, height, radius, color):
-        """Filled circle drawing function.  Will draw a filled circule with
-        center at x0, y0 and the specified radius."""
-        # shift to correct for start point location
-        x0 += radius
-        y0 += radius
-
-        # ensure that the radius will only ever half of the shortest side or less
-        radius = int(min(radius, width / 2, height / 2))
-
-        self.fill_rect(x0, y0 - radius, width - 2 * radius + 2, height + 2, color)
-
-        if radius:
-            f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
-            x = 0
-            y = radius
-            while x < y:
-                if f >= 0:
-                    y -= 1
-                    ddF_y += 2
-                    f += ddF_y
-                x += 1
-                ddF_x += 2
-                f += ddF_x
-                # part notation starts with 0 on left and 1 on right, and direction is noted
-                # top left
-                self.vline(x0 - y, y0 - x, 2 * x + 1 + height - 2 * radius, color)  # 0 to .25
-                self.vline(x0 - x, y0 - y, 2 * y + 1 + height - 2 * radius, color)  # .5 to .25
-                # top right
-                self.vline(
-                    x0 + x + width - 2 * radius, y0 - y, 2 * y + 1 + height - 2 * radius, color
-                )  # .5 to .75
-                self.vline(
-                    x0 + y + width - 2 * radius, y0 - x, 2 * x + 1 + height - 2 * radius, color
-                )  # 1 to .75
-
-    def _place_char(self, x0, y0, char, size, color):
-        """A sub class used for placing a single character on the screen"""
-        arr = self.font[char]
-        width = arr[0]
-        height = arr[1]
-        # extract the char section of the data
-        data = arr[2:]
-        for x in range(width):
-            for y in range(height):
-                bit = bool(data[x] & (1 << y))
-                # char pixel
-                if bit:
-                    self.fill_rect(size * x + x0, size * (height - y - 1) + y0, size, size, color)
-                # else background pixel
-                # else:
-                #    try:
-                #        self.fill_rect(
-                #            size * x + x0, size * (height - y - 1) + y0, size, size, self.bgcolor
-                #        )
-                #    except TypeError:
-                #        pass
-
-    def text(self, x0, y0, string, size, color):
-        x = x0
-        y = y0
-        for char in string:
-            # make sure something is sent even if not in font dict
-            try:
-                self._place_char(x, y, char, size, color)
-            except KeyError:
-                char = "?CHAR?"
-                self._place_char(x, y, char, size, color)
-            x += size * self.font[char][0] + size
-
-
 if __name__ == "__main__":
     from machine import I2C
 
@@ -915,7 +632,7 @@ if __name__ == "__main__":
 
     iter = 0
     while True:
-        if True:
+        if False:
             ipm.clear()
             t0 = time.ticks_ms()
             for x in range(300, 500, 20):
@@ -958,6 +675,9 @@ if __name__ == "__main__":
             ipg.line(800, 0, 600, 200, 0)
             for i in range(4):
                 ipg.fill_rect(50, 300 + i * 50, 300, 50, i)
+                ipg.fill_circle(700, 300, 100-i*20, i)
+            for i in range(4):
+                ipg.fill_triangle(650+i*10, 350-i*7, 750-i*10, 350-i*7, 700, 250+i*10, 3-i)
             ipg.display()
             if iter > 0:
                 wait_click(3)
@@ -996,8 +716,8 @@ if __name__ == "__main__":
                 def __init__(self, w, h, t, s):
                     self._fb = bytearray(w * s // 8)
                     super().__init__(self._fb, w, h, t, s)
-                    InkplateShapes.__mix_me_in(MyFB)
 
+            Shapes.__mix_me_in(MyFB)
             hello = MyFB(302, 53, framebuf.MONO_HMSB, 304)
             hello.fill(0)
             hello.text(14, 12, "HELLO WORLD!", 4, 1)

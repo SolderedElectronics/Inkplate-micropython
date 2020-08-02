@@ -26,7 +26,7 @@ Getting started
 
 - Copy library files to your board, something like:
   ```
-  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py gfx_standard_font_01.py :
+  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py shapes.py gfx_standard_font_01.py :
   ```
   (You can find `pyboard.py` in the MicroPython tools directory or just download it from
   GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
@@ -78,7 +78,7 @@ Info
   update, the rows that are updated are washed out (even if they are written as slowly as before)!
   It would be good to exert more care about the update speed in the future C primitives.
 - The font stuff is a dumb copy from some not very useful Adafruit GFX code, it should be
-  replaced by BFD support from github.com/adafruit/Adafruit_CircuitPython_Bitmap_Font
+  replaced by BFD support from https://github.com/adafruit/Adafruit_CircuitPython_Bitmap_Font
 
 
 ### Display info:
