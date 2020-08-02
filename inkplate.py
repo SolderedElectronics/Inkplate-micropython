@@ -330,11 +330,12 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.clean(3, 1)
         ip.power_off()
 
-    @micropython.viper
+    # @micropython.viper
     def clear(self):
-        fb = ptr8(self._framebuf)
-        for ix in range(D_ROWS * D_COLS // 8):
-            fb[ix] = 0
+        self.fill(0)
+        # fb = ptr8(self._framebuf)
+        # for ix in range(D_ROWS * D_COLS // 8):
+        #    fb[ix] = 0
 
 
 # Inkplate display with 2 bits of gray scale (4 levels)
@@ -443,11 +444,171 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(3, 1)
         ip.power_off()
 
-    @micropython.viper
+    # @micropython.viper
     def clear(self):
-        fb = ptr8(self._framebuf)
-        for ix in range(int(len(self._framebuf))):
-            fb[ix] = 0xFF
+        self.fill(3)
+        # fb = ptr8(self._framebuf)
+        # for ix in range(int(len(self._framebuf))):
+        #    fb[ix] = 0xFF
+
+
+# InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
+# and then when asked to draw it renders the differences between the copy and the new framebuffer
+# state. The constructor needs a reference to the current/main display object (InkplateMono).
+# Only InkplateMono is supported at the moment.
+class InkplatePartial:
+    def __init__(self, base):
+        self._base = base
+        self._framebuf = bytearray(len(base._framebuf))
+        InkplatePartial._gen_lut_mono()
+
+    # start makes a reference copy of the current framebuffer
+    def start(self):
+        self._framebuf[:] = self._base._framebuf[:]
+
+    # display the changes between our reference copy and the current framebuffer contents
+    def display(self, x=0, y=0, w=D_COLS, h=D_ROWS):
+        ip = Inkplate
+        ip.power_on()
+
+        # the display gets written a couple of times
+        t0 = time.ticks_ms()
+        n = 0
+        send_row = InkplatePartial._send_row
+        skip_rows = InkplatePartial._skip_rows
+        vscan_write = ip.vscan_write
+        nfb = self._base._framebuf  # new framebuffer
+        ofb = self._framebuf  # old framebuffer
+        lut = InkplatePartial._lut_mono
+        h -= 1
+        for _ in range(5):
+            ip.vscan_start()
+            r = D_ROWS - 1
+            # skip rows that supposedly have no change
+            if r > y + h:
+                skip_rows(r - (y + h))
+                r = y + h
+            # write changed rows
+            while r >= y:
+                send_row(lut, ofb, nfb, r)
+                vscan_write()
+                r -= 1
+            # skip remaining rows (doesn't seem to be necessary)
+            # if r > 0:
+            #    skip_rows(r)
+            n += 1
+
+        t1 = time.ticks_ms()
+        td = time.ticks_diff(t1, t0)
+        print(
+            "Partial: draw %dms (%dms/frame %dus/row) (y=%d..%d)"
+            % (td, td // n, td * 1000 // n // (D_ROWS-y), y, y + h + 1)
+        )
+
+        ip.clean(2, 2)
+        ip.clean(3, 1)
+        ip.power_off()
+
+    # gen_lut_mono generates a look-up tables to change the display from a nibble of old
+    # pixels (4 bits = 4 pixels) to a nibble of new pixels. The LUT contains the
+    # 32-bits that need to be pushed into the gpio port to effect the change.
+    @classmethod
+    def _gen_lut_mono(cls):
+        lut = cls._lut_mono = array("L", bytes(4 * 256))
+        for o in range(16):  # iterate through all old-pixels combos
+            for n in range(16):  # iterate through all new-pixels combos
+                bw = 0
+                for bit in range(4):
+                    # value to send to display: turns out that if we juxtapose the old and new
+                    # bits we get the right value except for the 00 combination...
+                    val = (((o >> bit) << 1) & 2) | ((n >> bit) & 1)
+                    if val == 0:
+                        val = 3
+                    bw = bw | (val << (2 * bit))
+                lut[o * 16 + n] = Inkplate.byte2gpio[bw] | EPD_CL
+        # print("Black: %08x, White:%08x Data:%08x" % (cls.lut_bw[0xF], cls.lut_bw[0], EPD_DATA))
+
+    # _skip_rows skips N rows
+    @micropython.viper
+    @staticmethod
+    def _skip_rows(rows: int):
+        if rows <= 0:
+            return
+        # cache vars into locals
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
+
+        # need to fill the column latches with "no-change" values (all ones)
+        epd_cl = EPD_CL
+        w1tc0[0] = epd_cl
+        w1ts0[0] = EPD_DATA
+        # send first byte of row with start-row signal
+        w1tc0[W1TC1 - W1TC0] = EPD_SPH
+        w1ts0[0] = epd_cl
+        w1tc0[0] = epd_cl
+        w1ts0[W1TS1 - W1TS0] = EPD_SPH
+        # send remaining bytes
+        i = int(D_COLS >> 3)
+        while i > 0:
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
+            w1ts0[0] = epd_cl
+            w1tc0[0] = epd_cl
+            i -= 1
+
+        # write the same row over and over, weird thing is that we need the sleep otherwise
+        # the rows we subsequently draw don't draw proper whites leaving ghosts behind - hard to
+        # understand why the speed at which we "skip" rows affects rows that are drawn later...
+        while rows > 0:
+            Inkplate.vscan_write()
+            rows -= 1
+            time.sleep_us(50)
+
+    # _send_row writes a row of data to the display
+    @micropython.viper
+    @staticmethod
+    def _send_row(lut_in, old_framebuf, new_framebuf, row: int):
+        # cache vars into locals
+        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
+        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
+        off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
+        ofb = ptr8(old_framebuf)
+        nfb = ptr8(new_framebuf)
+        ix = int(row * (D_COLS >> 3) + 99)  # index into framebuffer
+        lut = ptr32(lut_in)
+        # send first byte
+        odata = int(ofb[ix])
+        ndata = int(nfb[ix])
+        ix -= 1
+        w1tc0[0] = off
+        w1tc0[W1TC1 - W1TC0] = EPD_SPH
+        if odata == ndata:
+            w1ts0[0] = off  # send all-ones: no change to any of the pixels
+            w1tc0[0] = EPD_CL
+            w1ts0[W1TS1 - W1TS0] = EPD_SPH
+            w1ts0[0] = EPD_CL
+            w1tc0[0] = off
+        else:
+            w1ts0[0] = lut[(odata & 0xF0) + (ndata >> 4)]
+            w1tc0[0] = off  # clear data bits as well ready for next byte
+            w1ts0[W1TS1 - W1TS0] = EPD_SPH
+            w1ts0[0] = lut[((odata & 0xF) << 4) + (ndata & 0xF)]
+            w1tc0[0] = off
+        # send the remaining bytes (792 pixels)
+        for c in range(99):
+            odata = int(ofb[ix])
+            ndata = int(nfb[ix])
+            ix -= 1
+            if odata == ndata:
+                w1ts0[0] = off  # send all-ones: no change to any of the pixels
+                w1tc0[0] = EPD_CL
+                w1ts0[0] = EPD_CL
+                w1tc0[0] = off
+            else:
+                w1ts0[0] = lut[(odata & 0xF0) + ((ndata >> 4) & 0xF)]
+                w1tc0[0] = off
+                w1ts0[0] = lut[((odata & 0xF) << 4) + (ndata & 0xF)]
+                w1tc0[0] = off
 
 
 class InkplateShapes:
@@ -502,6 +663,7 @@ if __name__ == "__main__":
     Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
     ipg = InkplateGS2()
     ipm = InkplateMono()
+    ipp = InkplatePartial(ipm)
 
     def wait_click(n):
         print("Press touch sensor %d to continue" % n)
@@ -585,6 +747,46 @@ if __name__ == "__main__":
             disp.round_rect(291, 91, 300, 50, 10, 1)
             print("GFXPatt: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
             ipm.display()
+            if iter > 0:
+                wait_click(3)
+            else:
+                time.sleep_ms(1000)
+
+        if True:
+            # Draw the hello-world label into its own framebuffer
+            hello_fb = bytearray(304 * 53 // 8)
+            hello = framebuf.FrameBuffer(hello_fb, 302, 53, framebuf.MONO_HMSB, 304)
+            hello.fill(0)
+            hello_gfx = GFX(800, 600, hello.pixel)
+            hello_gfx.text(14, 12, "HELLO WORLD!", 4, 1)
+            hello_gfx.round_rect(0, 0, 300, 50, 10, 1)
+            hello_gfx.round_rect(1, 1, 300, 50, 10, 1)
+
+            x = 290
+            y = 90
+            for i in range(30):
+                t0 = time.ticks_ms()
+                ipp.start()
+                ymin = y
+                ymax = y + 53
+                ipm.fill_rect(x, y, 302, 53, 0)
+                if i < 10:
+                    x -= 20
+                    y += 15
+                elif i < 22:
+                    x += 10
+                    y += 20
+                else:
+                    x += 20
+                    y -= 40
+                if y < ymin:
+                    ymin = y
+                if y + 53 > ymax:
+                    ymax = y + 53
+                ipm.blit(hello, x, y)
+                print("GFX: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
+                ipp.display(y=ymin, h=ymax - ymin)
+                # ipp.display()
             if iter > 0:
                 wait_click(3)
             else:
