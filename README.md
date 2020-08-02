@@ -59,6 +59,23 @@ Getting started
 Info
 ----
 
+- 2-bit greyscale was chosen because it nicely packs 4 pixels into a byte, doesn't use a ton of
+  memory, and is still fast. Using 3-bit greyscale is not supported by the MicroPython framebuf
+  module, and doesn't pack nicely into bytes. 4-bit greyscale uses a lot of memory and becomes
+  rather slow, plus it's not clear decent ePaper waveforms can be worked out to actually display
+  that many levels. In addition, it seems that images dithered to 2-bit greyscale look better than
+  if they are quantized to 3-bit greyscale. All this being said, it shouldn't be all that much
+  work to make a clone of InkplateGS2 that supports 4-bit greyscale.
+- The update speed relies heavily on the MicroPython viper compile-to-native functionality.
+  It's great because it allows a pure python library. But it also sucks because it's not really
+  that good and the code starts to become pretty obscure. It would be smart to recode the key
+  functions in C and provide an optional pre-compiled mpy file with that.
+- The timing of the display update is based on "it seems to work". It appears that the rate at
+  which rows are updated is really faster than spec. This can have some very unintuitive
+  side-effects. For example, if the speed at which rows are _skipped_ is increased in the partial
+  update, the rows that are updated are washed out (even if they are written as slowly as before)!
+  It would be good to exert more care about the update speed in the future C primitives.
+
 
 ### Display info:
 - Display Datasheet: http://www.universaldisplay.asia/wp-content/uploads/2012/10/ED060SC7-2.0.pdf
@@ -67,8 +84,7 @@ Info
 - General background on waveforms: https://wenku.baidu.com/view/00bbfb6727d3240c8447efd5.html
 - Display flash chip: MX25L2006 2Mbit (256KBytes)
 
-ESP32 GPIO map
---------------
+### ESP32 GPIO map
 
 | GPIO | Note       | Function | Description |
 | ---- | ----       | -------- | ----------- |
@@ -99,7 +115,7 @@ ESP32 GPIO map
 |  36  | in, adc0   |          |
 |  39  | in, adc3   |          |
 
-#### I2C I/O Expander MCP23017
+### I2C I/O Expander MCP23017
 
 | IO | Function | Description |
 | -- | -------- | ----------- |
