@@ -1,22 +1,32 @@
 Inkplate 6
 ==========
 
-This repository contains drivers for the E-Radionica Inkplate 6: an esp32 board with
+This repository contains MicroPython drivers for the E-Radionica Inkplate 6: an esp32 board with
 a 6" E-paper display and three capacitive touch buttons/sensors.
 
-__THIS REPOSITORY IS WORK IN PROGRESS__
+### Inkplate 6 info
+- CrowdSupply project: https://www.crowdsupply.com/e-radionica/inkplate-6
+- Hardware: https://github.com/e-radionicacom/Inkplate-6-hardware
+- Forum: _some day..._
 
-## How to test-drive:
+### Features
 
-- Flash MicroPython v1.12 `GENERIC_SPIRAM` to your inkplate
-- Get the Adafruit CircuitPython GFX library: https://github.com/adafruit/Adafruit_CircuitPython_GFX
-- In that library, edit `adafruit_gfx/gfx.py` line 103 so it reads
-  `from gfx_standard_font_01 import`
-- Copy library files to your board, something like
+- Simple graphics class (similar to Adafruit GFX) for monochrome use of the ePaper display.
+- Simple graphics class for 2 bits per pixel greyscale use of the ePaper display.
+- Support for partial updates (currently only on the monochrome display).
+- Access to touch sensors.
+- Everything in pure python with screen updates virtually as fast as the Arduino C driver.
+
+Getting started
+---------------
+
+- Flash MicroPython v1.12 `GENERIC_SPIRAM` or more recent to your inkplate, e.g.
+  `esp32spiram-idf4-20191220-v1.12.bin` from http://micropython.org/download/esp32/
+  (it's the very last download link on that page).
+
+- Copy library files to your board, something like:
   ```
-  pyboard --device /dev/ttyUSB0 -f cp mcp23017,py :
-  pyboard --device /dev/ttyUSB0 -f cp ../Adafruit_CircuitPython_GFX/adafruit_gfx/gfx.py :
-  pyboard --device /dev/ttyUSB0 -f cp ../Adafruit_CircuitPython_GFX/adafruit_gfx/fonts/gfx_standard_font_01.py :
+  pyboard --device /dev/ttyUSB0 -f cp mcp23017.py gfx_standard_font_01.py :
   ```
 
 - Run inkplate.py:
@@ -24,37 +34,31 @@ __THIS REPOSITORY IS WORK IN PROGRESS__
   pyboard --device /dev/ttyUSB0 inkplate.py
   ```
 
-- On the terminal console you should see:
+- On the terminal console you should see a bunch of progress lines:
   ```
-  Clean: 0xaa->0x0a080020 in 70ms
-  Clean: 0x55->0x04840010 in 71ms
-  Clean: 0xaa->0x0a080020 in 70ms
-  Mono: in 102ms
-  Clear: in 18ms
-  TestPatt: in 155ms
-  Clean: 0xaa->0x0a080020 in 70ms
-  Clean: 0x55->0x04840010 in 71ms
-  Clean: 0xaa->0x0a080020 in 70ms
-  Mono: in 102ms
-  Clear: in 18ms
-  Clean: 0xaa->0x0a080020 in 71ms
-  Clean: 0x55->0x04840010 in 72ms
-  Clean: 0xaa->0x0a080020 in 71ms
-  Mono: in 103ms
+  Mono: clean 857ms (17ms ea), draw 298ms (49ms ea), total 1155ms
+  GS2: clean 855ms (17ms ea), draw 696ms (99ms ea), total 1551ms
+  GFXPatt: in 102ms
+  Mono: clean 858ms (17ms ea), draw 297ms (49ms ea), total 1155ms
+  GFX: in 36ms
+  Partial: draw 166ms (33ms/frame 65us/row) (y=90..158)
+  ...
   ```
-- On the display you should see it clearing, then showing a pretty busy test pattern, clearing and
-  showing a sparse test pattern with a black rectangle in the upper-left part, then clearing and
-  showing the following test pattern:
+
+- On the display you should see it clearing, then showing a monochrome test pattern, clearing and
+  showing a greyscale test pattern, then clearing and showing the following test pattern:
   ![alt text](https://github.com/tve/mpy-inkplate/blob/master/img/hello_world.jpg?raw=true)
-- Look at the end of inkplate.py to see how to use the library for now. There's lots of work
-  left to do!
+
+- The "Hello World" box should then move across the display using partial updates.
+
+- After a brief pause you will see the first test pattern. Touch the touchpad "3" to advance to 
+  the next test pattern.
+
+- Look at the end of inkplate.py to see the demo code.
 
 Info
 ----
 
-### E-Radionica info:
-- Hardware: https://github.com/e-radionicacom/Inkplate-6-hardware
-- Arduino: https://github.com/e-radionicacom/Inkplate-6-Arduino-library
 
 ### Display info:
 - Display Datasheet: http://www.universaldisplay.asia/wp-content/uploads/2012/10/ED060SC7-2.0.pdf

@@ -982,7 +982,7 @@ if __name__ == "__main__":
             ipm.text(304, 102, "HELLO WORLD!", 4, 1)
             ipm.round_rect(290, 90, 300, 50, 10, 1)
             ipm.round_rect(291, 91, 300, 50, 10, 1)
-            print("GFXPatt: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
+            print("Draw: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
             ipm.display()
             if iter > 0:
                 wait_click(3)
@@ -991,18 +991,22 @@ if __name__ == "__main__":
 
         if True:
             # Draw the hello-world label into its own framebuffer
-            hello_fb = bytearray(304 * 53 // 8)
             # framebuf.FrameBuffer cannot be extended, so we need to wrap it, ugh!
             class MyFB(framebuf.FrameBuffer):
-                def __init__(self, fb, w, h, t, s):
-                    super().__init__(fb, w, h, t, s)
+                def __init__(self, w, h, t, s):
+                    self._fb = bytearray(w * s // 8)
+                    super().__init__(self._fb, w, h, t, s)
                     InkplateShapes.__mix_me_in(MyFB)
 
-            hello = MyFB(hello_fb, 302, 53, framebuf.MONO_HMSB, 304)
+            hello = MyFB(302, 53, framebuf.MONO_HMSB, 304)
             hello.fill(0)
             hello.text(14, 12, "HELLO WORLD!", 4, 1)
             hello.round_rect(0, 0, 300, 50, 10, 1)
             hello.round_rect(1, 1, 300, 50, 10, 1)
+
+            # work-around for a bug in v1.12, fixed in
+            # https://github.com/micropython/micropython/pull/5681
+            hello = framebuf.FrameBuffer(hello._fb, 302, 53, framebuf.MONO_HMSB, 304)
 
             x = 290
             y = 90
@@ -1026,9 +1030,8 @@ if __name__ == "__main__":
                 if y + 53 > ymax:
                     ymax = y + 53
                 ipm.blit(hello, x, y)
-                print("GFX: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
+                print("Draw: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
                 ipp.display(y=ymin, h=ymax - ymin)
-                # ipp.display()
             if iter > 0:
                 wait_click(3)
             else:
