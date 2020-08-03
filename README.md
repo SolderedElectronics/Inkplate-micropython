@@ -14,6 +14,9 @@ a 6" E-paper display and three capacitive touch buttons/sensors.
 - Simple graphics class (similar to Adafruit GFX) for monochrome use of the ePaper display.
 - Simple graphics class for 2 bits per pixel greyscale use of the ePaper display.
 - Support for partial updates (currently only on the monochrome display).
+- Support for (BDF)[https://en.wikipedia.org/wiki/Glyph_Bitmap_Distribution_Format] fonts
+  (Adafruit has a (tutorial on custom fonts)[https://learn.adafruit.com/custom-fonts-for-pyportal-circuitpython-display/conversion]
+  and the u8g2 repo has a bunch of (BDF fonts)[https://github.com/olikraus/u8g2/tree/master/tools/font/bdf])
 - Access to touch sensors.
 - Everything in pure python with screen updates virtually as fast as the Arduino C driver.
 
@@ -57,6 +60,20 @@ Getting started
   the next test pattern.
 
 - Look at the end of inkplate.py to see the demo code.
+
+- An initial version of BDF font support can be found in `bdf_font.py`. The BDF font parsing is
+  super-slow and needs a better solution, but the text looks good. To try it out copy the
+  provided font to flash, _warning_ it takes the better part of a minute to upload the font
+  file!
+  ```
+  pyboard.py --device /dev/ttyUSB0 -f cp luRS24.bdf :
+  ```
+  Then run the demo:
+  ```
+  pyboard.py --device /dev/ttyUSB0 bdf_font.py
+  ```
+  And have some patience until everything loads and draws incrementally until you see:
+  ![alt text](https://github.com/tve/mpy-inkplate/blob/master/img/hello_font.jpg?raw=true)
 
 Info
 ----
