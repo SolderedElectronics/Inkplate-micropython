@@ -7,7 +7,7 @@ a 6" E-paper display and three capacitive touch buttons/sensors.
 ### Inkplate 6 info
 - CrowdSupply project: https://www.crowdsupply.com/e-radionica/inkplate-6
 - Hardware: https://github.com/e-radionicacom/Inkplate-6-hardware
-- Forum: _some day..._
+- Forum: http://forum.e-radionica.com/en/viewtopic.php?f=25&t=260
 
 ### Features
 
@@ -26,12 +26,14 @@ Getting started
 
 - Copy library files to your board, something like:
   ```
-  pyboard --device /dev/ttyUSB0 -f cp mcp23017.py gfx_standard_font_01.py :
+  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py gfx_standard_font_01.py :
   ```
+  (You can find `pyboard.py` in the MicroPython tools directory or just download it from
+  GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
 
 - Run inkplate.py:
   ```
-  pyboard --device /dev/ttyUSB0 inkplate.py
+  pyboard.py --device /dev/ttyUSB0 inkplate.py
   ```
 
 - On the terminal console you should see a bunch of progress lines:
