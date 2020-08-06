@@ -55,9 +55,13 @@ Getting started
   showing a greyscale test pattern, then clearing and showing the following test pattern:
   ![hello world image](https://github.com/tve/mpy-inkplate/blob/master/img/hello_world.jpg?raw=true)
 
-- The "Hello World" box should then move across the display using partial updates.
+- The "Hello World" box should then move across the display using partial updates. Here's a video
+  of what that looks like (this is actual speed):
+  
+  ![hello world animation](https://user-images.githubusercontent.com/39480/89499537-09931100-d775-11ea-99ec-73f63c6c3010.gif)
 
-  ![hello world animation](https://s3.amazonaws.com/s3.voneicken.com/img/inkplate_vid_o1.gif)
+  Sorry for the hand-held shaking... It does look better in real-life when not quantized down to
+  fit into github!
 
 - After a brief pause you will see the first test pattern again.
   Touch the touchpad "3" to advance to the next test pattern.
@@ -96,8 +100,7 @@ Getting started
   ```
   pyboard.py --device /dev/ttyUSB0 bdf_font.py
   ```
-  And have some patience until everything loads and draws incrementally until you see:
-  ![alt text](https://github.com/tve/mpy-inkplate/blob/master/img/hello_font.jpg?raw=true)
+  And have some patience until everything loads and draws incrementally.
 
 Info
 ----
