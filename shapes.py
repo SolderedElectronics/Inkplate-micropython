@@ -7,7 +7,6 @@
 # Methods in Shapes call self.pixel, self.line, self.hline, and self.vline, so these must be
 # provided by the class that Shapes is mixed into.
 class Shapes:
-    from gfx_standard_font_01 import text_dict as font
 
     # __mix_me_in adds the methods of this class to another class.  Typical usage is to put
     # something like Shapes.__mix_me_in(MyClass) after tha class definition.
@@ -17,7 +16,6 @@ class Shapes:
             if not callable(getattr(cls, func)) or func.startswith("__"):
                 continue
             setattr(target, func, getattr(cls, func))
-            setattr(target, "font", cls.font)
 
     # The following shapes are adapted from https://github.com/peterhinch/micropython-epaper
     # Copyright 2015 Peter Hinch
@@ -252,37 +250,3 @@ class Shapes:
                 self.vline(
                     x0 + y + width - 2 * radius, y0 - x, 2 * x + 1 + height - 2 * radius, color
                 )  # 1 to .75
-
-    def _place_char(self, x0, y0, char, size, color):
-        """A sub class used for placing a single character on the screen"""
-        arr = self.font[char]
-        width = arr[0]
-        height = arr[1]
-        # extract the char section of the data
-        data = arr[2:]
-        for x in range(width):
-            for y in range(height):
-                bit = bool(data[x] & (1 << y))
-                # char pixel
-                if bit:
-                    self.fill_rect(size * x + x0, size * (height - y - 1) + y0, size, size, color)
-                # else background pixel
-                # else:
-                #    try:
-                #        self.fill_rect(
-                #            size * x + x0, size * (height - y - 1) + y0, size, size, self.bgcolor
-                #        )
-                #    except TypeError:
-                #        pass
-
-    def text(self, x0, y0, string, size, color):
-        x = x0
-        y = y0
-        for char in string:
-            # make sure something is sent even if not in font dict
-            try:
-                self._place_char(x, y, char, size, color)
-            except KeyError:
-                char = "?CHAR?"
-                self._place_char(x, y, char, size, color)
-            x += size * self.font[char][0] + size

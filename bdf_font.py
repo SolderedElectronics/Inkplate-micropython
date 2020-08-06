@@ -24,12 +24,16 @@
 # import gc
 
 import time
+
 try:
     from micropython import const
+    import micropython
 except ImportError:
 
     def const(x):
         x
+
+    ptr8 = const
 
 
 # from fontio import Glyph
@@ -132,7 +136,7 @@ class Font:
             dx = gl[GL_DX] - 128
             self.draw_glyph(setpixel, gl, x + dx, y - dy, color)
             x += gl[GL_SX]
-            y += gl[GL_SY] # ever used???
+            y += gl[GL_SY]  # ever used???
         return x - x0
 
     # @staticmethod
@@ -197,7 +201,7 @@ class BDFFont(Font):
             return
 
         desired_character = False  # flag to indicate that we're reading char we want
-        in_char = False # flag to indicate that we're reading a character
+        in_char = False  # flag to indicate that we're reading a character
         bounds = shift = bitmap = code_point = None
 
         self.file.seek(0)
@@ -215,7 +219,7 @@ class BDFFont(Font):
                         desired_character = True
                         bounds = shift = bitmap = None
                     in_char = True
-                    #print("BDF: found %d," % code_point, "desired" if desired_character else "--")
+                    # print("BDF: found %d," % code_point, "desired" if desired_character else "--")
             elif line.startswith("ENDCHAR"):
                 if desired_character:
                     if not (bounds and shift and bitmap):
@@ -235,7 +239,7 @@ class BDFFont(Font):
                     _, width, height, x_offset, y_offset = line.split()
                     width = int(width)
                     height = int(height)
-                    bounds = [width, height, 128+int(x_offset), 128+int(y_offset)]
+                    bounds = [width, height, 128 + int(x_offset), 128 + int(y_offset)]
                     stride = (width + 7) // 8
                     bitmap = [0] * (stride * height)
                 elif line.startswith("BITMAP"):
@@ -275,7 +279,7 @@ if __name__ == "__main__":
     ipm.line(0, y, 799, y, 1)
     ipm.line(x, 0, x, 300, 1)
     w = f.text(ipm.pixel, "Hello World!", x, y, 1)
-    ipm.line(x+w, 0, x+w, y+10, 1)
+    ipm.line(x + w, 0, x + w, y + 10, 1)
     ipm.display()
 
     f.text(ipm.pixel, "Hello on the dark side!", 100, 400, 0)
@@ -295,7 +299,7 @@ if __name__ == "__main__":
 
     y = 500
     f.text(ipm.pixel, "0123456789", 100, y, 0)
-    f.text(ipm.pixel, "0000000000", 100, y+30, 0)
+    f.text(ipm.pixel, "0000000000", 100, y + 30, 0)
 
     ipm.display()
 

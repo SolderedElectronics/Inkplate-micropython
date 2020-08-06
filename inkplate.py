@@ -632,7 +632,7 @@ if __name__ == "__main__":
 
     iter = 0
     while True:
-        if False:
+        if True:
             ipm.clear()
             t0 = time.ticks_ms()
             for x in range(300, 500, 20):
@@ -675,9 +675,11 @@ if __name__ == "__main__":
             ipg.line(800, 0, 600, 200, 0)
             for i in range(4):
                 ipg.fill_rect(50, 300 + i * 50, 300, 50, i)
-                ipg.fill_circle(700, 300, 100-i*20, i)
+                ipg.fill_circle(700, 300, 100 - i * 20, i)
             for i in range(4):
-                ipg.fill_triangle(650+i*10, 350-i*7, 750-i*10, 350-i*7, 700, 250+i*10, 3-i)
+                ipg.fill_triangle(
+                    650 + i * 10, 350 - i * 7, 750 - i * 10, 350 - i * 7, 700, 250 + i * 10, 3 - i
+                )
             ipg.display()
             if iter > 0:
                 wait_click(3)
@@ -686,6 +688,9 @@ if __name__ == "__main__":
 
         if True:
             ipm.clear()
+            from u8g2_font import Font
+
+            luRS24 = Font("luRS24_te.u8f", ipm.pixel)
 
             # from gfx_standard_font_01 import text_dict as std_font
             t0 = time.ticks_ms()
@@ -699,7 +704,7 @@ if __name__ == "__main__":
             ipm.line(351, 251, 449, 349, 0)
             ipm.line(351, 349, 449, 251, 0)
             # hello world box
-            ipm.text(304, 102, "HELLO WORLD!", 4, 1)
+            luRS24.text("HELLO WORLD!", 316, 130, 1)
             ipm.round_rect(290, 90, 300, 50, 10, 1)
             ipm.round_rect(291, 91, 300, 50, 10, 1)
             print("Draw: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
@@ -710,6 +715,7 @@ if __name__ == "__main__":
                 time.sleep_ms(1000)
 
         if True:
+
             # Draw the hello-world label into its own framebuffer
             # framebuf.FrameBuffer cannot be extended, so we need to wrap it, ugh!
             class MyFB(framebuf.FrameBuffer):
@@ -719,8 +725,11 @@ if __name__ == "__main__":
 
             Shapes.__mix_me_in(MyFB)
             hello = MyFB(302, 53, framebuf.MONO_HMSB, 304)
+            from u8g2_font import Font
+
+            luRS24 = Font("luRS24_te.u8f", hello.pixel)
             hello.fill(0)
-            hello.text(14, 12, "HELLO WORLD!", 4, 1)
+            luRS24.text("HELLO WORLD!", 26, 40, 1)
             hello.round_rect(0, 0, 300, 50, 10, 1)
             hello.round_rect(1, 1, 300, 50, 10, 1)
 
@@ -728,23 +737,34 @@ if __name__ == "__main__":
             # https://github.com/micropython/micropython/pull/5681
             hello = framebuf.FrameBuffer(hello._fb, 302, 53, framebuf.MONO_HMSB, 304)
 
+            for i in range(60):
+                ipm.line(0, 600, 800, 600-10*i, 1)
+            ipm.display()
+
+            # initial version of framebuffer so we can restore that
+            revert_fb = bytearray(ipm._framebuf[:])
+
             x = 290
             y = 90
-            for i in range(30):
+            for i in range(32):
                 t0 = time.ticks_ms()
                 ipp.start()
+                ipm._framebuf[:] = revert_fb[:]
                 ymin = y
                 ymax = y + 53
-                ipm.fill_rect(x, y, 302, 53, 0)
+                #ipm.fill_rect(x, y, 302, 53, 0)
                 if i < 10:
                     x -= 20
                     y += 15
                 elif i < 22:
                     x += 10
                     y += 20
-                else:
+                elif i < 30:
                     x += 20
                     y -= 40
+                else:
+                    x -= 28
+                    y -= 18
                 if y < ymin:
                     ymin = y
                 if y + 53 > ymax:
@@ -752,6 +772,10 @@ if __name__ == "__main__":
                 ipm.blit(hello, x, y)
                 print("Draw: in %dms" % (time.ticks_diff(time.ticks_ms(), t0)))
                 ipp.display(y=ymin, h=ymax - ymin)
+                #ipp.display()
+            ipp.start()
+            ipm._framebuf[:] = revert_fb[:]
+            ipp.display()
             if iter > 0:
                 wait_click(3)
             else:
