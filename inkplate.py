@@ -6,7 +6,9 @@ from machine import Pin, I2C
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
-from shapes import Shapes
+
+from gfx import GFX
+from gfx_standard_font_01 import text_dict as std_font
 
 TPS65186_addr = const(0x48)  # I2C address
 
@@ -345,8 +347,6 @@ class InkplateMono(framebuf.FrameBuffer):
         #    fb[ix] = 0
 
 
-Shapes.__mix_me_in(InkplateMono)
-
 # Inkplate display with 2 bits of gray scale (4 levels)
 class InkplateGS2(framebuf.FrameBuffer):
     _wave = None
@@ -462,8 +462,6 @@ class InkplateGS2(framebuf.FrameBuffer):
         # for ix in range(int(len(self._framebuf))):
         #    fb[ix] = 0xFF
 
-
-Shapes.__mix_me_in(InkplateGS2)
 
 # InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
 # and then when asked to draw it renders the differences between the copy and the new framebuffer
@@ -628,6 +626,9 @@ class Inkplate:
     INKPLATE_1BIT = 0
     INKPLATE_3BIT = 1
 
+    _width = D_COLS
+    _height = D_ROWS
+
     def __init__(self, mode):
         self.mode = mode
 
@@ -637,6 +638,10 @@ class Inkplate:
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
         self.ipp = InkplatePartial(self.ipm)
+
+        self.GFX = GFX(
+            D_COLS, D_ROWS, self.writePixel, None, None, None, None, std_font,
+        )
 
     def clearDisplay(self):
         self.ipg.clear()
@@ -671,3 +676,14 @@ class Inkplate:
     def einkOff(self):
         _Inkplate.power_off()
 
+    def width(self):
+        return self._width
+
+    def height(self):
+        return self._height
+
+    # Arduino compatibility functions
+    def writePixel(self, x, y, c):
+        if x > self.width() - 1 or y > self.height() - 1 or x < 0 or y < 0:
+            return
+        (self.ipm.pixel if self.mode == self.INKPLATE_1BIT else self.ipm.pixel)(x, y, c)
