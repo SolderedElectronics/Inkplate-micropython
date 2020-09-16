@@ -629,6 +629,10 @@ class Inkplate:
     _width = D_COLS
     _height = D_ROWS
 
+    rotation = 0
+    displayMode = 0
+    textSize = 1
+
     def __init__(self, mode):
         self.mode = mode
 
@@ -640,7 +644,14 @@ class Inkplate:
         self.ipp = InkplatePartial(self.ipm)
 
         self.GFX = GFX(
-            D_COLS, D_ROWS, self.writePixel, None, None, None, None, std_font,
+            D_COLS,
+            D_ROWS,
+            self.writePixel,
+            self.writeFastHLine,
+            self.writeFastVLine,
+            self.writeFillRect,
+            None,
+            None,
         )
 
     def clearDisplay(self):
@@ -683,7 +694,131 @@ class Inkplate:
         return self._height
 
     # Arduino compatibility functions
+    def setRotation(self, x):
+        self.rotation = x % 4
+        if self.rotation == 0 or self.rotation == 2:
+            self._width = D_COLS
+            self._height = D_ROWS
+        elif self.rotation == 1 or self.rotation == 3:
+            self._width = D_ROWS
+            self._height = D_COLS
+
+    def getRotation(self):
+        return self.rotation
+
+    def drawPixel(self, x, y, c):
+        self.startWrite()
+        self.writePixel(x, y, c)
+        self.endWrite()
+
+    def startWrite(self):
+        pass
+
     def writePixel(self, x, y, c):
         if x > self.width() - 1 or y > self.height() - 1 or x < 0 or y < 0:
             return
+        if self.rotation == 1:
+            x, y = y, x
+            x = self.height() - x - 1
+        elif self.rotation == 2:
+            x = self.width() - x - 1
+            y = self.height() - y - 1
+        elif self.rotation == 3:
+            x, y = y, x
+            y = self.width() - y - 1
         (self.ipm.pixel if self.mode == self.INKPLATE_1BIT else self.ipm.pixel)(x, y, c)
+
+    def writeFillRect(self, x, y, w, h, c):
+        for j in range(w):
+            for i in range(h):
+                self.writePixel(x + j, y + i, c)
+
+    def writeFastVLine(self, x, y, h, c):
+        for i in range(h):
+            self.writePixel(x, y + i, c)
+
+    def writeFastHLine(self, x, y, w, c):
+        for i in range(w):
+            self.writePixel(x + i, y, c)
+
+    def writeLine(self, x0, y0, x1, y1, c):
+        self.GFX.line(x0, y0, x1, y1, c)
+
+    def endWrite(self):
+        pass
+
+    def drawFastVLine(self, x, y, h, c):
+        self.startWrite()
+        self.writeFastVLine(x, y, h, c)
+        self.endWrite()
+
+    def drawFastHLine(self, x, y, w, c):
+        self.startWrite()
+        self.writeFastHLine(x, y, w, c)
+        self.endWrite()
+
+    def fillRect(self, x, y, w, h, c):
+        self.startWrite()
+        self.writeFillRect(x, y, w, h, c)
+        self.endWrite()
+
+    def fillScreen(self, c):
+        self.fillRect(0, 0, self.width(), self.height())
+
+    def drawLine(self, x0, y0, x1, y1, c):
+        self.startWrite()
+        self.writeLine(x0, y0, x1, y1, c)
+        self.endWrite()
+
+    def drawRect(self, x, y, w, h, c):
+        self.GFX.rect(x, y, w, h, c)
+
+    def drawCircle(self, x, y, r, c):
+        self.GFX.circle(x, y, r, c)
+
+    def fillCircle(self, x, y, r, c):
+        self.GFX.fill_circle(x, y, r, c)
+
+    def drawTriangle(self, x0, y0, x1, y1, x2, y2, c):
+        self.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+
+    def fillTriangle(self, x0, y0, x1, y1, x2, y2, c):
+        self.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+
+    def drawRoundRect(self, x, y, q, h, r, c):
+        self.GFX.round_rect(x, y, q, h, r, c)
+
+    def fillRoundRect(self, x, y, q, h, r, c):
+        self.GFX.fill_round_rect(x, y, q, h, r, c)
+
+    def setDisplayMode(self, mode):
+        self.displayMode = mode
+
+    def selectDisplayMode(self, mode):
+        self.displayMode = mode
+
+    def getDisplayMode(self):
+        return self.displayMode
+
+    def setTextSize(self, s):
+        self.textSize = s
+
+    def setFont(self, f):
+        self.GFX.font = f
+
+    def printText(self, x, y, s):
+        self.GFX._very_slow_text(x, y, s, self.textSize, 1)
+
+    def drawBitmap(self, x, y, data, w, h):
+        byteWidth = (w + 7) // 8
+        byte = 0
+        self.startWrite()
+        for j in range(h):
+            for i in range(w):
+                if i & 7:
+                    byte <<= 1
+                else:
+                    byte = data[j * byteWidth + i // 8]
+                if byte & 0x80:
+                    self.writePixel(x + i, y + j, 1)
+        self.endWrite()

@@ -92,7 +92,7 @@ class GFX:
             self.text = self._very_slow_text
             # if no supplied font set to std
             if font is None:
-                from adafruit_gfx.fonts.gfx_standard_font_01 import (  # pylint: disable=import-outside-toplevel
+                from gfx_standard_font_01 import (  # pylint: disable=import-outside-toplevel # changed
                     text_dict as std_font,
                 )
 
@@ -104,7 +104,7 @@ class GFX:
                     raise ValueError(
                         "Font definitions must be contained in a dictionary object."
                     )
-                # del self.set_text_background # changed
+                del self.set_text_background
 
         else:
             self.text = text
