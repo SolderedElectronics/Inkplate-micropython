@@ -626,6 +626,9 @@ class Inkplate:
     INKPLATE_1BIT = 0
     INKPLATE_3BIT = 1
 
+    BLACK = 1
+    WHITE = 0
+
     _width = D_COLS
     _height = D_ROWS
 
