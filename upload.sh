@@ -1,1 +1,0 @@
-python3 pyboard.py --device /dev/cu.usbserial-1420 -f cp inkplate.py gfx.py gfx_standard_font_01.py : && python3 pyboard.py --device /dev/cu.usbserial-1420 test.py
