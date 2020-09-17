@@ -12,135 +12,31 @@ a 6" E-paper display and three capacitive touch buttons/sensors.
 
 ### Features
 
-- Simple graphics class (similar to Adafruit GFX) for monochrome  and 2-bit greyscale use of the
+- Simple graphics class for monochrome  and 2-bit greyscale use of the
   ePaper display.
 - Simple graphics class for 2 bits per pixel greyscale use of the ePaper display.
 - Support for partial updates (currently only on the monochrome display).
-- Support for ("u8g2" fonts)[https://github.com/olikraus/u8g2] including rendering from the
-  compressed format.
 - Access to touch sensors.
 - Everything in pure python with screen updates virtually as fast as the Arduino C driver.
+- Added bitmap drawing, although really slow one.
 
 Getting started
 ---------------
 
-- Flash MicroPython v1.12 `GENERIC_SPIRAM` or more recent to your inkplate, e.g.
-  `esp32spiram-idf4-20191220-v1.12.bin` from http://micropython.org/download/esp32/
-  (it's the very last download link on that page).
+- Flash MicroPython firmware supplied, or from http://micropython.org/download/esp32/ .
 
 - Copy library files to your board, something like:
   ```
-  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py shapes.py u8g2_font.py luRS24_te.u8f :
+  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate.py image.py gfx.py gfx_standard_font_01.py :
   ```
   (You can find `pyboard.py` in the MicroPython tools directory or just download it from
   GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
 
-- Run `inkplate.py`:
+- Run `example.py`:
   ```
-  pyboard.py --device /dev/ttyUSB0 inkplate.py
+  pyboard.py --device /dev/ttyUSB0 example.py
   ```
-
-- On the terminal console you should see a bunch of progress lines:
-  ```
-  Mono: clean 857ms (17ms ea), draw 298ms (49ms ea), total 1155ms
-  GS2: clean 855ms (17ms ea), draw 696ms (99ms ea), total 1551ms
-  GFXPatt: in 102ms
-  Mono: clean 858ms (17ms ea), draw 297ms (49ms ea), total 1155ms
-  GFX: in 36ms
-  Partial: draw 166ms (33ms/frame 65us/row) (y=90..158)
-  ...
-  ```
-
-- On the display you should see it clearing, then showing a monochrome test pattern, clearing and
-  showing a greyscale test pattern, then clearing and showing the following test pattern:
-  ![hello world image](https://github.com/tve/mpy-inkplate/blob/master/img/hello_world.jpg?raw=true)
-
-- The "Hello World" box should then move across the display using partial updates. Here's a video
-  of what that looks like (this is actual speed):
-  
-  ![hello world animation](https://user-images.githubusercontent.com/39480/89499537-09931100-d775-11ea-99ec-73f63c6c3010.gif)
-
-  Sorry for the hand-held shaking... It does look better in real-life when not quantized down to
-  fit into github!
-
-- After a brief pause you will see the first test pattern again.
-  Touch the touchpad "3" to advance to the next test pattern.
-
-- Look at the end of `inkplate.py` to see the demo code.
-
-- An initial version of "u8g2" font support can be found in `u8g2_font.py`. The rendering is
-  currently not optimized due to a bug in MicroPython's viper code emitter (oops!) but the
-  performance seems reasonable.  To try it out copy `inkplate.py` to flash:
-  ```
-  pyboard.py --device /dev/ttyUSB0 -f cp inkplate.py :
-  ```
-  Then run the demo:
-  ```
-  pyboard.py --device /dev/ttyUSB0 u8g2_font.py
-  ```
-  And have some patience until everything loads and draws incrementally until you see:
-  ![alt text](https://github.com/tve/mpy-inkplate/blob/master/img/hello_font.jpg?raw=true)
-
-- Additional fonts can be downloaded as C files from
-  https://github.com/olikraus/u8g2/tree/master/tools/font/build/single_font_files
-  (realistically you will need to grab the repo...), see (that repo's
-  wiki)[https://github.com/olikraus/u8g2/wiki/fntgrp] for an index to all
-  the fonts available. Once you grabbed a C file for the font, run
-  `./u8g2_convert.py <u8g2_font_blah.c` and upload the resulting `.u8f` binary font file.
-
-- _(This is superceded by the u8g2 font support.)_
-  An initial version of BDF font support can be found in `bdf_font.py`. The BDF font parsing is
-  super-slow and needs a better solution, but the text looks good. To try it out copy the
-  provided font to flash, _warning_ it takes the better part of a minute to upload the font
-  file!
-  ```
-  pyboard.py --device /dev/ttyUSB0 -f cp luRS24.bdf :
-  ```
-  Then run the demo:
-  ```
-  pyboard.py --device /dev/ttyUSB0 bdf_font.py
-  ```
-  And have some patience until everything loads and draws incrementally.
-
-Info
-----
-
-### Partial Updates
-
-The partial update works as follows. An `InkplateMono` is allocated as well as an `InkplatePartial`
-based on it. Then an initial image is drawn using `InkplateMono` and `InkplatePartial.start()` is
-called, which makes a copy of the image from `InkplateMono`. The desired screen changes are drawn
-normally on the `InkplateMono` and when they're ready to display, `InkplatePartial.display()` is
-called.
-
-What `InkplatePartial.display` does is to render the attached `InkplateMono` but as it renders it
-compares the pixels with those saved by the call to `start()`. For pixels that have not changed
-it sends a "no change" code to the display and for ones that have changed it sends the appropriate
-waveform. Sending "no change" is faster than sending the waveform and the partial update waveform
-is shorter (thus faster) than the standard refresh-the-screen waveform.
-
-In addition, a bounding box can be passed to `InkplatePartial.display` and it will skip rows outside
-of the bounding box, which is faster than sending a full rows of "no change". (The x/width
-parameters to `InkplatePartial.display` are currently unused and cannot be used to exclude the
-update of pixels that were changed but shouldn't be displayed.)
-
-### Greyscale
-
-Greyscale display is supported using `InkplateGS2` providing 2 bits per pixel.
-2-bit greyscale was chosen because it nicely packs 4 pixels into a byte, doesn't use a ton of
-memory, and is still fast. Using 3-bit greyscale is not supported by the MicroPython framebuf
-module, and doesn't pack nicely into bytes. 4-bit greyscale uses a lot of memory and becomes
-rather slow, plus it's not clear decent open source ePaper waveforms can be worked out to
-actually display that many levels.
-
-It seems that the main use for more than 2-bit greyscale is the display of images.
-The results of the Arduino C driver displaying images quantized to 8 levels (3 bits per pixel) look
-rather unconvincing (IMHO) with large flat blotches where the original images has a gradient (for
-example portions showing the sky). It seems that images dithered to 2-bit greyscale with
-Floyd-Steinberg or equivalent ought to look better than that.
-
-All this being said, it shouldn't be all that much work to make a clone of `InkplateGS2` that
-supports 4-bit greyscale.
+- You can run our other 2 examples, showing how to use the Sd card and network class.
 
 ### Performance and Timing
 
