@@ -24,6 +24,17 @@ Getting started
 ---------------
 
 - Flash MicroPython firmware supplied, or from http://micropython.org/download/esp32/ .
+  Run 
+  ```
+  esptool.py --port /dev/cu.usbserial-1420 erase_flash 
+  ```
+  to erase esp32 flash and then
+  ```
+  esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-idf4-20191220-v1.12.bin
+  ```
+  to flash supplied firmware.
+  
+  If you don't have esptool.py installed, install it from here: https://github.com/espressif/esptool.
 
 - Copy library files to your board, something like:
   ```
