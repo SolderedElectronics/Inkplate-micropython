@@ -625,7 +625,7 @@ class InkplatePartial:
 
 class Inkplate:
     INKPLATE_1BIT = 0
-    INKPLATE_3BIT = 1
+    INKPLATE_2BIT = 1
 
     BLACK = 1
     WHITE = 0
@@ -637,23 +637,28 @@ class Inkplate:
     displayMode = 0
     textSize = 1
 
-    sd = sdcard.SDCard(
-        machine.SPI(
-            1,
-            baudrate=80000000,
-            polarity=0,
-            phase=0,
-            bits=8,
-            firstbit=0,
-            sck=Pin(14),
-            mosi=Pin(13),
-            miso=Pin(12),
-        ),
-        machine.Pin(15),
-    )
-
     def __init__(self, mode):
         self.displayMode = mode
+        try:
+            os.mount(
+                sdcard.SDCard(
+                    machine.SPI(
+                        1,
+                        baudrate=80000000,
+                        polarity=0,
+                        phase=0,
+                        bits=8,
+                        firstbit=0,
+                        sck=Pin(14),
+                        mosi=Pin(13),
+                        miso=Pin(12),
+                    ),
+                    machine.Pin(15),
+                ),
+                "/sd",
+            )
+        except:
+            pass
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
@@ -843,3 +848,103 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, 1)
         self.endWrite()
+
+    def drawImageFile(self, x, y, path, invert=False):
+        with open(path, "rb") as f:
+            header14 = f.read(14)
+            if header14[0] != 0x42 or header14[1] != 0x4D:
+                return 0
+            header40 = f.read(40)
+
+            w = int(
+                (header40[7] << 24)
+                + (header40[6] << 16)
+                + (header40[5] << 8)
+                + header40[4]
+            )
+            h = int(
+                (header40[11] << 24)
+                + (header40[10] << 16)
+                + (header40[9] << 8)
+                + header40[8]
+            )
+            dataStart = int((header14[11] << 8) + header14[10])
+
+            depth = int((header40[15] << 8) + header40[14])
+            totalColors = int((header40[33] << 8) + header40[32])
+
+            rowSize = 4 * ((depth * w + 31) // 32)
+
+            if totalColors == 0:
+                totalColors = 1 << depth
+
+            palette = None
+
+            if depth <= 8:
+                palette = [0 for i in range(totalColors)]
+                p = f.read(totalColors * 4)
+                for i in range(totalColors):
+                    palette[i] = (
+                        54 * p[i * 4] + 183 * p[i * 4 + 1] + 19 * p[i * 4 + 2]
+                    ) >> 14
+            # print(palette)
+            f.seek(dataStart)
+            for j in range(h):
+                # print(100 * j // h, "% complete")
+                buffer = f.read(rowSize)
+                for i in range(w):
+                    val = 0
+                    if depth == 1:
+                        px = int(
+                            invert
+                            ^ (palette[0] < palette[1])
+                            ^ bool(buffer[i >> 3] & (1 << (7 - i & 7)))
+                        )
+                        val = palette[px]
+                    elif depth == 4:
+                        px = (buffer[i >> 1] & (0x0F if i & 1 == 1 else 0xF0)) >> (
+                            0 if i & 1 else 4
+                        )
+                        val = palette[px]
+                        if invert:
+                            val = 3 - val
+                    elif depth == 8:
+                        px = buffer[i]
+                        val = palette[px]
+                        if invert:
+                            val = 3 - val
+                    elif depth == 16:
+                        px = (buffer[(i << 1) | 1] << 8) | buffer[(i << 1)]
+
+                        r = (px & 0x7C00) >> 7
+                        g = (px & 0x3E0) >> 2
+                        b = (px & 0x1F) << 3
+
+                        val = (54 * r + 183 * g + 19 * b) >> 14
+
+                        if invert:
+                            val = 3 - val
+                    elif depth == 24:
+                        r = buffer[i * 3]
+                        g = buffer[i * 3 + 1]
+                        b = buffer[i * 3 + 2]
+
+                        val = (54 * r + 183 * g + 19 * b) >> 14
+
+                        if invert:
+                            val = 3 - val
+                    elif depth == 32:
+                        r = buffer[i * 4]
+                        g = buffer[i * 4 + 1]
+                        b = buffer[i * 4 + 2]
+
+                        val = (54 * r + 183 * g + 19 * b) >> 14
+
+                        if invert:
+                            val = 3 - val
+
+                    if self.getDisplayMode() == self.INKPLATE_1BIT:
+                        val >>= 1
+
+                    self.drawPixel(x + i, y + h - j, val)
+

@@ -5,9 +5,11 @@ import time
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
 if __name__ == "__main__":
+    # Must be called before using, line in Arduino
     display.begin()
 
     for r in range(4):
+        # Sets the screen rotation
         display.setRotation(r)
 
         # All drawing functions
@@ -25,13 +27,15 @@ if __name__ == "__main__":
         if display.rotation % 2 == 0:
             display.fillTriangle(500, 101, 400, 150, 400, 100, display.BLACK)
 
+    # Draws image from bytearray
     display.setRotation(0)
     display.drawBitmap(120, 200, image, 576, 100)
     display.display()
 
     time.sleep(5)
 
-    display.selectDisplayMode(display.INKPLATE_3BIT)
+    # You can switch display modes anytime
+    display.selectDisplayMode(display.INKPLATE_2BIT)
 
     display.clearDisplay()
     for r in range(4):
@@ -53,4 +57,6 @@ if __name__ == "__main__":
             display.fillTriangle(500, 101, 400, 150, 400, 100, 1)
 
     display.setRotation(0)
+
+    # Displays content from buffer
     display.display()
