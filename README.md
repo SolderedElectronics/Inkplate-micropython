@@ -24,7 +24,7 @@ Getting started
 ---------------
 
 - Flash MicroPython firmware supplied, or from http://micropython.org/download/esp32/ .
-  Run 
+- Run 
   ```
   esptool.py --port /dev/cu.usbserial-1420 erase_flash 
   ```
