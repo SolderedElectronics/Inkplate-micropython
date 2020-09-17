@@ -5,7 +5,7 @@ flash:
 esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-idf4-20191220-v1.12.bin
 
 copy all:
-python3 pyboard.py --device /dev/cu.usbserial-1420 -f cp inkplate.py gfx.py gfx_standard_font_01.py mcp23017.py image.py :
+python3 pyboard.py --device /dev/cu.usbserial-1420 -f cp inkplate.py gfx.py gfx_standard_font_01.py mcp23017.py image.py sdcard.py :
 
 run:
 python3 pyboard.py --device /dev/cu.usbserial-1420 -f cp inkplate.py : && python3 pyboard.py --device /dev/cu.usbserial-1420 example.py

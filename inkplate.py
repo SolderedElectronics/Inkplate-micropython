@@ -2,6 +2,7 @@
 import time
 import micropython
 import framebuf
+import machine, sdcard, os
 from machine import Pin, I2C
 from uarray import array
 from mcp23017 import MCP23017
@@ -636,8 +637,23 @@ class Inkplate:
     displayMode = 0
     textSize = 1
 
+    sd = sdcard.SDCard(
+        machine.SPI(
+            1,
+            baudrate=80000000,
+            polarity=0,
+            phase=0,
+            bits=8,
+            firstbit=0,
+            sck=Pin(14),
+            mosi=Pin(13),
+            miso=Pin(12),
+        ),
+        machine.Pin(15),
+    )
+
     def __init__(self, mode):
-        self.mode = mode
+        self.displayMode = mode
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
@@ -662,13 +678,13 @@ class Inkplate:
         self.ipm.clear()
 
     def display(self):
-        if self.mode == 0:
+        if self.displayMode == 0:
             self.ipm.display()
-        elif mode == 1:
+        elif self.displayMode == 1:
             self.ipg.display()
 
     def partialUpdate(self):
-        if self.mode == 1:
+        if self.displayMode == 1:
             return
         self.ipp.display()
 
@@ -729,7 +745,9 @@ class Inkplate:
         elif self.rotation == 3:
             x, y = y, x
             y = self.width() - y - 1
-        (self.ipm.pixel if self.mode == self.INKPLATE_1BIT else self.ipm.pixel)(x, y, c)
+        (self.ipm.pixel if self.displayMode == self.INKPLATE_1BIT else self.ipg.pixel)(
+            x, y, c
+        )
 
     def writeFillRect(self, x, y, w, h, c):
         for j in range(w):
