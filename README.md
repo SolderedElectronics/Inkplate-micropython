@@ -38,14 +38,14 @@ Getting started
 
 - Copy library files to your board, something like:
   ```
-  pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate.py image.py gfx.py gfx_standard_font_01.py :
+  python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate.py image.py gfx.py gfx_standard_font_01.py :
   ```
   (You can find `pyboard.py` in the MicroPython tools directory or just download it from
   GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
 
 - Run `example.py`:
   ```
-  pyboard.py --device /dev/ttyUSB0 example.py
+  python3 pyboard.py --device /dev/ttyUSB0 example.py
   ```
 - You can run our other 2 examples, showing how to use the Sd card and network class.
 
