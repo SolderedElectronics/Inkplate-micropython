@@ -2,8 +2,8 @@ import network
 import time
 from inkplate import Inkplate
 
-ssid = "e-radionica.com"
-password = "croduino"
+ssid = ""
+password = ""
 
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
 def do_connect():
