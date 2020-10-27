@@ -1,27 +1,22 @@
-Inkplate 6
-==========
+# Inkplate 6 micropython module
 
-This repository contains MicroPython drivers for the E-Radionica Inkplate 6: an ESP32 board with
-a 6" E-paper display and three capacitive touch buttons/sensors.
+![](https://www.crowdsupply.com/img/040a/inkplate-6-angle-01_png_project-main.jpg)
 
-### Inkplate 6 info
+Micropython for all-in-one e-paper display Inkplate 6 can be found in this repo. Inkplate 6 is a powerful, Wi-Fi enabled ESP32 based six-inch e-paper display – recycled from a Kindle e-reader. Its main feature is simplicity. Just plug in a USB cable, open Arduino IDE, and change the contents of the screen with few lines of code. Learn more about Inkplate 6 on [official website](https://inkplate.io/). Inkplate was crowdfunded on [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-6).
 
-- CrowdSupply project: https://www.crowdsupply.com/e-radionica/inkplate-6
-- Hardware: https://github.com/e-radionicacom/Inkplate-6-hardware
-- Forum: http://forum.e-radionica.com/en/viewtopic.php?f=25&t=260
+Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
 
 ### Features
 
-- Simple graphics class for monochrome  and 2-bit greyscale use of the
-  ePaper display.
-- Simple graphics class for 2 bits per pixel greyscale use of the ePaper display.
-- Support for partial updates (currently only on the monochrome display).
-- Access to touch sensors.
-- Everything in pure python with screen updates virtually as fast as the Arduino C driver.
-- Added bitmap drawing, although really slow one.
+- Simple graphics class for monochrome use of the e-paper display
+- Simple graphics class for 2 bits per pixel greyscale use of the e-paper display
+- Support for partial updates (currently only on the monochrome display)
+- Access to touch sensors
+- Everything in pure python with screen updates virtually as fast as the Arduino C driver
+- Bitmap drawing, although really slow one
 
-Getting started
----------------
+### Getting started with micropython on Inkplate 6
+
 
 - Flash MicroPython firmware supplied, or from http://micropython.org/download/esp32/ .
 - Run 
@@ -49,79 +44,33 @@ Getting started
   ```
 - You can run our other 2 examples, showing how to use the Sd card and network class.
 
-### Performance and Timing
+### Battery power
 
-The update speed relies heavily on the MicroPython viper compile-to-native functionality.
-It's great because it allows a pure python library. But it also sucks because it's not really
-that good and the code starts to become pretty obscure. It would be smart to recode the key
-functions in C and provide an optional pre-compiled mpy file with that. This is probably only worth
-doing once all the kinks are worked out and the intricacies of the ePaper displaya are better
-understood.
+Inkplate 6 has two options for powering it. First one is obvious - USB port at side of the board. Just plug any micro USB cable and you are good to go. Second option is battery. Supported batteries are standard Li-Ion/Li-Poly batteries with 3.7V nominal voltage. Connector for the battery is standard 2.00mm pitch JST connector. The onboard charger will charge the battery with 500mA when USB is plugged at the same time. You can use battery of any size or capacity if you don't have a enclosure. If you are using our enclosure, battery size shouldn't exceed 90mm x 40mm (3.5 x 1.57 inch) and 5mm (0.19 inch) in height. [This battery](https://e-radionica.com/en/li-ion-baterija-1200mah.html) is good fit for the Inkplate.
 
-The timing of the display update is based on "it seems to work". It appears that the rate at
-which rows are updated is really faster than spec. This can have some very unintuitive
-side-effects. For example, if the speed at which rows are _skipped_ is increased in the partial
-update, the rows that are subsequently updated are washed out (even if they are written as slowly
-as before)!
-It would be good to exert more care with the update speed in the future C primitives.
+### Arduino?
 
-### Display background info
+Looking for Arduino library? Look [here](https://github.com/e-radionicacom/Inkplate-6-Arduino-library)!
 
-- Display Datasheet: http://www.universaldisplay.asia/wp-content/uploads/2012/10/ED060SC7-2.0.pdf
-- Essential Scrap page: http://essentialscrap.com/eink/waveforms.html
-- SpriteTM page: http://spritesmods.com/?art=einkdisplay&page=1
-- General background on waveforms: https://wenku.baidu.com/view/00bbfb6727d3240c8447efd5.html
-- Display flash chip: MX25L2006 2Mbit (256KBytes)
+### Open-source
 
-### ESP32 GPIO map
+All of Inkplate-related development is open-sourced:
+- [Arduino library](https://github.com/e-radionicacom/Inkplate-6-Arduino-library)
+- [Inkplate 6 hardware](https://github.com/e-radionicacom/Inkplate-6-hardware)
+- [micropython Inkplate](https://github.com/e-radionicacom/Inkplate-6-micropython)
+- [OSHWA certificate](https://certification.oshwa.org/hr000003.html)
 
-| GPIO | Std func   | Inkplate | Description |
-| ---- | ---------- | -------- | ----------- |
-|   0  | pup/ftdi   | EPD-CL   | Clock byte, positive pulse |
-|   1  | U0TXD      | TX       |
-|   2  | pdn        | EPD-LE   | Latch (row) enable: positive pulse |
-|   3  | U0RXD      | RX       |
-|   4  |            | EPD-D0   |
-|   5  | pup        | EPD-D1   |
-|  12  | pdn, mmiso | SPI-MISO |
-|  13  | msck       | SPI-MOSI |
-|  14  |            | SPI-CK   |
-|  15  | mmosi      | SPI-CS   |
-|  16  |            | PSRAM    |
-|  17  |            | PSRAM    |
-|  18  | vsck       | EPD-D2   |
-|  19  | vmosi      | EPD-D3   |
-|  21  |            | SDA      |
-|  22  |            | SCL      |
-|  23  | vmiso      | EPD-D4   |
-|  25  | dac1       | EPD-D5   |
-|  26  | dac2       | EPD-D6   |
-|  27  |            | EPD-D7   |
-|  32  | adc4       | EPD-CKV  | Clock vertical: positive pulse |
-|  33  | adc9       | EPD-SPH  | Start pulse horizontal, active low |
-|  34  | in, adc6   | INTB     | interrupt from MCP23017 |
-|  35  | in, adc7   | BATV     |
-|  36  | in, adc0   |          |
-|  39  | in, adc3   |          |
+### Where to buy & other
 
-### I2C I/O Expander MCP23017
+Inkplate 6 is available for purchase via:
 
-| IO | Function | Description |
-| -- | -------- | ----------- |
-| A0 | EPD-OE   |
-| A1 | EPD-GMODE | Gate output mode: high to enable |
-| A2 | EPD-SPV  | Start pulse vertical, active low |
-| A3 | TPS65186 WAKEUP |
-| A4 | TPS65186 PWRUP |
-| A5 | TPS65186 VCOM-CTRL |
-| A6 | TPS65186 INT |
-| A7 | TPS65186 PWR-GOOD |
-|    |          |             |
-| B0 | GPIO0-MOSFET (EPD-CL) | low pulls gpio0/EPD-CL high via 1K Ohm |
-| B1 | VBAT-MOSFET | low enables VBAT |
-| B2 | TOUCH1   |
-| B3 | TOUCH2   |
-| B4 | TOUCH3   |
-| B5 | K19      |
-| B6 | K20      |
-| B7 | K21      |
+- [e-radionica.com](https://e-radionica.com/en/inkplate.html)
+- [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-6)
+- [Mouser](https://hr.mouser.com/Search/Refine?Keyword=inkplate)
+- [Sparkfun](https://www.sparkfun.com/search/results?term=inkplate)
+- [Pimoroni](https://shop.pimoroni.com/products/inkplate-6)
+
+Inkplate 6 is open-source. If you are looking for hardware design of the board, check the [Hardware repo](https://github.com/e-radionicacom/Inkplate-6-hardware). You will find 3D printable [enclosure](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/3D%20printable%20case) there, as well as [detailed dimensions](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/Technical%20drawings). In this repo you will find code for driving the ED060SC7 e-paper display used by Inkplate.
+
+For all questions and issues, please use our [forum](http://forum.e-radionica.com/en) to ask an question.
+For sales & collaboration, please reach us via [e-mail](mailto:kontakt@e-radionica.com).
