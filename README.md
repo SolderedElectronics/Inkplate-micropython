@@ -44,6 +44,13 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
   ```
 - You can run our other 2 examples, showing how to use the Sd card and network class.
 
+### Examples
+
+The repo contains many examples which can demonstrate the Inkplate capabilites. 
+- example.py -> demonstrates basic drawing capabilites, as well as drawing some images
+- exampleNetwork.py -> demonstrates connection to WiFi network while drawing the HTTP request response on the screen
+- exampleSd.py -> demonstrates reading files and images from SD card
+
 ### Battery power
 
 Inkplate 6 has two options for powering it. First one is obvious - USB port at side of the board. Just plug any micro USB cable and you are good to go. Second option is battery. Supported batteries are standard Li-Ion/Li-Poly batteries with 3.7V nominal voltage. Connector for the battery is standard 2.00mm pitch JST connector. The onboard charger will charge the battery with 500mA when USB is plugged at the same time. You can use battery of any size or capacity if you don't have a enclosure. If you are using our enclosure, battery size shouldn't exceed 90mm x 40mm (3.5 x 1.57 inch) and 5mm (0.19 inch) in height. [This battery](https://e-radionica.com/en/li-ion-baterija-1200mah.html) is good fit for the Inkplate.
