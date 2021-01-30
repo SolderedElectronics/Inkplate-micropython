@@ -1,7 +1,7 @@
 import os
 from inkplate import Inkplate
 
-display = Inkplate(Inkplate.INKPLATE_2BIT)
+display = Inkplate(Inkplate.INKPLATE_3BIT)
 display.begin()
 
 # This prints all the files on card

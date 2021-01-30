@@ -35,7 +35,7 @@ if __name__ == "__main__":
     time.sleep(5)
 
     # You can switch display modes anytime
-    display.selectDisplayMode(display.INKPLATE_2BIT)
+    display.selectDisplayMode(display.INKPLATE_3BIT)
 
     display.clearDisplay()
     for r in range(4):

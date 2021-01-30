@@ -625,7 +625,7 @@ class InkplatePartial:
 
 class Inkplate:
     INKPLATE_1BIT = 0
-    INKPLATE_2BIT = 1
+    INKPLATE_3BIT = 1
 
     BLACK = 1
     WHITE = 0
@@ -947,4 +947,3 @@ class Inkplate:
                         val >>= 1
 
                     self.drawPixel(x + i, y + h - j, val)
-
