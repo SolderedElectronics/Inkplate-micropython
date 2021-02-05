@@ -3,7 +3,7 @@ import time
 import micropython
 import framebuf
 import machine, sdcard, os
-from machine import Pin, I2C
+from machine import Pin, I2C, ADC
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -68,6 +68,9 @@ class _Inkplate:
         # Misc
         cls.GPIO0_PUP = cls._mcp23017.pin(8, Pin.OUT, value=0)
         cls.VBAT_EN = cls._mcp23017.pin(9, Pin.OUT, value=1)
+        cls.VBAT = ADC(Pin(35))
+        cls.VBAT.atten(ADC.ATTN_11DB)
+        cls.VBAT.width(ADC.WIDTH_12BIT)
         # Touch sensors
         cls.TOUCH1 = cls._mcp23017.pin(10, Pin.IN)
         cls.TOUCH2 = cls._mcp23017.pin(11, Pin.IN)
@@ -88,6 +91,17 @@ class _Inkplate:
     def _tps65186_read(cls, reg):
         cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
 
+    # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
+    @classmethod
+    def read_battery(cls):
+        cls.VBAT_EN.value(0)
+        # Probably don't need to delay since Micropython is slow, but we do it anyway
+        time.sleep_ms(1)
+        value = cls.VBAT.read()
+        cls.VBAT_EN.value(1)
+        result = (value / 4095.0) * 1.1 * 3.548133892 * 2
+        return result
+        
     # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
     @classmethod
     def power_on(cls):
@@ -710,6 +724,9 @@ class Inkplate:
 
     def einkOff(self):
         _Inkplate.power_off()
+
+    def readBattery(self):
+        return _Inkplate.read_battery()
 
     def width(self):
         return self._width
