@@ -806,7 +806,7 @@ class Inkplate:
         self.endWrite()
 
     def fillScreen(self, c):
-        self.fillRect(0, 0, self.width(), self.height())
+        self.fillRect(0, 0, self.width(), self.height(), c)
 
     def drawLine(self, x0, y0, x1, y1, c):
         self.startWrite()
