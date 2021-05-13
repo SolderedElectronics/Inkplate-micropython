@@ -2,14 +2,40 @@
 import time
 import micropython
 import framebuf
-import machine, sdcard, os
+import os
+import sdcard
+import machine
 from machine import Pin, I2C, ADC
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
+from shapes import Shapes
 
 from gfx import GFX
 from gfx_standard_font_01 import text_dict as std_font
+# ===== Constants that change between the Inkplate 6 and 10
+
+# Raw display constants for Inkplate 6
+D_ROWS = const(600)
+D_COLS = const(800)
+
+# Waveforms for 2 bits per pixel grey-scale.
+# Order of 4 values in each tuple: blk, dk-grey, light-grey, white
+# Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
+# Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
+
+WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
+    (0, 0, 0, 0),
+    (0, 0, 0, 0),
+    (0, 1, 1, 0),
+    (0, 1, 1, 0),
+    (1, 2, 1, 0),
+    (1, 1, 2, 0),
+    (1, 2, 2, 2),
+)
+    # Ink6 WAVEFORM3BIT from arduino driver
+    # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
+    #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
 
 TPS65186_addr = const(0x48)  # I2C address
 
@@ -31,12 +57,10 @@ EPD_LE = const(0x00000004)  # in W1Tx0
 EPD_CKV = const(0x00000001)  # in W1Tx1
 EPD_SPH = const(0x00000002)  # in W1Tx1
 
-# Raw display constants
-D_ROWS = const(600)
-D_COLS = const(800)
-
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
+
+
 class _Inkplate:
     @classmethod
     def init(cls, i2c):
@@ -81,15 +105,42 @@ class _Inkplate:
         if len(_Inkplate.byte2gpio) == 0:
             _Inkplate.gen_byte2gpio()
 
-    # _tps65186_write writes an 8-bit value to a register
     @classmethod
-    def _tps65186_write(cls, reg, v):
-        cls._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
+    def begin(self):
+        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
 
-    # _tps65186_read reads an 8-bit value from a register
+        self.ipg = InkplateGS2()
+        self.ipm = InkplateMono()
+        self.ipp = InkplatePartial(self.ipm)
+
+        self.GFX = GFX(
+            D_COLS,
+            D_ROWS,
+            self.writePixel,
+            self.writeFastHLine,
+            self.writeFastVLine,
+            self.writeFillRect,
+            None,
+            None,
+        )
+
     @classmethod
-    def _tps65186_read(cls, reg):
-        cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+    def clearDisplay(self):
+        self.ipg.clear()
+        self.ipm.clear()
+
+    @classmethod
+    def display(self):
+        if self.displayMode == 0:
+            self.ipm.display()
+        elif self.displayMode == 1:
+            self.ipg.display()
+
+    @classmethod
+    def partialUpdate(self):
+        if self.displayMode == 1:
+            return
+        self.ipp.display()
 
     # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
     @classmethod
@@ -101,7 +152,32 @@ class _Inkplate:
         cls.VBAT_EN.value(1)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
-        
+
+    # Read panel temperature. I varies +- 2 degree
+    @classmethod
+    def read_temperature(cls):
+        # start temperature measurement and wait 5 ms
+        cls._i2c.writeto_mem(TPS65186_addr, 0x0D, bytes((0x80,)))
+        time.sleep_ms(5)
+
+        # request temperature data from panel
+        cls._i2c.writeto(TPS65186_addr, bytearray((0x00,)))
+        cls._temperature = cls._i2c.readfrom(TPS65186_addr, 1)
+
+        # convert data from bytes to integer
+        cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
+        return cls.temperatureInt
+
+    # _tps65186_write writes an 8-bit value to a register
+    @classmethod
+    def _tps65186_write(cls, reg, v):
+        cls._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
+
+    # _tps65186_read reads an 8-bit value from a register
+    @classmethod
+    def _tps65186_read(cls, reg):
+        cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+
     # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
     @classmethod
     def power_on(cls):
@@ -179,7 +255,8 @@ class _Inkplate:
         cls.byte2gpio = array("L", bytes(4 * 256))
         for b in range(256):
             cls.byte2gpio[b] = (
-                (b & 0x3) << 4 | (b & 0xC) << 16 | (b & 0x10) << 19 | (b & 0xE0) << 20
+                (b & 0x3) << 4 | (b & 0xC) << 16 | (
+                    b & 0x10) << 19 | (b & 0xE0) << 20
             )
         # sanity check that all EPD_DATA bits got set at some point and no more
         union = 0
@@ -241,26 +318,22 @@ class InkplateMono(framebuf.FrameBuffer):
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
         ip = InkplateMono
         ip._gen_luts()
-        ip._wave = [
-            ip.lut_blk,
-            ip.lut_blk,
-            ip.lut_blk,
-            ip.lut_blk,
-            ip.lut_blk,
-            ip.lut_bw,
-        ]
+        ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk,
+                    ip.lut_blk, ip.lut_blk, ip.lut_bw]
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
     # The LUTs used here were copied from the e-Radionica Inkplate-6-Arduino-library.
     @classmethod
     def _gen_luts(cls):
-        b16 = bytes(4 * 16)  # is there a better way to init an array with 16 words???
-        cls.lut_wht = array("L", b16)  # bits to ship to gpio to make pixels white
-        cls.lut_blk = array("L", b16)  # bits to ship to gpio to make pixels black
-        cls.lut_bw = array(
-            "L", b16
-        )  # bits to ship to gpio to make pixels black and white
+        # is there a better way to init an array with 16 words???
+        b16 = bytes(4 * 16)
+        # bits to ship to gpio to make pixels white
+        cls.lut_wht = array("L", b16)
+        # bits to ship to gpio to make pixels black
+        cls.lut_blk = array("L", b16)
+        # bits to ship to gpio to make pixels black and white
+        cls.lut_bw = array("L", b16)
         for i in range(16):
             wht = 0
             blk = 0
@@ -279,12 +352,13 @@ class InkplateMono(framebuf.FrameBuffer):
     @micropython.viper
     @staticmethod
     def _send_row(lut_in, framebuf, row: int):
+        ROW_LEN = D_COLS >> 3  # length of row in bytes
         # cache vars into locals
         w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
         w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
         off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
         fb = ptr8(framebuf)
-        ix = int(row * (D_COLS >> 3) + 99)  # index into framebuffer
+        ix = int(row * ROW_LEN + ROW_LEN - 1)  # index into framebuffer
         lut = ptr32(lut_in)
         # send first byte
         data = int(fb[ix])
@@ -298,8 +372,8 @@ class InkplateMono(framebuf.FrameBuffer):
         w1ts0[0] = lut[data & 0xF]
         # w1tc0[0] = EPD_CL
         w1tc0[0] = off
-        # send the remaining bytes (792 pixels)
-        for c in range(99):
+        # send the remaining bytes
+        for c in range(ROW_LEN - 1):
             data = int(fb[ix])
             ix -= 1
             w1ts0[0] = lut[data >> 4]
@@ -362,7 +436,11 @@ class InkplateMono(framebuf.FrameBuffer):
         #    fb[ix] = 0
 
 
+Shapes.__mix_me_in(InkplateMono)
+
 # Inkplate display with 2 bits of gray scale (4 levels)
+
+
 class InkplateGS2(framebuf.FrameBuffer):
     _wave = None
 
@@ -384,26 +462,19 @@ class InkplateGS2(framebuf.FrameBuffer):
         def genlut(op):
             return bytes([op[j] | op[i] << 2 for i in range(4) for j in range(4)])
 
-        cls._wave = [
-            genlut([0, 0, 0, 0]),  # order: blk, dk-grey, light-grey, white
-            genlut([0, 0, 0, 0]),  # value: 0=dischg, 1=black, 2=white, 3=skip
-            genlut([0, 1, 1, 0]),
-            genlut([0, 1, 1, 0]),
-            genlut([1, 2, 1, 0]),
-            genlut([1, 1, 2, 0]),
-            genlut([1, 2, 2, 2]),
-        ]
+        cls._wave = [genlut(w) for w in WAVE_2B]
 
     # _send_row writes a row of data to the display
     @micropython.viper
     @staticmethod
     def _send_row(lut_in, framebuf, row: int):
+        ROW_LEN = D_COLS >> 2  # length of row in bytes
         # cache vars into locals
         w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
         w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
         off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
         fb = ptr8(framebuf)
-        ix = int(row * 200 + 199)  # index into framebuffer
+        ix = int(row * ROW_LEN + (ROW_LEN - 1))  # index into framebuffer
         lut = ptr8(lut_in)
         b2g = ptr32(_Inkplate.byte2gpio)
         # send first byte
@@ -411,14 +482,13 @@ class InkplateGS2(framebuf.FrameBuffer):
         ix -= 1
         w1tc0[0] = off
         w1tc0[W1TC1 - W1TC0] = EPD_SPH
-        w1ts0[0] = (
-            b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL
-        )  # set data bits and clock
+        w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]
+                       ] | EPD_CL  # set data bits and clock
         # w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
         w1tc0[0] = off  # clear data bits as well ready for next byte
         w1ts0[W1TS1 - W1TS0] = EPD_SPH
-        # send the remaining bytes (792 pixels)
-        for c in range(199):
+        # send the remaining bytes
+        for c in range(ROW_LEN - 1):
             data = int(fb[ix])
             ix -= 1
             w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL
@@ -478,10 +548,14 @@ class InkplateGS2(framebuf.FrameBuffer):
         #    fb[ix] = 0xFF
 
 
+Shapes.__mix_me_in(InkplateGS2)
+
 # InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
 # and then when asked to draw it renders the differences between the copy and the new framebuffer
 # state. The constructor needs a reference to the current/main display object (InkplateMono).
 # Only InkplateMono is supported at the moment.
+
+
 class InkplatePartial:
     def __init__(self, base):
         self._base = base
@@ -519,9 +593,9 @@ class InkplatePartial:
                 send_row(lut, ofb, nfb, r)
                 vscan_write()
                 r -= 1
-            # skip remaining rows (doesn't seem to be necessary)
-            # if r > 0:
-            #    skip_rows(r)
+            # skip remaining rows (doesn't seem to be necessary for Inkplate 6 but it is for 10)
+            if r > 0:
+                skip_rows(r)
             n += 1
 
         t1 = time.ticks_ms()
@@ -594,13 +668,14 @@ class InkplatePartial:
     @micropython.viper
     @staticmethod
     def _send_row(lut_in, old_framebuf, new_framebuf, row: int):
+        ROW_LEN = D_COLS >> 3  # length of row in bytes
         # cache vars into locals
         w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
         w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
         off = int(EPD_DATA | EPD_CL)  # mask with all data bits and clock bit
         ofb = ptr8(old_framebuf)
         nfb = ptr8(new_framebuf)
-        ix = int(row * (D_COLS >> 3) + 99)  # index into framebuffer
+        ix = int(row * ROW_LEN + (ROW_LEN - 1))  # index into framebuffer
         lut = ptr32(lut_in)
         # send first byte
         odata = int(ofb[ix])
@@ -620,8 +695,8 @@ class InkplatePartial:
             w1ts0[W1TS1 - W1TS0] = EPD_SPH
             w1ts0[0] = lut[((odata & 0xF) << 4) + (ndata & 0xF)]
             w1tc0[0] = off
-        # send the remaining bytes (792 pixels)
-        for c in range(99):
+        # send the remaining bytes
+        for c in range(ROW_LEN - 1):
             odata = int(ofb[ix])
             ndata = int(nfb[ix])
             ix -= 1
@@ -635,6 +710,8 @@ class InkplatePartial:
                 w1tc0[0] = off
                 w1ts0[0] = lut[((odata & 0xF) << 4) + (ndata & 0xF)]
                 w1tc0[0] = off
+
+# Inkplate wraper to make it more easy for use
 
 
 class Inkplate:
@@ -672,7 +749,7 @@ class Inkplate:
                 "/sd",
             )
         except:
-            pass
+            print("Sd card could not be read")
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
@@ -680,6 +757,10 @@ class Inkplate:
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
         self.ipp = InkplatePartial(self.ipm)
+
+        self.TOUCH1 = _Inkplate.TOUCH1
+        self.TOUCH2 = _Inkplate.TOUCH2
+        self.TOUCH3 = _Inkplate.TOUCH3
 
         self.GFX = GFX(
             D_COLS,
@@ -693,8 +774,8 @@ class Inkplate:
         )
 
     def clearDisplay(self):
-        self.ipg.clear()
         self.ipm.clear()
+        self.ipg.clear()
 
     def display(self):
         if self.displayMode == 0:
@@ -702,10 +783,13 @@ class Inkplate:
         elif self.displayMode == 1:
             self.ipg.display()
 
+        self.ipp.start()  # making framebuffer copy for partial update
+
     def partialUpdate(self):
-        if self.displayMode == 1:
+        if self.displayMode == self.INKPLATE_2BIT:
             return
         self.ipp.display()
+        self.ipp.start()  # making framebuffer copy for partial update
 
     def clean(self):
         self.einkOn()
@@ -727,6 +811,9 @@ class Inkplate:
 
     def readBattery(self):
         return _Inkplate.read_battery()
+
+    def readTemperature(self):
+        return _Inkplate.read_temperature()
 
     def width(self):
         return self._width
@@ -964,4 +1051,3 @@ class Inkplate:
                         val >>= 1
 
                     self.drawPixel(x + i, y + h - j, val)
-
