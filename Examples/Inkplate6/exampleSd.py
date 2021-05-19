@@ -1,5 +1,5 @@
 import os, time
-from inkplate import Inkplate
+from inkplate6 import Inkplate
 
 display = Inkplate(Inkplate.INKPLATE_2BIT)
 display.begin()

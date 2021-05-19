@@ -1,6 +1,6 @@
 # Include needed libraries
 
-from inkplate import Inkplate
+from inkplate10 import Inkplate
 from image import *
 import time
 

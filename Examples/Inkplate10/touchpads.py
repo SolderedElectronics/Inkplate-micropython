@@ -1,4 +1,4 @@
-from inkplate import Inkplate
+from inkplate10 import Inkplate
 from image import *
 
 display = Inkplate(Inkplate.INKPLATE_1BIT)

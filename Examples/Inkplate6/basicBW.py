@@ -1,4 +1,4 @@
-from inkplate import Inkplate
+from inkplate6 import Inkplate
 from image import *
 import time
 
