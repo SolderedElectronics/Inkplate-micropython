@@ -19,7 +19,7 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
 
 
 - Flash MicroPython firmware supplied, or from http://micropython.org/download/esp32/ .
-- Port vary on different devices 
+- Port name/number vary on different devices 
 - Run 
   ```
   //Linux/Mac
@@ -38,9 +38,9 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
   ```
   to flash supplied firmware.
   
-  If you don't have esptool.py installed, install it from here: https://github.com/espressif/esptool, at minimum use version 1.15
+  If you don't have esptool.py installed, install it from here: https://github.com/espressif/esptool, at minimum use version 1.15.
 
-- Copy library files to your board use inkplate6.py or inkplate10.py for respective versions, something like this:
+- Copy library files to your board, use inkplate6.py or inkplate10.py for respective versions, something like this:
   ```
   //Linux/Mac
   python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate6.py image.py gfx.py gfx_standard_font_01.py :
@@ -93,13 +93,13 @@ All of Inkplate-related development is open-sourced:
 Inkplate is available for purchase via:
 
 - [e-radionica.com](https://e-radionica.com/en/inkplate.html)
-- [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-6)
-- [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-10)
+- [Crowd Supply Inkplate 6](https://www.crowdsupply.com/e-radionica/inkplate-6)
+- [Crowd Supply Inkplate 10](https://www.crowdsupply.com/e-radionica/inkplate-10)
 - [Mouser](https://hr.mouser.com/Search/Refine?Keyword=inkplate)
 - [Sparkfun](https://www.sparkfun.com/search/results?term=inkplate)
 - [Pimoroni](https://shop.pimoroni.com/products/inkplate-6)
 
-Inkplate is open-source. If you are looking for hardware design of the board, check the [Hardware repo](https://github.com/e-radionicacom/Inkplate-6-hardware). You will find 3D printable [enclosure](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/3D%20printable%20case) there, as well as [detailed dimensions](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/Technical%20drawings). In this repo you will find code for driving the ED060SC7 e-paper display used by Inkplate.
+Inkplate is open-source. If you are looking for hardware design of the board, check the [Hardware repo for Inkplate 6](https://github.com/e-radionicacom/Inkplate-6-hardware) and [Hardware repo for Inkplate 10](https://github.com/e-radionicacom/Inkplate-10-hardware). You will find 3D printable [enclosure](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/3D%20printable%20case) there, as well as [detailed dimensions](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/Technical%20drawings). In this repo you will find code for driving the ED060SC7 e-paper display used by Inkplate.
 
 For all questions and issues, please use our [forum](http://forum.e-radionica.com/en) to ask an question.
 For sales & collaboration, please reach us via [e-mail](mailto:kontakt@e-radionica.com).
