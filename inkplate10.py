@@ -857,17 +857,19 @@ class Inkplate:
         )
 
     def writeFillRect(self, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                self.writePixel(x + j, y + i, c)
+        (self.ipm.fill_rect if self.displayMode == self.INKPLATE_1BIT else self.ipg.fill_rect)(
+            x, y, w, h, c
+            )
 
     def writeFastVLine(self, x, y, h, c):
-        for i in range(h):
-            self.writePixel(x, y + i, c)
+        (self.ipm.vline if self.displayMode == self.INKPLATE_1BIT else self.ipg.vline)(
+            x, y, h, c
+            )
 
     def writeFastHLine(self, x, y, w, c):
-        for i in range(w):
-            self.writePixel(x + i, y, c)
+        (self.ipm.hline if self.displayMode == self.INKPLATE_1BIT else self.ipg.hline)(
+            x, y, w, c
+            )
 
     def writeLine(self, x0, y0, x1, y1, c):
         self.GFX.line(x0, y0, x1, y1, c)
