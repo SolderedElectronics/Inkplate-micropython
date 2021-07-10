@@ -840,6 +840,18 @@ class Inkplate:
     def startWrite(self):
         pass
 
+    def _rotateCoordinates(self, x, y):
+        if self.rotation == 1:
+            x, y = y, x
+            x = self.height() - x - 1
+        elif self.rotation == 2:
+            x = self.width() - x - 1
+            y = self.height() - y - 1
+        elif self.rotation == 3:
+            x, y = y, x
+            y = self.width() - y - 1
+        return x, y
+
     def writePixel(self, x, y, c):
         if x > self.width() - 1 or y > self.height() - 1 or x < 0 or y < 0:
             return
@@ -857,16 +869,41 @@ class Inkplate:
         )
 
     def writeFillRect(self, x, y, w, h, c):
+        x, y = self._rotateCoordinates(x, y)
+        if self.rotation in (1, 3):
+            w, h = h, w
+        if self.rotation in (1, 2):
+            x -= w - 1
+        if self.rotation in (2, 3):
+            y -= h - 1
         (self.ipm.fill_rect if self.displayMode == self.INKPLATE_1BIT else self.ipg.fill_rect)(
             x, y, w, h, c
             )
 
     def writeFastVLine(self, x, y, h, c):
+        if self.rotation in (1, 3):
+            self._writeFastHLine(x, y, h, c)
+            return
+        self._writeFastVLine(x, y, h, c)
+
+    def _writeFastVLine(self, x, y, h, c):
+        x, y = self._rotateCoordinates(x, y)
+        if self.rotation in (2, 3):
+            y -= h - 1
         (self.ipm.vline if self.displayMode == self.INKPLATE_1BIT else self.ipg.vline)(
             x, y, h, c
             )
 
     def writeFastHLine(self, x, y, w, c):
+        if self.rotation in (1, 3):
+            self._writeFastVLine(x, y, w, c)
+            return
+        self._writeFastHLine(x, y, w, c)
+
+    def _writeFastHLine(self, x, y, w, c):
+        x, y = self._rotateCoordinates(x, y)
+        if self.rotation in (1, 2):
+            x -= w - 1
         (self.ipm.hline if self.displayMode == self.INKPLATE_1BIT else self.ipg.hline)(
             x, y, w, c
             )
