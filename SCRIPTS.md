@@ -1,5 +1,6 @@
 device ports can vary from device to device and from different ports device is connected to.
 inkplate6.py and inkplate10.py are used for respective boards
+
 erase linux/mac:
 esptool.py --port /dev/cu.usbserial-1420 erase_flash 
 
