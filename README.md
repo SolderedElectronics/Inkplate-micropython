@@ -43,7 +43,7 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
 - Copy library files to your board, use inkplate6.py or inkplate10.py for respective versions, something like this:
   ```
   //Linux/Mac
-  python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate6.py image.py gfx.py gfx_standard_font_01.py :
+  python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate6.py image.py shapes.py gfx.py gfx_standard_font_01.py :
 
   //Windows
   //This one might need to be started twice
@@ -55,7 +55,7 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
 - Run `example.py`:
   ```
   //Linux/Mac
-  python3 pyboard.py --device /dev/ttyUSB0 "Examples/Inkplate6/basicBW.py
+  python3 pyboard.py --device /dev/ttyUSB0 "Examples/Inkplate6/basicBW.py"
 
   //Windows
   python pyboard.py --device COM5 "Examples/Inkplate6/basicBW.py"
