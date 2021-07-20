@@ -39,6 +39,12 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
 
 TPS65186_addr = const(0x48)  # I2C address
+FRONTLIGHT_ADDRESS  = 0x2E
+TOUCHSCREEN_EN = 12
+TS_RTS = 10
+TS_INT = 36
+TS_ADDR = 0x15
+
 
 # ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
 # from esp-idf:
@@ -75,6 +81,8 @@ class _Inkplate:
         cls.EPD_OE = cls._mcp23017.pin(0, Pin.OUT, value=0)
         cls.EPD_GMODE = cls._mcp23017.pin(1, Pin.OUT, value=0)
         cls.EPD_SPV = cls._mcp23017.pin(2, Pin.OUT, value=1)
+        cls._tsFlag = False
+        cls.rotation = 0
         # Display data lines - we only use the Pin class to init the pins
         Pin(4, Pin.OUT)
         Pin(5, Pin.OUT)
@@ -96,11 +104,18 @@ class _Inkplate:
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
-        # Touch sensors
-        cls.TOUCH1 = cls._mcp23017.pin(10, Pin.IN)
-        cls.TOUCH2 = cls._mcp23017.pin(11, Pin.IN)
-        cls.TOUCH3 = cls._mcp23017.pin(12, Pin.IN)
+        #Frontlight
+        cls.FRONTLIGHT = cls._mcp23017.pin(11, Pin.OUT, value=0)
 
+        #Toucscreen
+        cls._tsXResolution = 0
+        cls._tsYResolution = 0
+        cls.touchX = 0
+        cls.touchY = 0
+        cls._xPos = [0,0]
+        cls._yPos = [0,0]
+        cls.xraw = [0,0]
+        cls.yraw = [0,0]
         cls._on = False  # whether panel is powered on or not
 
         if len(_Inkplate.byte2gpio) == 0:
@@ -153,6 +168,191 @@ class _Inkplate:
         cls.VBAT_EN.value(1)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
+
+    #Frontlight control
+    @classmethod
+    def frontlight(cls, value):
+        cls.FRONTLIGHT.value(value)
+    
+    @classmethod
+    def setFrontlight(cls, value):
+        value = (63 - (value & 0b00111111))
+        cls._i2c.writeto(FRONTLIGHT_ADDRESS, bytes((0,)))
+        cls._i2c.writeto(FRONTLIGHT_ADDRESS, bytes((value,)))
+
+
+    #Touchscreen
+    @classmethod
+    def touchInArea(cls, x, y, width, height):
+        x2 = x+width
+        y2 = y+height
+
+        if cls.tsAvailable():
+            fingers = cls.tsGetData()
+            if fingers > 0:
+                cls.touchX = cls._xPos[0]
+                cls.touchY = cls._yPos[0]
+
+                if(cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
+                    return True    
+        return False
+
+    @classmethod
+    def tsWriteRegs(cls, addr, buff):
+        buf = (bytearray)(buff)
+        cls._i2c.writeto(addr, buf)
+
+    @classmethod
+    def tsReadRegs(cls, address):
+        buf = bytearray(4)
+        buf = cls._i2c.readfrom(address, 4)
+        return buf
+
+    @classmethod
+    def tsHardwareReset(cls):
+        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT, value=0)
+        time.sleep_ms(15)
+        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT, value=1)
+        time.sleep_ms(15)
+
+    @classmethod
+    def tsSoftwareReset(cls):
+        soft_rst_cmd = [0x77, 0x77, 0x77, 0x77]
+        helloPacket =bytearray([0x55, 0x55, 0x55, 0x55])
+
+        try:
+            _Inkplate.tsWriteRegs(TS_ADDR, soft_rst_cmd)
+            rb = bytearray(4)
+            timeout = 1000
+            while (cls._tsFlag == False) and (timeout > 0):
+                time.sleep_ms(1)
+                timeout -= 1 
+            if (timeout > 0):
+                cls._tsFlag = True
+            rb = cls._i2c.readfrom(TS_ADDR, 4)
+            cls._tsFlag = False
+
+            if(rb == helloPacket):
+
+                return True
+            else:
+                return False
+
+        except:
+            return False
+
+    def tsInt(pin):
+        _Inkplate._tsFlag = True
+
+    @classmethod
+    def tsInit(cls, powerState):
+        cls._mcp23017.pin(TOUCHSCREEN_EN, mode=Pin.OUT, value=0)
+        ts_intr = Pin(TS_INT, mode=Pin.IN, pull=Pin.PULL_UP)
+        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT)
+        ts_intr.irq(trigger=Pin.IRQ_FALLING, handler=cls.tsInt)
+
+        _Inkplate.tsHardwareReset()
+        if(_Inkplate.tsSoftwareReset() == False):
+            cls.ts_intr = Pin(TS_INT, mode=Pin.IN)
+            return False
+        
+        _Inkplate.tsGetResolution()
+        _Inkplate.tsSetPowerState(powerState)
+        cls._tsFlag = True
+        return True
+        
+    @classmethod
+    def tsShutdown(cls):
+        cls._mcp23017.pin(TOUCHSCREEN_EN, mode=Pin.OUT, value=1)
+
+    @classmethod
+    def tsGetRawData(cls):
+        data = bytearray(8) 
+        data = cls._i2c.readfrom(TS_ADDR, 8)
+        return data
+
+    @classmethod
+    def tsGetXY(cls, data, i):
+        offset = i*3
+        cls.xraw[i] = 0
+        cls.yraw[i] = 0
+
+        cls.xraw[i] = (data[1 + offset] & 0xF0)
+        cls.xraw[i] <<= 4
+        cls.xraw[i] |= data[2 + offset]
+
+        cls.yraw[i] = ( data[1 + offset] & 0x0F)
+        cls.yraw[i] <<= 8
+        cls.yraw[i] |= data[3 + offset]
+    
+    @classmethod
+    def tsGetData(cls):
+        raw = bytearray(8)
+        fingers = 0
+        cls._tsFlag = False
+        raw = cls.tsGetRawData()
+
+        for i in range(0, 8):
+            if raw[7] & (1<<i):
+                fingers += 1
+        for i in range(0, 2):
+            cls.tsGetXY(raw, i)
+            
+            if cls.rotation == 0:
+                cls._yPos[i] = (int)((cls.xraw[i] * D_ROWS - 1) / cls._tsXResolution)
+                cls._xPos[i] = (int)(D_COLS - 1 - ((cls.yraw[i] * D_COLS - 1) / cls._tsYResolution))
+            elif cls.rotation == 1:
+                cls._xPos[i] = (int)((cls.xraw[i] * D_ROWS - 1) / cls._tsXResolution)
+                cls._yPos[i] = (int)((cls.yraw[i] * D_COLS - 1) / cls._tsYResolution)
+            elif cls.rotation == 2:
+                cls._yPos[i] = (int)(D_ROWS - 1 - ((cls.xraw[i] * D_ROWS - 1) / cls._tsXResolution))
+                cls._xPos[i] = (int)((cls.yraw[i] * D_COLS - 1) / cls._tsYResolution)
+            elif cls.rotation == 3:
+                cls._xPos[i] = (int)(D_ROWS - 1 - ((cls.xraw[i] * D_ROWS - 1) / cls._tsXResolution))
+                cls._yPos[i] = (int)(D_COLS - 1 - ((cls.yraw[i] * D_COLS - 1) / cls._tsYResolution))
+
+        return fingers
+
+    @classmethod
+    def tsGetResolution(cls):
+        cmd_x = [0x53, 0x60, 0x00, 0x00]
+        cmd_y = [0x53, 0x63, 0x00, 0x00]
+        rec = bytearray(4)
+
+        _Inkplate.tsWriteRegs(TS_ADDR, cmd_x)
+        rec = _Inkplate.tsReadRegs(TS_ADDR)
+        cls._tsXResolution = ((rec[2])) | ((rec[3] & 0xF0) << 4)
+
+        _Inkplate.tsWriteRegs(TS_ADDR, cmd_y)
+        rec = _Inkplate.tsReadRegs(TS_ADDR)
+        cls._tsYResolution = ((rec[2])) | ((rec[3] & 0xF0) << 4)
+        cls._tsFlag = False
+
+
+    @classmethod
+    def tsSetPowerState(cls, state):
+        state &= 1
+        powerStateReg = [0x54, 0x50, 0x00, 0x01]
+        powerStateReg[1] |= (state << 3)
+        _Inkplate.tsWriteRegs(TS_ADDR, powerStateReg)
+
+    @classmethod
+    def tsGetPowerState(cls):
+        powerStateReg = [0x53, 0x50, 0x00, 0x01]
+        buf = bytearray(4)
+        _Inkplate.tsWriteRegs(TS_ADDR, powerStateReg)
+        cls._tsFlag = False
+        buf = _Inkplate.tsReadRegs(TS_ADDR)        
+        return (buf[1] >> 3) & 1 
+
+    @classmethod
+    def tsAvailable(cls):
+        return cls._tsFlag
+    
+    @classmethod
+    def i2cScan(cls):
+        return cls._i2c.scan()
+
 
     # Read panel temperature. I varies +- 2 degree
     @classmethod
@@ -761,9 +961,7 @@ class Inkplate:
         self.ipm = InkplateMono()
         self.ipp = InkplatePartial(self.ipm)
 
-        self.TOUCH1 = _Inkplate.TOUCH1
-        self.TOUCH2 = _Inkplate.TOUCH2
-        self.TOUCH3 = _Inkplate.TOUCH3
+        self.FRONTLIGHT = _Inkplate.FRONTLIGHT
 
         self.GFX = GFX(
             D_COLS,
@@ -827,6 +1025,8 @@ class Inkplate:
     # Arduino compatibility functions
     def setRotation(self, x):
         self.rotation = x % 4
+        _Inkplate.rotation = x % 4
+
         if self.rotation == 0 or self.rotation == 2:
             self._width = D_COLS
             self._height = D_ROWS
@@ -1054,3 +1254,23 @@ class Inkplate:
                         val >>= 1
 
                     self.drawPixel(x + i, y + h - j, val)
+
+#Frontlight
+    def frontlight(self, value):
+        _Inkplate.frontlight(value)
+
+    def setFrontlight(self, value):
+        _Inkplate.setFrontlight(value)
+
+#Touchscreen
+    def touchInArea(self, x, y, width, height):
+        return _Inkplate.touchInArea(x, y, width, height)
+
+    def tsInit(self, pwrState):
+        _Inkplate.tsInit(pwrState)
+
+    def tsShutdown(self):
+        _Inkplate.tsShutdown()
+         
+    def tsAvailable(self):
+        return _Inkplate.tsAvailable()
