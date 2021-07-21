@@ -1271,6 +1271,3 @@ class Inkplate:
 
     def tsShutdown(self):
         _Inkplate.tsShutdown()
-         
-    def tsAvailable(self):
-        return _Inkplate.tsAvailable()
