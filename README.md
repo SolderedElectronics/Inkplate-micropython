@@ -36,7 +36,7 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
   //Windows
   esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20210418-v1.15.bin
   ```
-  to flash supplied firmware.
+  to flash supplied firmware. Use esp flash from this repository since its tested with Inkplate.
   
   If you don't have esptool.py installed, install it from here: https://github.com/espressif/esptool, at minimum use version 1.15.
 
