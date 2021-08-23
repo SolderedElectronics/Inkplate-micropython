@@ -26,13 +26,13 @@ D_COLS = const(1024)
 
 #add discharge to waveforms to try to fix them 
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
-    (0, 0, 0, 0, 0, 0),
-    (0, 0, 0, 0, 0, 0),
-    (0, 1, 1, 0, 0, 0),
-    (0, 1, 1, 0, 0, 0),
-    (1, 2, 1, 0, 0, 0),
-    (1, 1, 2, 0, 0, 0),
-    (1, 2, 2, 2, 0, 0),
+    (0, 0, 0, 0),
+    (0, 0, 0, 0),
+    (0, 1, 1, 0),
+    (0, 1, 1, 0),
+    (1, 2, 1, 0),
+    (1, 1, 2, 0),
+    (1, 2, 2, 2),
 )
     # Ink6 WAVEFORM3BIT from arduino driver
     # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
@@ -661,7 +661,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         # genlut generates the lookup table that maps a nibble (2 pixels, 4 bits) to a 32-bit
         # word to push into the GPIO port
         def genlut(op):
-            return bytes([op[j] | op[i] << 2 for i in range(6) for j in range(6)])
+            return bytes([op[j] | op[i] << 2 for i in range(4) for j in range(4)])
 
         cls._wave = [genlut(w) for w in WAVE_2B]
 
