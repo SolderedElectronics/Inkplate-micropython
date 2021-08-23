@@ -23,13 +23,13 @@ D_COLS = const(1200)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 WAVE_2B = (  # For Inkplate 10, colors 0, 3, 5-tweaked, and 7 from arduino driver
-    (0, 1, 0, 0, 0, 0),  # (arduino color 5 was too light and color 4 too dark)
-    (0, 2, 0, 0, 0, 0),
-    (0, 2, 0, 2, 0, 0),
-    (0, 1, 2, 2, 0, 0),
-    (0, 2, 1, 2, 0, 0),
-    (0, 2, 1, 2, 0, 0),
-    (1, 1, 2, 2, 0, 0),
+    (0, 1, 0, 0),  # (arduino color 5 was too light and color 4 too dark)
+    (0, 2, 0, 0),
+    (0, 2, 0, 2),
+    (0, 1, 2, 2),
+    (0, 2, 1, 2),
+    (0, 2, 1, 2),
+    (1, 1, 2, 2),
 )
 # Ink10 WAVEFORM3BIT from arduino driver
 # {{0,0,0,0,0,0,1,0},{0,0,2,2,2,1,1,0},{0,2,1,1,2,2,1,0},{1,2,2,1,2,2,1,0},
@@ -458,7 +458,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         # genlut generates the lookup table that maps a nibble (2 pixels, 4 bits) to a 32-bit
         # word to push into the GPIO port
         def genlut(op):
-            return bytes([op[j] | op[i] << 2 for i in range(6) for j in range(6)])
+            return bytes([op[j] | op[i] << 2 for i in range(4) for j in range(4)])
 
         cls._wave = [genlut(w) for w in WAVE_2B]
 
