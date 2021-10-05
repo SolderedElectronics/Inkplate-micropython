@@ -23,14 +23,12 @@ D_COLS = const(1200)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
-    (0, 0, 0, 0),
-    (0, 0, 0, 0),
     (1, 1, 2, 0),
     (1, 1, 1, 0),
     (0, 2, 1, 0),
     (1, 2, 1, 0),
-    (1, 1, 2, 2),
-    (0, 0, 0, 0),
+    (0, 0, 2, 2),
+    (1, 1, 0, 0),
     (0, 0, 0, 0)
 )
 # Ink10 WAVEFORM3BIT from arduino driver
