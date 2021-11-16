@@ -101,5 +101,5 @@ Inkplate is available for purchase via:
 
 Inkplate is open-source. If you are looking for hardware design of the board, check the [Hardware repo for Inkplate 6](https://github.com/e-radionicacom/Inkplate-6-hardware) and [Hardware repo for Inkplate 10](https://github.com/e-radionicacom/Inkplate-10-hardware). You will find 3D printable [enclosure](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/3D%20printable%20case) there, as well as [detailed dimensions](https://github.com/e-radionicacom/Inkplate-6-hardware/tree/master/Technical%20drawings). In this repo you will find code for driving the ED060SC7 e-paper display used by Inkplate.
 
-For all questions and issues, please use our [forum](http://forum.e-radionica.com/en) to ask a question.
+For all questions and issues, please use our [forum](https://forum.e-radionica.com/en/) to ask a question.
 For sales & collaboration, please reach us via [e-mail](mailto:kontakt@e-radionica.com).
