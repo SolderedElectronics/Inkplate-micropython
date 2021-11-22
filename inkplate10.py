@@ -3,9 +3,7 @@ import time
 import micropython
 import framebuf
 import os
-import sdcard
-import machine
-from machine import Pin, I2C, ADC
+from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -732,21 +730,13 @@ class Inkplate:
         self.displayMode = mode
         try:
             os.mount(
-                sdcard.SDCard(
-                    machine.SPI(
-                        1,
-                        baudrate=80000000,
-                        polarity=0,
-                        phase=0,
-                        bits=8,
-                        firstbit=0,
-                        sck=Pin(14),
-                        mosi=Pin(13),
-                        miso=Pin(12),
-                    ),
-                    machine.Pin(15),
-                ),
-                "/sd",
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
             )
         except:
             print("Sd card could not be read")

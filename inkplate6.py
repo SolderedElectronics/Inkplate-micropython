@@ -3,9 +3,7 @@ import time
 import micropython
 import framebuf
 import os
-import sdcard
-import machine
-from machine import Pin, I2C, ADC
+from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -24,7 +22,7 @@ D_COLS = const(800)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them 
+#add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (0, 0, 0, 0),
     (0, 0, 0, 0),
@@ -735,21 +733,13 @@ class Inkplate:
         self.displayMode = mode
         try:
             os.mount(
-                sdcard.SDCard(
-                    machine.SPI(
-                        1,
-                        baudrate=80000000,
-                        polarity=0,
-                        phase=0,
-                        bits=8,
-                        firstbit=0,
-                        sck=Pin(14),
-                        mosi=Pin(13),
-                        miso=Pin(12),
-                    ),
-                    machine.Pin(15),
-                ),
-                "/sd",
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
             )
         except:
             print("Sd card could not be read")
