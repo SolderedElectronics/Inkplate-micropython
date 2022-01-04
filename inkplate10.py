@@ -20,16 +20,14 @@ D_COLS = const(1200)
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
-WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
-    (0, 0, 0, 0),
-    (0, 0, 0, 0),
-    (1, 1, 2, 0),
-    (1, 1, 1, 0),
-    (0, 2, 1, 0),
-    (1, 2, 1, 0),
+WAVE_2B = (  # For Inkplate 10, colors 0, 3, 5-tweaked, and 7 from arduino driver
+    (0, 1, 0, 0),  # (arduino color 5 was too light and color 4 too dark)
+    (0, 2, 0, 0),
+    (0, 2, 0, 2),
+    (0, 1, 2, 2),
+    (0, 2, 1, 2),
+    (0, 2, 1, 2),
     (1, 1, 2, 2),
-    (0, 0, 0, 0),
-    (0, 0, 0, 0)
 )
 # Ink10 WAVEFORM3BIT from arduino driver
 # {{0,0,0,0,0,0,1,0},{0,0,2,2,2,1,1,0},{0,2,1,1,2,2,1,0},{1,2,2,1,2,2,1,0},
