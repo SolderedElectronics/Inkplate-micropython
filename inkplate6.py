@@ -3,9 +3,7 @@ import time
 import micropython
 import framebuf
 import os
-import sdcard
-import machine
-from machine import Pin, I2C, ADC
+from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -24,15 +22,17 @@ D_COLS = const(800)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them 
+#add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
-    (0, 0, 0, 0, 0, 0),
-    (0, 0, 0, 0, 0, 0),
-    (0, 1, 1, 0, 0, 0),
-    (0, 1, 1, 0, 0, 0),
-    (1, 2, 1, 0, 0, 0),
-    (1, 1, 2, 0, 0, 0),
-    (1, 2, 2, 2, 0, 0),
+    (0, 0, 0, 0),
+    (0, 0, 0, 0),
+    (1, 1, 2, 0),
+    (1, 1, 1, 0),
+    (0, 2, 1, 0),
+    (1, 2, 1, 0),
+    (1, 1, 2, 2),
+    (0, 0, 0, 0),
+    (0, 0, 0, 0)
 )
     # Ink6 WAVEFORM3BIT from arduino driver
     # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
@@ -461,7 +461,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         # genlut generates the lookup table that maps a nibble (2 pixels, 4 bits) to a 32-bit
         # word to push into the GPIO port
         def genlut(op):
-            return bytes([op[j] | op[i] << 2 for i in range(6) for j in range(6)])
+            return bytes([op[j] | op[i] << 2 for i in range(4) for j in range(4)])
 
         cls._wave = [genlut(w) for w in WAVE_2B]
 
@@ -733,21 +733,13 @@ class Inkplate:
         self.displayMode = mode
         try:
             os.mount(
-                sdcard.SDCard(
-                    machine.SPI(
-                        1,
-                        baudrate=80000000,
-                        polarity=0,
-                        phase=0,
-                        bits=8,
-                        firstbit=0,
-                        sck=Pin(14),
-                        mosi=Pin(13),
-                        miso=Pin(12),
-                    ),
-                    machine.Pin(15),
-                ),
-                "/sd",
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
             )
         except:
             print("Sd card could not be read")
