@@ -245,9 +245,8 @@ class GFX:
         self.line(x2, y2, x0, y0, *args, **kwargs)
 
     def fill_triangle(self, x0, y0, x1, y1, x2, y2, *args, **kwargs):
-        # pylint: disable=too-many-arguments, too-many-locals, too-many-statements, too-many-branches
-        """Filled triangle drawing function.  Will draw a filled triangle around
-        the points (x0, y0), (x1, y1), and (x2, y2)."""
+        # Filled triangle drawing function.  Will draw a filled triangle around
+        # the points (x0, y0), (x1, y1), and (x2, y2).
         if y0 > y1:
             y0, y1 = y1, y0
             x0, x1 = x1, x0
@@ -261,6 +260,7 @@ class GFX:
         b = 0
         y = 0
         last = 0
+
         if y0 == y2:
             a = x0
             b = x0
@@ -272,7 +272,7 @@ class GFX:
                 a = x2
             elif x2 > b:
                 b = x2
-            self.hline(a, y0, b - a + 1, *args, **kwargs)
+            self.hline(a, y0, b-a+1, *args, **kwargs)
             return
         dx01 = x1 - x0
         dy01 = y1 - y0
@@ -291,15 +291,19 @@ class GFX:
         if y1 == y2:
             last = y1
         else:
-            last = y1 - 1
-        for y in range(y0, last + 1):
+            last = y1-1
+
+        for y in range(y0, last+1):
             a = x0 + sa // dy01
             b = x0 + sb // dy02
             sa += dx01
             sb += dx02
             if a > b:
                 a, b = b, a
-            self.hline(a, y, b - a + 1, *args, **kwargs)
+            self.hline(a, y, b-a+1, *args, **kwargs)
+
+        y = last
+
         sa = dx12 * (y - y1)
         sb = dx02 * (y - y0)
         while y <= y2:
@@ -309,7 +313,7 @@ class GFX:
             sb += dx02
             if a > b:
                 a, b = b, a
-            self.hline(a, y, b - a + 1, *args, **kwargs)
+            self.hline(a, y, b-a+1, *args, **kwargs)
             y += 1
 
     def round_rect(self, x0, y0, width, height, radius, *args, **kwargs):
