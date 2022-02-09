@@ -31,10 +31,10 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
   to erase esp32 flash and then
   ```
   //Linux/Mac
-  esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20210418-v1.15.bin
+  esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
 
   //Windows
-  esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20210418-v1.15.bin
+  esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
   ```
   to flash supplied firmware. Use esp flash from this repository since its tested with Inkplate.
   
