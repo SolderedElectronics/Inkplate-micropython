@@ -22,7 +22,7 @@ D_COLS = const(800)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them
+# add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (0, 0, 0, 0),
     (0, 0, 0, 0),
@@ -32,9 +32,9 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (1, 1, 2, 0),
     (1, 2, 2, 2),
 )
-    # Ink6 WAVEFORM3BIT from arduino driver
-    # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
-    #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
+# Ink6 WAVEFORM3BIT from arduino driver
+# {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
+#  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
 
 TPS65186_addr = const(0x48)  # I2C address
 

@@ -36,6 +36,8 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_GFX.git"
 
 # pylint: disable=invalid-name
+
+
 class GFX:
     # pylint: disable=too-many-instance-attributes
     """Create an instance of the GFX drawing class.
@@ -59,6 +61,7 @@ class GFX:
                   The input shoudl be a properly formatted dict.
     """
     # pylint: disable=too-many-arguments
+
     def __init__(
         self,
         width,
@@ -335,7 +338,8 @@ class GFX:
             self.hline(
                 x0, y0 + height - radius + 1, width - 2 * radius + 1, *args, **kwargs
             )  # bottom
-            self.hline(x0, y0 - radius, width - 2 * radius + 1, *args, **kwargs)  # top
+            self.hline(x0, y0 - radius, width - 2 *
+                       radius + 1, *args, **kwargs)  # top
             while x < y:
                 if f >= 0:
                     y -= 1
@@ -497,7 +501,8 @@ class GFX:
 
                     # make sure something is sent even if not in font dict
                     try:
-                        self._place_char(x_roll, y_roll, char, size, *args, **kwargs)
+                        self._place_char(x_roll, y_roll, char,
+                                         size, *args, **kwargs)
                     except KeyError:
                         self._place_char(
                             x_roll, y_roll, "?CHAR?", size, *args, **kwargs
