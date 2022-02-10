@@ -3,9 +3,7 @@ import time
 import micropython
 import framebuf
 import os
-import sdcard
-import machine
-from machine import Pin, I2C, ADC
+from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -14,7 +12,7 @@ from shapes import Shapes
 from gfx import GFX
 from gfx_standard_font_01 import text_dict as std_font
 
-#Raw display constants for Inkplate 10
+# Raw display constants for Inkplate 10
 D_ROWS = const(825)
 D_COLS = const(1200)
 
@@ -22,6 +20,7 @@ D_COLS = const(1200)
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
+
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (1, 1, 2, 0),
     (1, 1, 1, 0),
@@ -730,21 +729,13 @@ class Inkplate:
         self.displayMode = mode
         try:
             os.mount(
-                sdcard.SDCard(
-                    machine.SPI(
-                        1,
-                        baudrate=80000000,
-                        polarity=0,
-                        phase=0,
-                        bits=8,
-                        firstbit=0,
-                        sck=Pin(14),
-                        mosi=Pin(13),
-                        miso=Pin(12),
-                    ),
-                    machine.Pin(15),
-                ),
-                "/sd",
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
             )
         except:
             print("Sd card could not be read")
@@ -878,7 +869,7 @@ class Inkplate:
             y -= h - 1
         (self.ipm.fill_rect if self.displayMode == self.INKPLATE_1BIT else self.ipg.fill_rect)(
             x, y, w, h, c
-            )
+        )
 
     def writeFastVLine(self, x, y, h, c):
         if self.rotation in (1, 3):
@@ -892,7 +883,7 @@ class Inkplate:
             y -= h - 1
         (self.ipm.vline if self.displayMode == self.INKPLATE_1BIT else self.ipg.vline)(
             x, y, h, c
-            )
+        )
 
     def writeFastHLine(self, x, y, w, c):
         if self.rotation in (1, 3):
@@ -906,7 +897,7 @@ class Inkplate:
             x -= w - 1
         (self.ipm.hline if self.displayMode == self.INKPLATE_1BIT else self.ipg.hline)(
             x, y, w, c
-            )
+        )
 
     def writeLine(self, x0, y0, x1, y1, c):
         self.GFX.line(x0, y0, x1, y1, c)

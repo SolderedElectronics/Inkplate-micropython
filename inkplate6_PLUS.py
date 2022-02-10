@@ -3,9 +3,7 @@ import time
 import micropython
 import framebuf
 import os
-import sdcard
-import machine
-from machine import Pin, I2C, ADC
+from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from mcp23017 import MCP23017
 from micropython import const
@@ -24,17 +22,15 @@ D_COLS = const(1024)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them 
+#add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (0, 0, 0, 0),
     (0, 0, 0, 0),
-    (1, 1, 2, 0),
-    (1, 1, 1, 0),
-    (0, 2, 1, 0),
+    (0, 1, 1, 0),
+    (0, 1, 1, 0),
     (1, 2, 1, 0),
-    (1, 1, 2, 2),
-    (0, 0, 0, 0),
-    (0, 0, 0, 0)
+    (1, 1, 2, 0),
+    (1, 2, 2, 2),
 )
     # Ink6 WAVEFORM3BIT from arduino driver
     # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
@@ -175,7 +171,7 @@ class _Inkplate:
     @classmethod
     def frontlight(cls, value):
         cls.FRONTLIGHT.value(value)
-    
+
     @classmethod
     def setFrontlight(cls, value):
         value = (63 - (value & 0b00111111))
@@ -196,7 +192,7 @@ class _Inkplate:
                 cls.touchY = cls._yPos[0]
 
                 if(cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
-                    return True    
+                    return True
         return False
 
     @classmethod
@@ -228,7 +224,7 @@ class _Inkplate:
             timeout = 1000
             while (cls._tsFlag == False) and (timeout > 0):
                 time.sleep_ms(1)
-                timeout -= 1 
+                timeout -= 1
             if (timeout > 0):
                 cls._tsFlag = True
             rb = cls._i2c.readfrom(TS_ADDR, 4)
@@ -257,19 +253,19 @@ class _Inkplate:
         if(_Inkplate.tsSoftwareReset() == False):
             cls.ts_intr = Pin(TS_INT, mode=Pin.IN)
             return False
-        
+
         _Inkplate.tsGetResolution()
         _Inkplate.tsSetPowerState(powerState)
         cls._tsFlag = True
         return True
-        
+
     @classmethod
     def tsShutdown(cls):
         cls._mcp23017.pin(TOUCHSCREEN_EN, mode=Pin.OUT, value=1)
 
     @classmethod
     def tsGetRawData(cls):
-        data = bytearray(8) 
+        data = bytearray(8)
         data = cls._i2c.readfrom(TS_ADDR, 8)
         return data
 
@@ -286,7 +282,7 @@ class _Inkplate:
         cls.yraw[i] = ( data[1 + offset] & 0x0F)
         cls.yraw[i] <<= 8
         cls.yraw[i] |= data[3 + offset]
-    
+
     @classmethod
     def tsGetData(cls):
         raw = bytearray(8)
@@ -299,7 +295,7 @@ class _Inkplate:
                 fingers += 1
         for i in range(0, 2):
             cls.tsGetXY(raw, i)
-            
+
             if cls.rotation == 0:
                 cls._yPos[i] = (int)((cls.xraw[i] * D_ROWS - 1) / cls._tsXResolution)
                 cls._xPos[i] = (int)(D_COLS - 1 - ((cls.yraw[i] * D_COLS - 1) / cls._tsYResolution))
@@ -344,13 +340,13 @@ class _Inkplate:
         buf = bytearray(4)
         _Inkplate.tsWriteRegs(TS_ADDR, powerStateReg)
         cls._tsFlag = False
-        buf = _Inkplate.tsReadRegs(TS_ADDR)        
-        return (buf[1] >> 3) & 1 
+        buf = _Inkplate.tsReadRegs(TS_ADDR)
+        return (buf[1] >> 3) & 1
 
     @classmethod
     def tsAvailable(cls):
         return cls._tsFlag
-    
+
     @classmethod
     def i2cScan(cls):
         return cls._i2c.scan()
@@ -937,21 +933,13 @@ class Inkplate:
         self.displayMode = mode
         try:
             os.mount(
-                sdcard.SDCard(
-                    machine.SPI(
-                        1,
-                        baudrate=80000000,
-                        polarity=0,
-                        phase=0,
-                        bits=8,
-                        firstbit=0,
-                        sck=Pin(14),
-                        mosi=Pin(13),
-                        miso=Pin(12),
-                    ),
-                    machine.Pin(15),
-                ),
-                "/sd",
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
             )
         except:
             print("Sd card could not be read")
