@@ -30,26 +30,27 @@ Original effort done by [tve](https://github.com/tve/micropython-inkplate6).
   to erase esp32 flash and then
   ```
   //Linux/Mac
-  esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20210902-v1.17.bin
+
+  esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
 
   //Windows
-  esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20210902-v1.17.bin
+  esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
   ```
   to flash supplied firmware. Use esp flash from this repository since it's tested with Inkplate.
   
   If you don't have esptool.py installed, install it from here: https://github.com/espressif/esptool, at minimum use version 1.15.
 
-- Copy library files to your board, use inkplate6.py or inkplate10.py for respective versions, something like this:
-  ```
-  //Linux/Mac
-  python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py sdcard.py inkplate6.py image.py shapes.py gfx.py gfx_standard_font_01.py :
+  - Copy library files to your board, use inkplate6.py or inkplate10.py for respective versions, something like this:
+    ```
+    //Linux/Mac
+    python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py inkplate6.py image.py shapes.py gfx.py gfx_standard_font_01.py :
 
-  //Windows
-  //This one might need to be started twice
-  python pyboard.py --device COM5 -f cp inkplate6.py gfx.py gfx_standard_font_01.py mcp23017.py image.py shapes.py sdcard.py :
-  ```
-  (You can find `pyboard.py` in the MicroPython tools directory or just download it from
-  GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
+    //Windows
+    //This one might need to be started twice
+    python pyboard.py --device COM5 -f cp inkplate6.py gfx.py gfx_standard_font_01.py mcp23017.py image.py shapes.py :
+    ```
+    (You can find `pyboard.py` in the MicroPython tools directory or just download it from
+    GitHub: https://raw.githubusercontent.com/micropython/micropython/master/tools/pyboard.py)
 
 - Run `example.py`:
   ```
