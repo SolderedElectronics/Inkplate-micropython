@@ -3,11 +3,12 @@ import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard
 from micropython import const
+from PCAL6416A import *
 from shapes import Shapes
-from mcp23017 import MCP23017
 from machine import Pin as mPin
 from gfx import GFX
 from gfx_standard_font_01 import text_dict as std_font
+
 # ===== Constants that change between the Inkplate 6 and 10
 
 # Connections between ESP32 and color Epaper
@@ -50,60 +51,24 @@ VCM_DC_SET_REGISTER = "\x02"
 D_COLS = const(600)
 D_ROWS = const(448)
 
-MCP23017_INT_ADDR = const(0x20)
-MCP23017_EXT_ADDR = const(0x20)
+# User pins on PCAL6416A for Inkplate COLOR
+IO_PIN_A0 = const(0)
+IO_PIN_A1 = const(1)
+IO_PIN_A2 = const(2)
+IO_PIN_A3 = const(3)
+IO_PIN_A4 = const(4)
+IO_PIN_A5 = const(5)
+IO_PIN_A6 = const(6)
+IO_PIN_A7 = const(7)
 
-MCP23017_INT_PORTA = const(0x00)
-MCP23017_INT_PORTB = const(0x01)
-MCP23017_INT_NO_MIRROR = False
-MCP23017_INT_MIRROR = True
-MCP23017_INT_PUSHPULL = False
-MCP23017_INT_OPENDRAIN = True
-MCP23017_INT_ACTLOW = False
-MCP23017_INT_ACTHIGH = True
-
-MCP23017_IODIRA = const(0x00)
-MCP23017_IPOLA = const(0x02)
-MCP23017_GPINTENA = const(0x04)
-MCP23017_DEFVALA = const(0x06)
-MCP23017_INTCONA = const(0x08)
-MCP23017_IOCONA = const(0x0A)
-MCP23017_GPPUA = const(0x0C)
-MCP23017_INTFA = const(0x0E)
-MCP23017_INTCAPA = const(0x10)
-MCP23017_GPIOA = const(0x12)
-MCP23017_OLATA = const(0x14)
-
-MCP23017_IODIRB = const(0x01)
-MCP23017_IPOLB = const(0x03)
-MCP23017_GPINTENB = const(0x05)
-MCP23017_DEFVALB = const(0x07)
-MCP23017_INTCONB = const(0x09)
-MCP23017_IOCONB = const(0x0B)
-MCP23017_GPPUB = const(0x0D)
-MCP23017_INTFB = const(0x0F)
-MCP23017_INTCAPB = const(0x11)
-MCP23017_GPIOB = const(0x13)
-MCP23017_OLATB = const(0x15)
-
-# User pins on MCP for Inkplate COLOR
-MCP23017_PIN_A0 = const(0)
-MCP23017_PIN_A1 = const(1)
-MCP23017_PIN_A2 = const(2)
-MCP23017_PIN_A3 = const(3)
-MCP23017_PIN_A4 = const(4)
-MCP23017_PIN_A5 = const(5)
-MCP23017_PIN_A6 = const(6)
-MCP23017_PIN_A7 = const(7)
-
-MCP23017_PIN_B0 = const(8)
-MCP23017_PIN_B1 = const(9)
-MCP23017_PIN_B2 = const(10)
-MCP23017_PIN_B3 = const(11)
-MCP23017_PIN_B4 = const(12)
-MCP23017_PIN_B5 = const(13)
-MCP23017_PIN_B6 = const(14)
-MCP23017_PIN_B7 = const(15)
+IO_PIN_B0 = const(8)
+IO_PIN_B1 = const(9)
+IO_PIN_B2 = const(10)
+IO_PIN_B3 = const(11)
+IO_PIN_B4 = const(12)
+IO_PIN_B5 = const(13)
+IO_PIN_B6 = const(14)
+IO_PIN_B7 = const(15)
 
 
 class Inkplate:
@@ -143,10 +108,7 @@ class Inkplate:
     @classmethod
     def begin(self):
         self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
-        self._mcp23017 = MCP23017(self.wire)
-        self.TOUCH1 = self._mcp23017.pin(10, Pin.IN)
-        self.TOUCH2 = self._mcp23017.pin(11, Pin.IN)
-        self.TOUCH3 = self._mcp23017.pin(12, Pin.IN)
+        self._GPIOexpander = PCAL6416A(self.wire)
 
         self.spi = SPI(2)
 
@@ -205,25 +167,18 @@ class Inkplate:
         self.sendCommand(b"\x50")
         self.sendData(b"\x37")
 
-        self.setMCPForLowPower()
+        self.setPCALForLowPower()
 
         self._panelState = True
+
         return True
 
     @classmethod
-    def setMCPForLowPower(self):
-        self._mcp23017.pin(10,  mode=mPin.IN)
-        self._mcp23017.pin(11,  mode=mPin.IN)
-        self._mcp23017.pin(12,  mode=mPin.IN)
+    def setPCALForLowPower(self):
 
-        self._mcp23017.pin(9, value=0,  mode=mPin.OUT)
-
-        for x in range(8):
-            self._mcp23017.pin(x, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(8, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(13, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(14, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(15, value=0, mode=mPin.OUT)
+        for x in range(16):
+            self._GPIOexpander.pinMode(int(x), modeOUTPUT)
+            self._GPIOexpander.digitalWrite(int(x), 0)
 
     @classmethod
     def getPanelDeepSleepState(self):
@@ -386,8 +341,8 @@ class Inkplate:
         _x_sub = x % 2
 
         temp = self._framebuf[D_COLS * y // 2 + _x]
-        self._framebuf[D_COLS * y // 2 + _x] = (pixelMaskGLUT[_x_sub] & temp) |\
-            (c if _x_sub else c << 4)
+        self._framebuf[D_COLS * y // 2 + _x] = (pixelMaskGLUT[_x_sub] & temp) | \
+                                               (c if _x_sub else c << 4)
 
     @classmethod
     def writeFillRect(self, x, y, w, h, c):
