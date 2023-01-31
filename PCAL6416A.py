@@ -74,9 +74,9 @@ modeINPUT_PULLDOWN = const(3)
 
 # PCAL6416A is a minimal driver for an 16-bit I2C I/O expander
 class PCAL6416A:
-    def __init__(self, i2c):
+    def __init__(self, i2c, addr=0x20):
         self.i2c = i2c
-        self.addr = 0x20
+        self.addr = addr
         self.ioRegsInt = bytearray(23)
 
         self.ioRegsInt[0] = self.read(PCAL6416A_INPORT0)
@@ -129,26 +129,35 @@ class PCAL6416A:
 
         if (mode == modeINPUT):
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= (1 << pin)
-            self.write(PCAL6416A_CFGPORT0 + port, self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
+            self.write(PCAL6416A_CFGPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
         elif (mode == modeOUTPUT):
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] &= ~ (1 << pin)
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] &= ~(1 << pin)
-            self.write(PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
-            self.write(PCAL6416A_CFGPORT0 + port, self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
+            self.write(PCAL6416A_OUTPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
+            self.write(PCAL6416A_CFGPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
         elif (mode == modeINPUT_PULLUP):
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= (1 << pin)
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= (1 << pin)
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] |= (1 << pin)
-            self.write(PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
-            self.write(PCAL6416A_CFGPORT0 + port, self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
-            self.write(PCAL6416A_PUPDSEL_REG0 + port, self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port])
+            self.write(PCAL6416A_OUTPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
+            self.write(PCAL6416A_CFGPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
+            self.write(PCAL6416A_PUPDSEL_REG0 + port,
+                       self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port])
         elif (mode == modeINPUT_PULLDOWN):
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= (1 << pin)
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= (1 << pin)
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] &= ~(1 << pin)
-            self.write(PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
-            self.write(PCAL6416A_CFGPORT0 + port, self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
-            self.write(PCAL6416A_PUPDSEL_REG0 + port, self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port])
+            self.write(PCAL6416A_OUTPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
+            self.write(PCAL6416A_CFGPORT0 + port,
+                       self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port])
+            self.write(PCAL6416A_PUPDSEL_REG0 + port,
+                       self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port])
 
     def digitalWrite(self, pin, state):
         if (pin > 15):
@@ -163,7 +172,8 @@ class PCAL6416A:
         else:
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] &= ~(1 << pin)
 
-        self.write(PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
+        self.write(PCAL6416A_OUTPORT0 + port,
+                   self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
 
     def digitalRead(self, pin):
         if (pin > 15):
@@ -172,85 +182,18 @@ class PCAL6416A:
         port = pin // 8
         pin %= 8
 
-        self.ioRegsInt[PCAL6416A_INPORT0_ARRAY + port] = self.read(PCAL6416A_INPORT0_ARRAY + port)
+        self.ioRegsInt[PCAL6416A_INPORT0_ARRAY +
+            port] = self.read(PCAL6416A_INPORT0_ARRAY + port)
         return (self.ioRegsInt[PCAL6416A_INPORT0 + port] >> pin) & 1
 
-    # bit reads or sets a bit in a register, caching the gpio register for performance
-    # def bit(self, reg, num, v=None):
-    #    if v is None:
-    #        data = self.read(reg)
-    #        if reg == INPUT0:
-    #            self.gpio_input0 = data
-    #        elif reg == INPUT1:
-    #            self.gpio_input1 = data
-    #        return (data >> num) & 1
-    #    else:
-    #        mask = 0xFF ^ (1 << num)
-    #        if reg == OUTPUT0:
-    #            self.gpio_output0 = (self.gpio0 & mask) | ((v & 1) << num)
-    #            self.write(reg, self.gpio_output0)
-    #        elif reg == OUTPUT1:
-    #            self.gpio_output1 = (self.gpio1 & mask) | ((v & 1) << num)
-    #            self.write(reg, self.gpio_output1)
-    #        else:
-    #            data = (self.read(reg) & mask) | ((v & 1) << num)
-    #            self.write(reg, data)
-    # def pin(self, bank, num, mode=mPin.IN, pull=None, value=None):
-    #    return Pin(self, bank, num, mode, pull, value)
+class gpioPin:
+    def __init__(self, PCAL6416A, pin, mode):
+        self.PCAL6416A = PCAL6416A
+        self.pin = pin
+        self.PCAL6416A.pinMode(pin,mode)
 
-## Pin implements a minimal machine. Pin look-alike for pins on the PCAL6416A
-# class Pin:
-#    def __init__(self, PCAL6416A, bank, num, mode=mPin.IN, pull=None, value=None):
-#        self.bit = PCAL6416A.bit
-#        if(mode == mPin.IN & bank == 0):
-#            self.gpio_input0 = INPUT0
-#        elif(mode == mPin.IN & bank == 1):
-#            self.gpio_input1 = INPUT1
-#        elif(mode == mPin.PULL_UP & bank == 0):
-#            self.gpio_output0 = OUTPUT0
-#        elif(mode==mPin.PULL_UP & bank == 1):
-#            self.gpio_output1 = OUTPUT1
-#
-#        self.num = num
-#        if value is not None:
-#            self.bit(self.gpio, num, value)
-#
-#        if(bank == 0):
-#            self.bit(IODIR0, num, 1 if mode == mPin.IN else 0)
-#            self.bit(PULLUP0, num, 1 if pull == mPin.PULL_UP else 0)
-#
-#        else:
-#            self.bit(IODIR0, num, 1 if mode == mPin.IN else 0)
-#            self.bit(PULLUP0, num, 1 if pull == mPin.PULL_UP else 0)
-#
-#    # value reads or write a pin value (0 or 1)
-#    def value(self, v=None):
-#        if v is None:
-#            return self.bit(self.gpio, self.num)
-#        else:
-#            self.bit(self.gpio, self.num, v)
-#
-#    __call__ = value
-
-
-# Pin implements a minimal machine. Pin look-alike for pins on the PCAL6416A
-# class Pin:
-#    def __init__(self, PCAL6416A, num, mode=mPin.IN, pull=None, value=None):
-#        self.bit = PCAL6416A.bit
-#        incr = num >> 3  # bank selector
-#        self.gpio = GPIO + incr
-#        self.num = num = num & 0x7
-#        if value is not None:
-#            self.bit(self.gpio, num, value)
-#        self.bit(IODIR + incr, num, 1 if mode == mPin.IN else 0)
-#        self.bit(GPPU + incr, num, 1 if pull == mPin.PULL_UP else 0)
-#
-#    # value reads or write a pin value (0 or 1)
-#    def value(self, v=None):
-#        if v is None:
-#            return self.bit(self.gpio, self.num)
-#        else:
-#            self.bit(self.gpio, self.num, v)
-#
-#    __call__ = value
-#
+    def digitalWrite(self, value):
+        self.PCAL6416A.digitalWrite(self.pin,value)
+    
+    def digitalRead(self):
+        return self.PCAL6416A.digitalRead(self.pin)

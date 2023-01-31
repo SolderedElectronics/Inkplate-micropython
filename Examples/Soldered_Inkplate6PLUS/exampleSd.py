@@ -1,8 +1,7 @@
-import os
-import time
-from inkplate6_COLOR import Inkplate
+import os, time
+from soldered_inkplate6_PLUS import Inkplate
 
-display = Inkplate()
+display = Inkplate(Inkplate.INKPLATE_2BIT)
 display.begin()
 
 # SD Card must be initialised with this function

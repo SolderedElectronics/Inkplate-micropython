@@ -91,24 +91,9 @@ class Inkplate:
     _framebuf = bytearray([0x11] * (D_COLS * D_ROWS // 2))
 
     @classmethod
-    def __init__(self):
-        try:
-            os.mount(
-                SDCard(
-                    slot=3,
-                    miso=Pin(12),
-                    mosi=Pin(13),
-                    sck=Pin(14),
-                    cs=Pin(15)),
-                "/sd"
-            )
-        except:
-            print("Sd card could not be read")
-
-    @classmethod
     def begin(self):
         self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
-        self._GPIOexpander = PCAL6416A(self.wire)
+        self._PCAL6416A = PCAL6416A(self.wire)
 
         self.spi = SPI(2)
 
@@ -118,6 +103,8 @@ class Inkplate:
         self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
+
+        self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -173,12 +160,35 @@ class Inkplate:
 
         return True
 
+    def initSDCard(self):
+        self.SD_ENABLE.digitalWrite(0)
+        try:
+            os.mount(
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
+            )
+        except:
+            print("Sd card could not be read")
+
+    def SDCardSleep(self):
+        self.SD_ENABLE.digitalWrite(1)
+        time.sleep_ms(5)
+
+    def SDCardWake(self):
+        self.SD_ENABLE.digitalWrite(0)
+        time.sleep_ms(5)
+
     @classmethod
     def setPCALForLowPower(self):
 
         for x in range(16):
-            self._GPIOexpander.pinMode(int(x), modeOUTPUT)
-            self._GPIOexpander.digitalWrite(int(x), 0)
+            self._PCAL6416A.pinMode(int(x), modeOUTPUT)
+            self._PCAL6416A.digitalWrite(int(x), 0)
 
     @classmethod
     def getPanelDeepSleepState(self):
@@ -258,6 +268,10 @@ class Inkplate:
             pass
 
         time.sleep_ms(200)
+
+    @classmethod
+    def gpioExpanderPin(self, pin, mode):
+        return gpioPin(self._PCAL6416A, pin, mode)
 
     @classmethod
     def clean(self):
@@ -472,103 +486,3 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
         self.endWrite()
-
-    # @classmethod
-    # def drawImageFile(self, x, y, path, invert=False):
-    #     with open(path, "rb") as f:
-    #         header14 = f.read(14)
-    #         if header14[0] != 0x42 or header14[1] != 0x4D:
-    #             return 0
-    #         header40 = f.read(40)
-
-    #         w = int(
-    #             (header40[7] << 24)
-    #             + (header40[6] << 16)
-    #             + (header40[5] << 8)
-    #             + header40[4]
-    #         )
-    #         h = int(
-    #             (header40[11] << 24)
-    #             + (header40[10] << 16)
-    #             + (header40[9] << 8)
-    #             + header40[8]
-    #         )
-    #         dataStart = int((header14[11] << 8) + header14[10])
-
-    #         depth = int((header40[15] << 8) + header40[14])
-    #         totalColors = int((header40[33] << 8) + header40[32])
-
-    #         rowSize = 4 * ((depth * w + 31) // 32)
-
-    #         if totalColors == 0:
-    #             totalColors = 1 << depth
-
-    #         palette = None
-
-    #         if depth <= 8:
-    #             palette = [0 for i in range(totalColors)]
-    #             p = f.read(totalColors * 4)
-    #             for i in range(totalColors):
-    #                 palette[i] = (
-    #                     54 * p[i * 4] + 183 * p[i * 4 + 1] + 19 * p[i * 4 + 2]
-    #                 ) >> 14
-    #         # print(palette)
-    #         f.seek(dataStart)
-    #         for j in range(h):
-    #             # print(100 * j // h, "% complete")
-    #             buffer = f.read(rowSize)
-    #             for i in range(w):
-    #                 val = 0
-    #                 if depth == 1:
-    #                     px = int(
-    #                         invert
-    #                         ^ (palette[0] < palette[1])
-    #                         ^ bool(buffer[i >> 3] & (1 << (7 - i & 7)))
-    #                     )
-    #                     val = palette[px]
-    #                 elif depth == 4:
-    #                     px = (buffer[i >> 1] & (0x0F if i & 1 == 1 else 0xF0)) >> (
-    #                         0 if i & 1 else 4
-    #                     )
-    #                     val = palette[px]
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 8:
-    #                     px = buffer[i]
-    #                     val = palette[px]
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 16:
-    #                     px = (buffer[(i << 1) | 1] << 8) | buffer[(i << 1)]
-
-    #                     r = (px & 0x7C00) >> 7
-    #                     g = (px & 0x3E0) >> 2
-    #                     b = (px & 0x1F) << 3
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 24:
-    #                     r = buffer[i * 3]
-    #                     g = buffer[i * 3 + 1]
-    #                     b = buffer[i * 3 + 2]
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 32:
-    #                     r = buffer[i * 4]
-    #                     g = buffer[i * 4 + 1]
-    #                     b = buffer[i * 4 + 2]
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-
-    #                 if self.getDisplayMode() == self.INKPLATE_1BIT:
-    #                     val >>= 1
-
-    #                 self.drawPixel(x + i, y + h - j, val)
