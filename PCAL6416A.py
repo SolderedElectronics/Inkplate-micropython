@@ -197,3 +197,5 @@ class gpioPin:
     
     def digitalRead(self):
         return self.PCAL6416A.digitalRead(self.pin)
+    
+    __call__ = digitalRead
