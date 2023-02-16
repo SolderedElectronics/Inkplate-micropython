@@ -196,18 +196,18 @@ class Inkplate:
 
     @classmethod
     def setPanelDeepSleepState(self, state):
-        _panelState = False if state == 0 else True
+        self._panelState = False if state == 0 else True
 
-        if _panelState:
+        if self._panelState:
             self.begin()
         else:
             time.sleep_ms(10)
             self.sendCommand(DEEP_SLEEP_REGISTER)
             self.sendData(b"\xA5")
             time.sleep_ms(100)
-            EPAPER_RST_PIN.value(0)
-            EPAPER_DC_PIN.value(0)
-            EPAPER_CS_PIN.value(0)
+            self.EPAPER_RST_PIN.value(0)
+            self.EPAPER_DC_PIN.value(0)
+            self.EPAPER_CS_PIN.value(0)
 
     @classmethod
     def resetPanel(self):
