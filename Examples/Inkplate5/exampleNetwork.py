@@ -2,8 +2,8 @@ import network
 import time
 from inkplate5 import Inkplate
 
-ssid = "Soldered"
-password = "dasduino"
+ssid = ""
+password = ""
 
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
 def do_connect():

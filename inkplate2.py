@@ -199,16 +199,6 @@ class Inkplate:
         self.setPanelDeepSleepState(True)
 
     @classmethod
-    def readBattery(self):
-        self.VBAT_EN.value(0)
-        # Probably don't need to delay since Micropython is slow, but we do it anyway
-        time.sleep_ms(1)
-        value = self.VBAT.read()
-        self.VBAT_EN.value(1)
-        result = (value / 4095.0) * 1.1 * 3.548133892 * 2
-        return result
-
-    @classmethod
     def width(self):
         return self._width
 
