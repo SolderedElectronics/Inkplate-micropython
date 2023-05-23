@@ -12,34 +12,35 @@ Original effort to enable MicroPython support for Inkplate was done by [tve](htt
 ### Setting up Inkplate with MicroPython
 
 In order to get started with running your code on Inkplate, follow these steps:
-1. Install esptool - the command line tool used to upload code to the ESP32. Get it from [here](https://github.com/espressif/esptool) (https://github.com/espressif/esptool). Also, install PySerial as it's a requirement. You can download PySerial [here](https://pypi.org/project/pyserial/) (https://pypi.org/project/pyserial).
+1. Install esptool - the command line tool used to upload firmware to the ESP32. Get it from [here](https://github.com/espressif/esptool) (https://github.com/espressif/esptool). Also, install PySerial as it's a requirement. You can download PySerial [here](https://pypi.org/project/pyserial/) (https://pypi.org/project/pyserial). Place them in a both in a working directory.
 
-2. Download or clone this repository by clicking Code -> Download as .zip. Extract to your desired working directory.
+2. Download or clone this repository by clicking Code -> Download as .zip. Extract to your desired working directory for your MicroPython files, make it a different one than the esptool directory.
 
-3. Open your Terminal/Command line in that directory.
+3. Copy the esp32spiram-20220117-v1.18.bin file to the esptool directory from the MicroPython directory. Open your terminal/command prompt in the esptool directory.
 
-4. First, we need to flash the MicroPython firmware to Inkplate. It is reccomended to flash the one supplied here, version 1.18. To do this, connect Inkplate via USB-C and first erase the flash memory by running this command:
+4. We need to flash the MicroPython firmware to Inkplate. It is reccomended to flash the one supplied in this repository that you have copied in the previous step, version 1.18. To do this, connect Inkplate via USB-C and first erase the flash memory by running this command:
 ```
 //Linux/Mac
-esptool.py --port /dev/cu.usbserial-1420 erase_flash
+python3 esptool.py --port /dev/cu.usbserial-1420 erase_flash
 
 //Windows
-esptool.py --port COM5 erase_flash 
+python esptool.py --port COM5 erase_flash 
 ```
 **NOTE:** You should change the serial port listed here to the one which corresponds to your connected Inkplate device.
 
 Now it's possible to flash MicroPython firmware. Do so by running this command:
 ```
 //Linux/Mac
-esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
+python3 esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
 // If you're having problems on Mac, use a slower baud rate with the flag "-b 112500"
 
 //Windows
-esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
+python esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
 ```
 
+**You only have to do steps 1-4 once when writing MicroPython firmware on your Inkplate!** If you have already done this, proceed from step 5 onwards.
 
-5. Now, it's required to copy all the library files and drivers for your Inkplate board to it, so your MicroPython script can run. Do so with the following command:
+5. Open a terminal in your MicroPython folder. Now, it's required to copy all the library files and drivers for your Inkplate board, so your MicroPython script can run. Do so with the following command:
 
 ```
 //Linux/Mac
@@ -70,7 +71,7 @@ You can try other examples which will show you all the features of the device.
 ### Code examples
 
 There are several examples which will indicate all the functions you can use in your own script:
-* The basic examples show you drawing shapes, lines and text on the screen in different colors
+* The basic examples show you drawing shapes, lines and text on the screen in different colors, also a bitmap image in a single color (color image drawing with dithering will be supported soon!)
 * The network examples show you how to use the network features like doing a GET request and downloading a file
 * The batteryAndTemperatureRead examples show you how to read the internal battery status and the temperature from the internal sensor
 * The exampleSD example shows you how to read image files and text from the SD card
