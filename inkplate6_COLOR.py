@@ -3,11 +3,12 @@ import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard
 from micropython import const
+from PCAL6416A import *
 from shapes import Shapes
-from mcp23017 import MCP23017
 from machine import Pin as mPin
 from gfx import GFX
 from gfx_standard_font_01 import text_dict as std_font
+
 # ===== Constants that change between the Inkplate 6 and 10
 
 # Connections between ESP32 and color Epaper
@@ -50,60 +51,24 @@ VCM_DC_SET_REGISTER = "\x02"
 D_COLS = const(600)
 D_ROWS = const(448)
 
-MCP23017_INT_ADDR = const(0x20)
-MCP23017_EXT_ADDR = const(0x20)
+# User pins on PCAL6416A for Inkplate COLOR
+IO_PIN_A0 = const(0)
+IO_PIN_A1 = const(1)
+IO_PIN_A2 = const(2)
+IO_PIN_A3 = const(3)
+IO_PIN_A4 = const(4)
+IO_PIN_A5 = const(5)
+IO_PIN_A6 = const(6)
+IO_PIN_A7 = const(7)
 
-MCP23017_INT_PORTA = const(0x00)
-MCP23017_INT_PORTB = const(0x01)
-MCP23017_INT_NO_MIRROR = False
-MCP23017_INT_MIRROR = True
-MCP23017_INT_PUSHPULL = False
-MCP23017_INT_OPENDRAIN = True
-MCP23017_INT_ACTLOW = False
-MCP23017_INT_ACTHIGH = True
-
-MCP23017_IODIRA = const(0x00)
-MCP23017_IPOLA = const(0x02)
-MCP23017_GPINTENA = const(0x04)
-MCP23017_DEFVALA = const(0x06)
-MCP23017_INTCONA = const(0x08)
-MCP23017_IOCONA = const(0x0A)
-MCP23017_GPPUA = const(0x0C)
-MCP23017_INTFA = const(0x0E)
-MCP23017_INTCAPA = const(0x10)
-MCP23017_GPIOA = const(0x12)
-MCP23017_OLATA = const(0x14)
-
-MCP23017_IODIRB = const(0x01)
-MCP23017_IPOLB = const(0x03)
-MCP23017_GPINTENB = const(0x05)
-MCP23017_DEFVALB = const(0x07)
-MCP23017_INTCONB = const(0x09)
-MCP23017_IOCONB = const(0x0B)
-MCP23017_GPPUB = const(0x0D)
-MCP23017_INTFB = const(0x0F)
-MCP23017_INTCAPB = const(0x11)
-MCP23017_GPIOB = const(0x13)
-MCP23017_OLATB = const(0x15)
-
-# User pins on MCP for Inkplate COLOR
-MCP23017_PIN_A0 = const(0)
-MCP23017_PIN_A1 = const(1)
-MCP23017_PIN_A2 = const(2)
-MCP23017_PIN_A3 = const(3)
-MCP23017_PIN_A4 = const(4)
-MCP23017_PIN_A5 = const(5)
-MCP23017_PIN_A6 = const(6)
-MCP23017_PIN_A7 = const(7)
-
-MCP23017_PIN_B0 = const(8)
-MCP23017_PIN_B1 = const(9)
-MCP23017_PIN_B2 = const(10)
-MCP23017_PIN_B3 = const(11)
-MCP23017_PIN_B4 = const(12)
-MCP23017_PIN_B5 = const(13)
-MCP23017_PIN_B6 = const(14)
-MCP23017_PIN_B7 = const(15)
+IO_PIN_B0 = const(8)
+IO_PIN_B1 = const(9)
+IO_PIN_B2 = const(10)
+IO_PIN_B3 = const(11)
+IO_PIN_B4 = const(12)
+IO_PIN_B5 = const(13)
+IO_PIN_B6 = const(14)
+IO_PIN_B7 = const(15)
 
 
 class Inkplate:
@@ -126,27 +91,9 @@ class Inkplate:
     _framebuf = bytearray([0x11] * (D_COLS * D_ROWS // 2))
 
     @classmethod
-    def __init__(self):
-        try:
-            os.mount(
-                SDCard(
-                    slot=3,
-                    miso=Pin(12),
-                    mosi=Pin(13),
-                    sck=Pin(14),
-                    cs=Pin(15)),
-                "/sd"
-            )
-        except:
-            print("Sd card could not be read")
-
-    @classmethod
     def begin(self):
         self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
-        self._mcp23017 = MCP23017(self.wire)
-        self.TOUCH1 = self._mcp23017.pin(10, Pin.IN)
-        self.TOUCH2 = self._mcp23017.pin(11, Pin.IN)
-        self.TOUCH3 = self._mcp23017.pin(12, Pin.IN)
+        self._PCAL6416A = PCAL6416A(self.wire)
 
         self.spi = SPI(2)
 
@@ -156,6 +103,8 @@ class Inkplate:
         self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
+
+        self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -205,25 +154,41 @@ class Inkplate:
         self.sendCommand(b"\x50")
         self.sendData(b"\x37")
 
-        self.setMCPForLowPower()
+        self.setPCALForLowPower()
 
         self._panelState = True
+
         return True
 
+    def initSDCard(self):
+        self.SD_ENABLE.digitalWrite(0)
+        try:
+            os.mount(
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
+            )
+        except:
+            print("Sd card could not be read")
+
+    def SDCardSleep(self):
+        self.SD_ENABLE.digitalWrite(1)
+        time.sleep_ms(5)
+
+    def SDCardWake(self):
+        self.SD_ENABLE.digitalWrite(0)
+        time.sleep_ms(5)
+
     @classmethod
-    def setMCPForLowPower(self):
-        self._mcp23017.pin(10,  mode=mPin.IN)
-        self._mcp23017.pin(11,  mode=mPin.IN)
-        self._mcp23017.pin(12,  mode=mPin.IN)
+    def setPCALForLowPower(self):
 
-        self._mcp23017.pin(9, value=0,  mode=mPin.OUT)
-
-        for x in range(8):
-            self._mcp23017.pin(x, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(8, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(13, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(14, value=0, mode=mPin.OUT)
-        self._mcp23017.pin(15, value=0, mode=mPin.OUT)
+        for x in range(16):
+            self._PCAL6416A.pinMode(int(x), modeOUTPUT)
+            self._PCAL6416A.digitalWrite(int(x), 0)
 
     @classmethod
     def getPanelDeepSleepState(self):
@@ -303,6 +268,10 @@ class Inkplate:
             pass
 
         time.sleep_ms(200)
+
+    @classmethod
+    def gpioExpanderPin(self, pin, mode):
+        return gpioPin(self._PCAL6416A, pin, mode)
 
     @classmethod
     def clean(self):
@@ -386,8 +355,8 @@ class Inkplate:
         _x_sub = x % 2
 
         temp = self._framebuf[D_COLS * y // 2 + _x]
-        self._framebuf[D_COLS * y // 2 + _x] = (pixelMaskGLUT[_x_sub] & temp) |\
-            (c if _x_sub else c << 4)
+        self._framebuf[D_COLS * y // 2 + _x] = (pixelMaskGLUT[_x_sub] & temp) | \
+                                               (c if _x_sub else c << 4)
 
     @classmethod
     def writeFillRect(self, x, y, w, h, c):
@@ -517,103 +486,3 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
         self.endWrite()
-
-    # @classmethod
-    # def drawImageFile(self, x, y, path, invert=False):
-    #     with open(path, "rb") as f:
-    #         header14 = f.read(14)
-    #         if header14[0] != 0x42 or header14[1] != 0x4D:
-    #             return 0
-    #         header40 = f.read(40)
-
-    #         w = int(
-    #             (header40[7] << 24)
-    #             + (header40[6] << 16)
-    #             + (header40[5] << 8)
-    #             + header40[4]
-    #         )
-    #         h = int(
-    #             (header40[11] << 24)
-    #             + (header40[10] << 16)
-    #             + (header40[9] << 8)
-    #             + header40[8]
-    #         )
-    #         dataStart = int((header14[11] << 8) + header14[10])
-
-    #         depth = int((header40[15] << 8) + header40[14])
-    #         totalColors = int((header40[33] << 8) + header40[32])
-
-    #         rowSize = 4 * ((depth * w + 31) // 32)
-
-    #         if totalColors == 0:
-    #             totalColors = 1 << depth
-
-    #         palette = None
-
-    #         if depth <= 8:
-    #             palette = [0 for i in range(totalColors)]
-    #             p = f.read(totalColors * 4)
-    #             for i in range(totalColors):
-    #                 palette[i] = (
-    #                     54 * p[i * 4] + 183 * p[i * 4 + 1] + 19 * p[i * 4 + 2]
-    #                 ) >> 14
-    #         # print(palette)
-    #         f.seek(dataStart)
-    #         for j in range(h):
-    #             # print(100 * j // h, "% complete")
-    #             buffer = f.read(rowSize)
-    #             for i in range(w):
-    #                 val = 0
-    #                 if depth == 1:
-    #                     px = int(
-    #                         invert
-    #                         ^ (palette[0] < palette[1])
-    #                         ^ bool(buffer[i >> 3] & (1 << (7 - i & 7)))
-    #                     )
-    #                     val = palette[px]
-    #                 elif depth == 4:
-    #                     px = (buffer[i >> 1] & (0x0F if i & 1 == 1 else 0xF0)) >> (
-    #                         0 if i & 1 else 4
-    #                     )
-    #                     val = palette[px]
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 8:
-    #                     px = buffer[i]
-    #                     val = palette[px]
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 16:
-    #                     px = (buffer[(i << 1) | 1] << 8) | buffer[(i << 1)]
-
-    #                     r = (px & 0x7C00) >> 7
-    #                     g = (px & 0x3E0) >> 2
-    #                     b = (px & 0x1F) << 3
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 24:
-    #                     r = buffer[i * 3]
-    #                     g = buffer[i * 3 + 1]
-    #                     b = buffer[i * 3 + 2]
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-    #                 elif depth == 32:
-    #                     r = buffer[i * 4]
-    #                     g = buffer[i * 4 + 1]
-    #                     b = buffer[i * 4 + 2]
-
-    #                     val = (54 * r + 183 * g + 19 * b) >> 14
-
-    #                     if invert:
-    #                         val = 3 - val
-
-    #                 if self.getDisplayMode() == self.INKPLATE_1BIT:
-    #                     val >>= 1
-
-    #                 self.drawPixel(x + i, y + h - j, val)

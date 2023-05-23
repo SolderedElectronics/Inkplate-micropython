@@ -1,11 +1,11 @@
-from inkplate6 import Inkplate
+from inkplate5 import Inkplate
 from image import *
 import time
 
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
 if __name__ == "__main__":
-    # Must be called before using, line in Arduino
+    # Must be called before using, like in Arduino
     display.begin()
     display.clearDisplay()
     display.display()
@@ -26,6 +26,8 @@ if __name__ == "__main__":
         display.fillRoundRect(10, 100, 100, 100, 10, display.BLACK)
         display.drawTriangle(300, 100, 400, 150, 400, 100, display.BLACK)
 
+        print("rotation "+str(r))
+
         if display.rotation % 2 == 0:
             display.fillTriangle(500, 101, 400, 150, 400, 100, display.BLACK)
         display.display()
@@ -33,7 +35,7 @@ if __name__ == "__main__":
     
     # Draws image from bytearray
     display.setRotation(0)
-    display.drawBitmap(120, 200, image, 576, 100)
+    display.drawBitmap(250, 420, image, 576, 100)
 
     #Use display.partialUpdate instead of display.display() to draw only updated pixels
     display.partialUpdate()

@@ -1,4 +1,4 @@
-from inkplate6 import Inkplate
+from soldered_inkplate6 import Inkplate
 from image import *
 import time
 
@@ -28,8 +28,8 @@ if __name__ == "__main__":
 
         if display.rotation % 2 == 0:
             display.fillTriangle(500, 101, 400, 150, 400, 100, display.BLACK)
-        display.display()
-        time.sleep(5)
+    display.display()
+    time.sleep(5)
     
     # Draws image from bytearray
     display.setRotation(0)
