@@ -27,6 +27,7 @@ E_INK_BUFFER_SIZE = E_INK_NUM_PIXELS // 8
 
 busy_timeout_ms = 30000
 
+
 class Inkplate:
 
     # Colors
@@ -49,13 +50,6 @@ class Inkplate:
     def begin(self):
         self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
         self.spi = SPI(2)
-        self.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
-
-        self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-        self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
-        self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
-        self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
-
         self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
 
@@ -70,29 +64,12 @@ class Inkplate:
             None,
         )
 
-        self.resetPanel()
-
-        self.sendCommand(b"\x04")
-
-        # Wait for ePaper
-        _timeout = time.ticks_ms()
-        while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
-            pass
-
-        if not self.EPAPER_BUSY_PIN.value():
+        # Wake the panel and init it
+        if not (self.setPanelDeepSleepState(False)):
             return False
 
-        self.sendCommand(b"\x00")
-        self.sendData(b"\x0f")
-        self.sendData(b"\x89")
-        self.sendCommand(b"\x61")
-        self.sendData(b"\x68")
-        self.sendData(b"\x00")
-        self.sendData(b"\xD4")
-        self.sendCommand(b"\x50")
-        self.sendData(b"\x77")
-
-        self._panelState = True
+        # Put it back to sleep
+        self.setPanelDeepSleepState(True)
 
         # 3 is the default rotation for Inkplate 2
         self.setRotation(3)
@@ -105,20 +82,44 @@ class Inkplate:
 
     @classmethod
     def setPanelDeepSleepState(self, state):
-        _panelState = False if state == 0 else True
 
-        if _panelState:
-            self.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
+        # False wakes the panel up
+        # True puts it to sleep
+        if not state:
+            self.spi.init(baudrate=20000000, firstbit=SPI.MSB,
+                          polarity=0, phase=0)
             self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
             self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
             self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
             self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
             time.sleep_ms(10)
-            self.begin()
+            self.resetPanel()
+
+            # Reinit the panel
+            self.sendCommand(b"\x04")
+            _timeout = time.ticks_ms()
+            while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
+                pass
+
+            self.sendCommand(b"\x00")
+            self.sendData(b"\x0f")
+            self.sendData(b"\x89")
+            self.sendCommand(b"\x61")
+            self.sendData(b"\x68")
+            self.sendData(b"\x00")
+            self.sendData(b"\xD4")
+            self.sendCommand(b"\x50")
+            self.sendData(b"\x77")
+
+            self._panelState = True
+
+            return True
+
         else:
+
+            # Put the panel to sleep
             self.sendCommand(b"\x50")
             self.sendData(b"\xf7")
-
             self.sendCommand(b"\x02")
             # Wait for ePaper
             _timeout = time.ticks_ms()
@@ -127,7 +128,7 @@ class Inkplate:
             self.sendCommand(b"\07")
             self.sendData(b"\xA5")
 
-            time.sleep_ms(100)
+            time.sleep_ms(1)
             # Turn off SPI
             self.spi.deinit()
             self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
@@ -135,7 +136,9 @@ class Inkplate:
             self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.IN)
             self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.IN)
 
+            self._panelState = False
 
+            return False
 
     @classmethod
     def resetPanel(self):
@@ -168,8 +171,9 @@ class Inkplate:
 
     @classmethod
     def display(self):
-        if not self._panelState:
-            return
+
+        # Wake the display
+        self.setPanelDeepSleepState(False)
 
         # Write b/w pixels
         self.sendCommand(b"\x10")
@@ -179,7 +183,7 @@ class Inkplate:
         self.sendCommand(b"\x13")
         self.sendData(self._framebuf_RED)
 
-        #Stop transfer
+        # Stop transfer
         self.sendCommand(b"\x11")
         self.sendData(b"\x00")
 
@@ -190,6 +194,9 @@ class Inkplate:
         _timeout = time.ticks_ms()
         while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
             pass
+
+        # Put the display back to sleep
+        self.setPanelDeepSleepState(True)
 
     @classmethod
     def width(self):
@@ -230,7 +237,7 @@ class Inkplate:
             return
         if (c > 2):
             return
-        
+
         if self.rotation == 3:
             x, y = y, x
             y = self.width() - y - 1
@@ -250,9 +257,9 @@ class Inkplate:
         # Clear both black and red frame buffer
         self._framebuf_BW[_position] |= (pixelMaskLUT[7 - _x_sub])
         self._framebuf_RED[_position] |= (pixelMaskLUT[7 - _x_sub])
-        
+
         # Write the pixel to the according buffer
-        if(c < 2):
+        if (c < 2):
             self._framebuf_BW[_position] &= ~(c << (7 - _x_sub))
         else:
             self._framebuf_RED[_position] &= ~(pixelMaskLUT[7 - _x_sub])

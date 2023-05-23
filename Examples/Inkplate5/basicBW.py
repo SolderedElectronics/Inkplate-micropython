@@ -5,7 +5,7 @@ import time
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
 if __name__ == "__main__":
-    # Must be called before using, line in Arduino
+    # Must be called before using, like in Arduino
     display.begin()
     display.clearDisplay()
     display.display()
