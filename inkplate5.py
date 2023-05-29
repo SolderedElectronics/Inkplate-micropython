@@ -156,8 +156,9 @@ class _Inkplate:
     def read_battery(cls):
         cls.VBAT_EN.digitalWrite(0)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
-        time.sleep_ms(1)
+        time.sleep_ms(5)
         value = cls.VBAT.read()
+        print(value)
         cls.VBAT_EN.digitalWrite(1)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result

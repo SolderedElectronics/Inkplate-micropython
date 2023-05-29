@@ -1,5 +1,5 @@
 from inkplate5 import Inkplate
-from image import *
+from soldered_logo import *
 import time
 
 display = Inkplate(Inkplate.INKPLATE_1BIT)
@@ -33,9 +33,10 @@ if __name__ == "__main__":
         display.display()
         time.sleep(5)
     
-    # Draws image from bytearray
     display.setRotation(0)
-    display.drawBitmap(250, 420, image, 576, 100)
+    # Draws image from bytearray
+    # Parameters are X position, Y position, the byte array, and the exact dimensions of the image (width, height)
+    display.drawBitmap(374, 248, soldered_logo, 211, 44)
 
     #Use display.partialUpdate instead of display.display() to draw only updated pixels
     display.partialUpdate()

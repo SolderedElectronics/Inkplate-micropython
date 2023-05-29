@@ -1,7 +1,7 @@
 # Include needed libraries
 
 from inkplate5 import Inkplate
-from image import *
+from soldered_logo import *
 import time
 
 
@@ -26,8 +26,9 @@ if __name__ == "__main__":
     display.display()
     time.sleep(3)
 
-    # Draws image from bytearray
     display.setRotation(0)
-    display.drawBitmap(120, 200, image, 576, 100)
+    # Draws image from bytearray
+    # Parameters are X position, Y position, the byte array, and the exact dimensions of the image (width, height)
+    display.drawBitmap(374, 248, soldered_logo, 211, 44)
     display.display()
     time.sleep(10)

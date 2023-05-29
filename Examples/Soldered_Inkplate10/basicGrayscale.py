@@ -1,5 +1,3 @@
-# Include needed libraries
-
 from soldered_inkplate10 import Inkplate
 from image import *
 import time
