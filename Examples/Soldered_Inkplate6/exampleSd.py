@@ -18,6 +18,7 @@ f.close()
 
 time.sleep(5)
 
+# Draw the image titled "1.bmp"
 display.drawImageFile(0, 0, "sd/1.bmp")
 
 # You can turn off the power to the SD card to save power

@@ -1,5 +1,4 @@
 from soldered_inkplate10 import Inkplate
-from image import *
 
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 

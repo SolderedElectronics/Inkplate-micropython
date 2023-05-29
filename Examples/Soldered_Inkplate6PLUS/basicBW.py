@@ -1,5 +1,5 @@
 from soldered_inkplate6_PLUS import Inkplate
-from image import *
+from soldered_logo import *
 import time
 
 display = Inkplate(Inkplate.INKPLATE_1BIT)
@@ -28,12 +28,13 @@ if __name__ == "__main__":
 
         if display.rotation % 2 == 0:
             display.fillTriangle(500, 101, 400, 150, 400, 100, display.BLACK)
-    display.display()
-    time.sleep(5)
-    
+
+        display.display()
+        time.sleep(5)
+
     # Draws image from bytearray
     display.setRotation(0)
-    display.drawBitmap(120, 200, image, 576, 100)
+    display.drawBitmap(406, 357, soldered_logo, 211, 44)
 
     #Use display.partialUpdate instead of display.display() to draw only updated pixels
     display.partialUpdate()
