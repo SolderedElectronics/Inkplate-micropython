@@ -28,6 +28,7 @@ WAVE_2B = (  # For Inkplate 10, colors 0, 3, 5-tweaked, and 7 from arduino drive
     (0, 2, 1, 2),
     (0, 2, 1, 2),
     (1, 1, 2, 2),
+    (0, 0, 0, 0),
 )
 
 TPS65186_addr = const(0x48)  # I2C address
