@@ -22,7 +22,7 @@ D_COLS = const(1024)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them
+# add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (0, 0, 0, 0),
     (0, 0, 0, 0),
@@ -105,8 +105,6 @@ class _Inkplate:
         cls.TPS_INT = gpioPin(cls._PCAL6416A_1, 6, modeINPUT)
         cls.TPS_PWR_GOOD = gpioPin(cls._PCAL6416A_1, 7, modeINPUT)
 
-        
-        
         # Misc
         cls.GPIO0_PUP = gpioPin(cls._PCAL6416A_1, 8, modeOUTPUT)
         cls.GPIO0_PUP.digitalWrite(0)
@@ -116,15 +114,15 @@ class _Inkplate:
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
 
-        #Toucscreen
+        # Toucscreen
         cls._tsXResolution = 0
         cls._tsYResolution = 0
         cls.touchX = 0
         cls.touchY = 0
-        cls._xPos = [0,0]
-        cls._yPos = [0,0]
-        cls.xraw = [0,0]
-        cls.yraw = [0,0]
+        cls._xPos = [0, 0]
+        cls._yPos = [0, 0]
+        cls.xraw = [0, 0]
+        cls.yraw = [0, 0]
 
         cls.SD_ENABLE = gpioPin(cls._PCAL6416A_1, 13, modeOUTPUT)
 
@@ -151,7 +149,6 @@ class _Inkplate:
             None,
             None,
         )
-        
 
     @classmethod
     def clearDisplay(self):
@@ -182,7 +179,7 @@ class _Inkplate:
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
 
-    #Touchscreen
+    # Touchscreen
     @classmethod
     def touchInArea(cls, x, y, width, height):
         x2 = x+width
@@ -194,9 +191,20 @@ class _Inkplate:
                 cls.touchX = cls._xPos[0]
                 cls.touchY = cls._yPos[0]
 
-                if(cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
+                if (cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
                     return True
-        return False
+        return False    
+
+    # This function was a contributio by Evan Brynne
+    # For more info, see https://github.com/SolderedElectronics/Inkplate-micropython/issues/24
+    @classmethod
+    def activeTouch(cls):
+         if cls.tsAvailable():
+            fingers = cls.tsGetData()
+            if fingers > 0:
+                cls.touchX = cls._xPos[0]
+                cls.touchY = cls._yPos[0]
+                return (cls.touchX, cls.touchY)
 
     @classmethod
     def tsWriteRegs(cls, addr, buff):
@@ -1282,3 +1290,9 @@ class Inkplate:
 
     def tsShutdown(self):
         _Inkplate.tsShutdown()
+    
+    # This function was a contributio by Evan Brynne
+    # For more info, see https://github.com/SolderedElectronics/Inkplate-micropython/issues/24
+    def activeTouch(cls):
+         return _Inkplate.activeTouch()
+    

@@ -14,7 +14,6 @@ if __name__ == "__main__":
     display.printText(100, 100, "batt: " + battery + "V")
     display.display()
 
-    
     temperature = str(display.readTemperature())
 
     display.setTextSize(2)
