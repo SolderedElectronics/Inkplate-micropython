@@ -32,7 +32,7 @@ Now it's possible to flash MicroPython firmware. Do so by running this command:
 ```
 //Linux/Mac
 python3 esptool.py --chip esp32 --port /dev/cu.usbserial-1420 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
-// If you're having problems on Mac, use a slower baud rate with the flag "-b 112500"
+// If you're having problems on Mac, use a slower baud rate with the flag "-b 115200"
 
 //Windows
 python esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-20220117-v1.18.bin
