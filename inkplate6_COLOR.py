@@ -106,6 +106,12 @@ class Inkplate:
 
         self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
+        # Battery
+        self.V_BAT_MOS = gpioPin(self._PCAL6416A, 9, modeOUTPUT)
+        self.V_BAT = ADC(Pin(35))
+        self.V_BAT.atten(ADC.ATTN_11DB)
+        self.V_BAT.width(ADC.WIDTH_12BIT)
+
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
         self.GFX = GFX(
@@ -464,12 +470,18 @@ class Inkplate:
 
     @classmethod
     def readBattery(self):
-        self.VBAT_EN.value(0)
+        self.V_BAT_MOS.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
         time.sleep_ms(1)
-        value = self.VBAT.read()
-        self.VBAT_EN.value(1)
-        result = (value / 4095.0) * 1.1 * 3.548133892 * 2
+        raw_value = self.V_BAT.read()
+        self.V_BAT_MOS.digitalWrite(0)
+
+        # Calculate the voltage using the following formula
+        # 1.1V is internal ADC reference of ESP32
+        # 3.548133892 is 11dB in linear scale (Analog signal is attenuated by 11dB before ESP32 ADC input)
+        # Multiply by 2 for voltage divider circuit
+        result = (raw_value / 4095.0) * 1.1 * 3.548133892 * 2
+
         return result
 
     @classmethod
