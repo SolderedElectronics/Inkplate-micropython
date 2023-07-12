@@ -104,7 +104,12 @@ class Inkplate:
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
 
-        self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
+        self.SD_ENABLE = gpioPin(self._PCAL6416A, 13, modeOUTPUT)
+
+        # Touchpads
+        self.TOUCH1 = gpioPin(self._PCAL6416A, 10, modeINPUT_PULLUP)
+        self.TOUCH2 = gpioPin(self._PCAL6416A, 11, modeINPUT_PULLUP)
+        self.TOUCH3 = gpioPin(self._PCAL6416A, 12, modeINPUT_PULLUP)
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -153,8 +158,6 @@ class Inkplate:
 
         self.sendCommand(b"\x50")
         self.sendData(b"\x37")
-
-        self.setPCALForLowPower()
 
         self._panelState = True
 
