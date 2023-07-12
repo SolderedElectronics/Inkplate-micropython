@@ -1,6 +1,6 @@
 import network
 import time
-from soldered_inkplate10 import Inkplate
+from inkplate4 import Inkplate
 
 ssid = ""
 password = ""
@@ -10,6 +10,7 @@ password = ""
 def do_connect():
     import network
 
+    # Connect to WiFi
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print("connecting to network...")
@@ -23,7 +24,6 @@ def do_connect():
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_tcp.html
 def http_get(url):
     import socket
-
     res = ""
     _, _, host, path = url.split("/", 3)
     addr = socket.getaddrinfo(host, 80)[0][-1]
@@ -49,18 +49,16 @@ do_connect()
 response = http_get("http://micropython.org/ks/test.html")
 
 # Initialise our Inkplate object
-display = Inkplate(Inkplate.INKPLATE_1BIT)
+display = Inkplate()
 display.begin()
 
-display.setTextSize(3)
-
-# Print response in lines
+# Print the GET response in lines
 cnt = 0
 for x in response.split("\n"):
     display.printText(
-        10, 28 + cnt, x.upper()
+        10, 10 + cnt, x.upper()
     )  # Default font has only upper case letters
-    cnt += 28
+    cnt += 10
 
 # Display image from buffer
 display.display()
