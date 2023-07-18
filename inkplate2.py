@@ -371,3 +371,16 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
         self.endWrite()
+
+    @classmethod
+    def drawColorImage(self, x, y, w, h, buf):
+        scaled_w = int(-(-(w / 4.0) // 1))
+        for i in range(h):
+            for j in range(scaled_w):
+                self.writePixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
+                if 4 * j + x + 1 < w:
+                    self.writePixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
+                if 4 * j + x + 2 < w:
+                    self.writePixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
+                if 4 * j + x + 3 < w:
+                    self.writePixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))

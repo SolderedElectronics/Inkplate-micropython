@@ -72,13 +72,13 @@ IO_PIN_B7 = const(15)
 
 
 class Inkplate:
-    BLACK = const(0b00000000)
-    WHITE = const(0b00000001)
-    GREEN = const(0b00000010)
-    BLUE = const(0b00000011)
-    RED = const(0b00000100)
-    YELLOW = const(0b00000101)
-    ORANGE = const(0b00000110)
+    BLACK = const(0b00000000) # 0
+    WHITE = const(0b00000001) # 1
+    GREEN = const(0b00000010) # 2
+    BLUE = const(0b00000011) # 3
+    RED = const(0b00000100) # 4
+    YELLOW = const(0b00000101) # 5
+    ORANGE = const(0b00000110) # 6
 
     _width = D_COLS
     _height = D_ROWS
@@ -104,7 +104,7 @@ class Inkplate:
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
 
-        self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
+        #self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -161,7 +161,7 @@ class Inkplate:
         return True
 
     def initSDCard(self):
-        self.SD_ENABLE.digitalWrite(0)
+        #self.SD_ENABLE.digitalWrite(0)
         try:
             os.mount(
                 SDCard(
@@ -176,11 +176,11 @@ class Inkplate:
             print("Sd card could not be read")
 
     def SDCardSleep(self):
-        self.SD_ENABLE.digitalWrite(1)
+        #self.SD_ENABLE.digitalWrite(1)
         time.sleep_ms(5)
 
     def SDCardWake(self):
-        self.SD_ENABLE.digitalWrite(0)
+        #self.SD_ENABLE.digitalWrite(0)
         time.sleep_ms(5)
 
     @classmethod
@@ -486,3 +486,21 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
         self.endWrite()
+
+    def drawColorImage(self, x, y, width, height, image):
+        for i in range(0, len(image)):
+            # Unpack the byte into two pixel values
+            pixel_value1 = (image[i] & 0b11110000) >> 4
+            pixel_value2 = image[i] & 0b00001111
+
+            # Calculate the x and y coordinates of the pixels
+            x1 = (2*i) % width
+            y1 = (2*i) // width
+            x2 = (2*i + 1) % width
+            y2 = (2*i + 1) // width
+
+            # Check if the coordinates are within the image bounds
+            if x1 < width and y1 < height:
+                self.writePixel(x1 + x, y1 + y, pixel_value1)
+            if x2 < width and y2 < height:
+                self.writePixel(x2 + x, y2 + y, pixel_value2)
