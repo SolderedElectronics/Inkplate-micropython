@@ -1,6 +1,6 @@
 import time
 import os
-from machine import ADC, I2C, SPI, Pin
+from machine import ADC, I2C, SPI, Pin, SDCard
 from micropython import const
 from shapes import Shapes
 from PCAL6416A import *
@@ -82,7 +82,7 @@ class Inkplate:
 
         # Set battery enable pin
         self.VBAT_EN = gpioPin(self._PCAL6416A, 9, modeOUTPUT)
-        self.VBAT_EN.digitalWrite() 
+        self.VBAT_EN.digitalWrite(0)  # Initially disable the battery read
 
         # Set battery read pin
         self.VBAT = ADC(Pin(35))
@@ -410,7 +410,7 @@ class Inkplate:
 
     @classmethod
     def initSDCard(self):
-        self.SD_ENABLE.digitalWrite(0)
+        self.SDCardWake()
         try:
             os.mount(
                 SDCard(
@@ -421,18 +421,18 @@ class Inkplate:
                     cs=Pin(15)),
                 "/sd"
             )
-        except:
-            print("Sd card could not be read")
+        except Exception as e:
+            print("Sd card could not be read", str(e))
 
     @classmethod
     def SDCardSleep(self):
         self.SD_ENABLE.digitalWrite(1)
-        time.sleep_ms(5)
+        time.sleep_ms(25)
     
     @classmethod
     def SDCardWake(self):
         self.SD_ENABLE.digitalWrite(0)
-        time.sleep_ms(5)
+        time.sleep_ms(25)
     
     @classmethod
     def drawImageFile(self, x, y, path, invert=False):
@@ -535,10 +535,23 @@ class Inkplate:
 
     @classmethod
     def read_battery(self):
-        self.VBAT_EN.digitalWrite(0)
+        self.VBAT_EN.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
         time.sleep_ms(5)
         value = self.VBAT.read()
-        self.VBAT_EN.digitalWrite(1)
+        self.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
+
+    @classmethod
+    def drawColorImage(self, x, y, w, h, buf):
+        scaled_w = int(-(-(w / 4.0) // 1))
+        for i in range(h):
+            for j in range(scaled_w):
+                self.writePixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
+                if 4 * j + x + 1 < w:
+                    self.writePixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
+                if 4 * j + x + 2 < w:
+                    self.writePixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
+                if 4 * j + x + 3 < w:
+                    self.writePixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))

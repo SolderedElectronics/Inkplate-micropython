@@ -5,8 +5,8 @@ display = Inkplate()
 
 if __name__ == "__main__":
     display.begin()
-    #display.clearDisplay()
-    #display.display()
+    display.clearDisplay()
+    display.display()
 
     battery = str(display.read_battery())
 

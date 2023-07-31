@@ -35,6 +35,7 @@ if __name__ == "__main__":
 
     # Draws image from bytearray
     display.setRotation(0)
+    display.fillRect(214, 170, 211, 44, display.WHITE) # Fill the background of the image white
     display.drawBitmap(214, 170, soldered_logo, 211, 44, display.RED)
 
     # Use display.partialUpdate instead of display.display() to draw only updated pixels
