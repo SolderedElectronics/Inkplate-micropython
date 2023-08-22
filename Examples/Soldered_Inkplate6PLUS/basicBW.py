@@ -1,3 +1,5 @@
+# Thi
+
 from soldered_inkplate6_PLUS import Inkplate
 from soldered_logo import *
 import time

@@ -44,11 +44,11 @@ python esptool.py --chip esp32 --port COM5 write_flash -z 0x1000 esp32spiram-202
 
 ```
 //Linux/Mac
-python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py inkplate6.py image.py shapes.py gfx.py gfx_standard_font_01.py :
+python3 pyboard.py --device /dev/ttyUSB0 -f cp mcp23017.py inkplate6.py image.py shapes.py gfx.py gfx_standard_font_01.py soldered_logo.py :
 
 //Windows
 //This one might need to be started twice
-python pyboard.py --device COM5 -f cp inkplate6.py gfx.py gfx_standard_font_01.py mcp23017.py PCAL6416A.py image.py shapes.py :
+python pyboard.py --device COM5 -f cp inkplate6.py gfx.py gfx_standard_font_01.py mcp23017.py PCAL6416A.py image.py shapes.py soldered_logo.py :
 ```
 
 **NOTE:** here you need to again change the serial port to the one you're using and the main driver of the board to the one made specifically for your Inkplate board. Here it's inkplate6.py for Inkplate 6. If you have a newer version of Inkplate 6 (Soldered Inkplate 6) then copy soldered_inkplate6.py instead. inkplate2.py for Inkplate 2, and so on. Older Inkplate boards use 'mcp23017.py' for the IO expander and the new ones use PCAL6416A.py, so you only need to copy one of them. Check the driver file for your Inkplate board to see which one it requires.

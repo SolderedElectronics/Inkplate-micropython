@@ -100,7 +100,7 @@ class _Inkplate:
         cls.GPIO0_PUP.digitalWrite(0)
 
         cls.VBAT_EN = gpioPin(cls._PCAL6416A_1, 9, modeOUTPUT)
-        cls.VBAT_EN.digitalWrite(1)
+        cls.VBAT_EN.digitalWrite(0) # Initially disable the battery read
 
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
@@ -153,11 +153,11 @@ class _Inkplate:
     # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
     @classmethod
     def read_battery(cls):
-        cls.VBAT_EN.digitalWrite(0)
+        cls.VBAT_EN.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
         time.sleep_ms(1)
         value = cls.VBAT.read()
-        cls.VBAT_EN.digitalWrite(1)
+        cls.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
 
