@@ -10,7 +10,9 @@ import time
 # For 2-bit grayscale, see basicGrayscale.py
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
+# Main function
 if __name__ == "__main__":
+
     # Initialize the display, needs to be called only once
     display.begin()
 
@@ -25,6 +27,7 @@ if __name__ == "__main__":
     # This example will draw shapes around the upper left corner, and then rotate the screen
     # This creates a symmetrical-looking pattern of various shapes
     for r in range(4):
+
         # Sets the screen rotation
         display.setRotation(r)
 

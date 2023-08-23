@@ -6,7 +6,9 @@ from soldered_inkplate6PLUS import Inkplate
 # Create Inkplate object in 1-bit mode, black and white colors only
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
+# Main function
 if __name__ == "__main__":
+    
     # Initialize the display, needs to be called only once
     display.begin()
 

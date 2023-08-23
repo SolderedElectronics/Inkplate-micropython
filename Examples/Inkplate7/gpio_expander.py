@@ -1,62 +1,50 @@
+# This example shows you how to use the GPIO expander's pins
+# See below which pins are available
+
+# Include needed libraries
 import time
 from PCAL6416A import *
+from soldered_inkplate7 import Inkplate
 
-from inkplate7 import Inkplate
-
+# Create Inkplate object
 display = Inkplate()
 
-# This script demonstrates using all the available GPIO expander pins as output
-
+# Main function
 if __name__ == "__main__":
-    # Must be called before using, line in Arduino
+
+    # Initialize the display, needs to be called only once
     display.begin()
 
     # pin = display.gpioExpanderPin(gpioExpander,pin,mode)
-    # Supported gpio expanders on Soldered Inkplate 6: 1, 2
+    # Supported gpio expanders on Soldered Inkplate 6: 1, 2 (internal, external)
     # Supported modes: modeINPUT, modeINPUT_PULLUP, modeINPUT_PULLDOWN, modeOUTPUT
-    # Supported pins on Soldered Inkplate 6 are listed below
+    # Supported pins on Soldered Inkplate 7 are listed below
 
-    expander1_P0_0 = display.gpioExpanderPin(0, modeOUTPUT)
-    expander1_P0_1 = display.gpioExpanderPin(1, modeOUTPUT)
-    expander1_P0_2 = display.gpioExpanderPin(2, modeOUTPUT)
-    expander1_P0_3 = display.gpioExpanderPin(3, modeOUTPUT)
-    expander1_P0_4 = display.gpioExpanderPin(4, modeOUTPUT)
-    expander1_P0_5 = display.gpioExpanderPin(5, modeOUTPUT)
-    expander1_P0_6 = display.gpioExpanderPin(6, modeOUTPUT)
-    expander1_P0_7 = display.gpioExpanderPin(7, modeOUTPUT)
+    # Declare all the available pins as output:
 
-    expander1_P1_0 = display.gpioExpanderPin(8, modeOUTPUT)
-    expander1_P1_1 = display.gpioExpanderPin(9, modeOUTPUT)
-    expander1_P1_2 = display.gpioExpanderPin(10, modeOUTPUT)
-    expander1_P1_3 = display.gpioExpanderPin(11, modeOUTPUT)
-    expander1_P1_4 = display.gpioExpanderPin(12, modeOUTPUT)
-    expander1_P1_5 = display.gpioExpanderPin(13, modeOUTPUT)
-    expander1_P1_6 = display.gpioExpanderPin(14, modeOUTPUT)
-    expander1_P1_7 = display.gpioExpanderPin(15, modeOUTPUT)
+    expander_P0_0 = display.gpioExpanderPin(0, modeOUTPUT)
+    expander_P0_1 = display.gpioExpanderPin(1, modeOUTPUT)
+    expander_P0_2 = display.gpioExpanderPin(2, modeOUTPUT)
+    expander_P0_3 = display.gpioExpanderPin(3, modeOUTPUT)
+    expander_P0_4 = display.gpioExpanderPin(4, modeOUTPUT)
+    expander_P0_5 = display.gpioExpanderPin(5, modeOUTPUT)
+    expander_P0_6 = display.gpioExpanderPin(6, modeOUTPUT)
+    expander_P0_7 = display.gpioExpanderPin(7, modeOUTPUT)
 
-    pins = (expander1_P0_0,
-            expander1_P0_1,
-            expander1_P0_2,
-            expander1_P0_3,
-            expander1_P0_4,
-            expander1_P0_5,
-            expander1_P0_6,
-            expander1_P0_7,
-            expander1_P1_0,
-            expander1_P1_1,
-            expander1_P1_2,
-            expander1_P1_3,
-            expander1_P1_4,
-            expander1_P1_5,
-            expander1_P1_6,
-            expander1_P1_7,
-            )
-    
-    # This example writes a 0.2s pulse on the pins consecutively to test the output
+    expander_P1_0 = display.gpioExpanderPin(8, modeOUTPUT)
+    expander_P1_1 = display.gpioExpanderPin(9, modeOUTPUT)
+    expander_P1_2 = display.gpioExpanderPin(10, modeOUTPUT)
+    expander_P1_3 = display.gpioExpanderPin(11, modeOUTPUT)
+    expander_P1_4 = display.gpioExpanderPin(12, modeOUTPUT)
+    expander_P1_5 = display.gpioExpanderPin(13, modeOUTPUT)
+    expander_P1_6 = display.gpioExpanderPin(14, modeOUTPUT)
+    expander_P1_7 = display.gpioExpanderPin(15, modeOUTPUT)
 
+    # Take the previously declared pin 1_5 and blink it
+    # To see the blinking, attatch a 300Ohm resistor and LED between that pin and GND
     while (1):
-        for pin in pins:
-            pin.digitalWrite(1)
-            time.sleep(0.2)
-            pin.digitalWrite(0)
-            time.sleep(0.2)
+        expander_P1_5.digitalWrite(1)
+        time.sleep(0.5)
+        expander_P1_5.digitalWrite(0)
+        time.sleep(0.5)
+        # Infinite loop, this goes on forever

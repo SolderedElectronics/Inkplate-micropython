@@ -9,7 +9,9 @@ import os, time
 # Init display in 2bit mode, important
 display = Inkplate(Inkplate.INKPLATE_2BIT)
 
+# Main function
 if __name__ == "__main__":
+    
     # Initialize the display, needs to be called only once
     display.begin()
 

@@ -11,7 +11,9 @@ from soldered_inkplate6 import Inkplate
 # For 2-bit grayscale, see basicGrayscale.py
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
+# Main function
 if __name__ == "__main__":
+    
     # Initialize the display, needs to be called only once
     display.begin()
 

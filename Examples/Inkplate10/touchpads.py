@@ -13,7 +13,9 @@ circle_x = 400
 circle_y = 300
 circle_r = 40
 
+# Main function
 if __name__ == "__main__":
+    
     # Initialize the display, needs to be called only once
     display.begin()
 

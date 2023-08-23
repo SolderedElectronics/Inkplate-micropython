@@ -10,7 +10,9 @@ import time
 # For 2-bit grayscale, see basicGrayscale.py
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
+# Main function
 if __name__ == "__main__":
+
     # Initialize the display, needs to be called only once
     display.begin()
 
@@ -61,5 +63,5 @@ if __name__ == "__main__":
     # We've drawn the pattern, now let's draw the Soldered logo right in the middle
     display.drawBitmap(494, 391, soldered_logo, 211, 44)
 
-    # Show on the display
+    # Show on the display, this time with a full update
     display.display()

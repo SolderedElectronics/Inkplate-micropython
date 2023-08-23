@@ -42,28 +42,30 @@ def http_get(url):
     s.close()
     return res
 
-# Code runs from here
-# First, connect
-do_connect()
+# Main function
+if __name__ == "__main__":
 
-# Do a GET request to the micropython test page
-# If you were to do a GET request to a different page/resource, change the URL here
-response = http_get("http://micropython.org/ks/test.html")
+    # First, connect
+    do_connect()
 
-# Create and initialize our Inkplate object in 1-bit mode
-display = Inkplate(Inkplate.INKPLATE_1BIT)
-display.begin()
+    # Do a GET request to the micropython test page
+    # If you were to do a GET request to a different page/resource, change the URL here
+    response = http_get("http://micropython.org/ks/test.html")
 
-# Set text size to double from the original size, so we can see the text better
-display.setTextSize(2)
+    # Create and initialize our Inkplate object in 1-bit mode
+    display = Inkplate(Inkplate.INKPLATE_1BIT)
+    display.begin()
 
-# Print response line by line
-cnt = 0
-for x in response.split("\n"):
-    display.printText(
-        10, 20 + cnt, x.upper()
-    )  # Default font has only upper case letters
-    cnt += 20
+    # Set text size to double from the original size, so we can see the text better
+    display.setTextSize(2)
 
-# Display image from buffer in full refresh
-display.display()
+    # Print response line by line
+    cnt = 0
+    for x in response.split("\n"):
+        display.printText(
+            10, 20 + cnt, x.upper()
+        )  # Default font has only upper case letters
+        cnt += 20
+
+    # Display image from buffer in full refresh
+    display.display()

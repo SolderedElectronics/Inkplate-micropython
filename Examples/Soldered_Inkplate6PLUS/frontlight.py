@@ -1,7 +1,7 @@
 # This example will show you how to adjust the frontlight
 
 # Include required libraries
-from inkplate6PLUS import Inkplate
+from soldered_inkplate6PLUS import Inkplate
 import time
 
 # Create Inkplate object in 1-bit (black and white) mode
