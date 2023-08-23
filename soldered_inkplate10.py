@@ -1,4 +1,6 @@
 # Copyright © 2020 by Thorsten von Eicken.
+# Modified by Soldered to work for new Inkplate models
+
 import time
 import micropython
 import framebuf

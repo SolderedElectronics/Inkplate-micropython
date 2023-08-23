@@ -55,8 +55,11 @@ if __name__ == "__main__":
         # Wait 5 seconds
         time.sleep(5)
 
-    # We've drawn the pattern, now let's draw the Soldered logo right in the middle
+    # Reset the rotation
     display.setRotation(0)
+    
+    # We've drawn the pattern, now let's draw the Soldered logo right in the middle
     display.drawBitmap(294, 20, soldered_logo, 211, 44)
 
+    # Show on the display
     display.display()

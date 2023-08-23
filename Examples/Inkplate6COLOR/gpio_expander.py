@@ -1,7 +1,7 @@
 import time
 from PCAL6416A import *
 
-from inkplate6_COLOR import Inkplate
+from inkplate6COLOR import Inkplate
 
 display = Inkplate()
 

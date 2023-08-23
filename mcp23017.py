@@ -1,4 +1,5 @@
 # Copyright © 2020 by Thorsten von Eicken.
+# Driver for the MCP23017 GPIO expander
 from machine import Pin as mPin
 from micropython import const
 

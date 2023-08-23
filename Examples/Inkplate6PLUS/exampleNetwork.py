@@ -1,6 +1,6 @@
 import network
 import time
-from inkplate6_PLUS import Inkplate
+from inkplate6PLUS import Inkplate
 
 ssid = "e-radionica.com"
 password = "croduino"

@@ -3,7 +3,7 @@
 # NOTE: This takes quite a while as MicroPython can be a bit slow
 
 # Include needed libraries
-from soldered_inkplate6PLUS import Inkplate
+from soldered_inkplate6 import Inkplate
 import os, time
 
 # Init display in 2bit mode, important

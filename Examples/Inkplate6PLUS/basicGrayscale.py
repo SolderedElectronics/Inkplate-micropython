@@ -1,6 +1,6 @@
 # Include needed libraries
 
-from inkplate6_PLUS import Inkplate
+from inkplate6PLUS import Inkplate
 from image import *
 import time
 

@@ -3,7 +3,7 @@
 
 # Include required libraries
 import os, time
-from soldered_inkplate6_PLUS import Inkplate
+from soldered_inkplate6PLUS import Inkplate
 
 # Create Inkplate object in 2-bit (grayscale) mode
 display = Inkplate(Inkplate.INKPLATE_2BIT)
@@ -17,12 +17,12 @@ display.initSDCard()
 # This prints all the files on card
 print(os.listdir("/sd"))
 
+# Open the file text.txt in read only mode and print it's contents
 f = open("sd/text.txt", "r")
+print(f.read()) # This should print 5 lines of "Lorem Ipsum"
+f.close() # Close the file
 
-# Print file contents
-print(f.read())
-f.close()
-
+# Wait 5 seconds
 time.sleep(5)
 
 # Draw the image titled "1.bmp"
@@ -32,7 +32,8 @@ display.drawImageFile(0, 0, "sd/1.bmp")
 
 # You can turn off the power to the SD card to save power
 display.SDCardSleep()
-# To turn it back on, use: 
+# To turn it back on, use:
 # display.SDCardWake()
 
+# Show the image from the buffer
 display.display()

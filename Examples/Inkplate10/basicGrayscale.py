@@ -1,32 +1,37 @@
-# Include needed libraries
+# This example will show you how to draw different shades of gray using grayscale mode
 
+# Include needed libraries
 from inkplate10 import Inkplate
-from image import *
+from soldered_logo import *
 import time
 
-# Initialize inkplate display
+# Create Inkplate object in 2-bit grayscale mode
 display = Inkplate(Inkplate.INKPLATE_2BIT)
 
-
-# Main function, you can make infinite while loop inside this to run code indefinitely
 if __name__ == "__main__":
-    # Must be called before using, line in Arduino
+    # Initialize the display, needs to be called only once
     display.begin()
+
+    # Clear the frame buffer
     display.clearDisplay()
+
+    # This has to be called every time you want to update the screen
+    # Drawing or printing text will have no effect on the display itself before you call this function
     display.display()
 
-    # Draw palet of posible colors
-    #use color values 0, 1, 2, 3
-    display.writeFillRect(0, 0, 25, 600, 3)
-    display.writeFillRect(25, 0, 25, 600, 2)
-    display.writeFillRect(50, 0, 25, 600, 1)
-    display.writeFillRect(75, 0, 25, 600, 0)
+    # Draw pallet of posible shades
+    # 0 being the lightest (white), 3 being the darkest
+    display.writeFillRect(0, 0, 25, 825, 3)
+    display.writeFillRect(25, 0, 25, 825, 2)
+    display.writeFillRect(50, 0, 25, 825, 1)
+    display.writeFillRect(75, 0, 25, 825, 0)
 
+    # Show on the display
     display.display()
+
+    # Wait 3 seconds
     time.sleep(3)
 
-    # Draws image from bytearray
-    display.setRotation(0)
-    display.drawBitmap(120, 200, image, 576, 100)
+    # Let's draw the Soldered logo and show it on the display
+    display.drawBitmap(248, 391, soldered_logo, 211, 44)
     display.display()
-    time.sleep(10)

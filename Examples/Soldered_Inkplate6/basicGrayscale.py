@@ -29,11 +29,8 @@ if __name__ == "__main__":
     # Show on the display
     display.display()
 
-    # Wait a bit
+    # Wait 3 seconds
     time.sleep(3)
-
-    # Reset rotation
-    display.setRotation(0)
 
     # Let's draw the Soldered logo and show it on the display
     display.drawBitmap(294, 278, soldered_logo, 211, 44)
