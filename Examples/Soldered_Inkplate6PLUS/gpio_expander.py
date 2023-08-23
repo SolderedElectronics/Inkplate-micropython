@@ -18,19 +18,16 @@ if __name__ == "__main__":
     display.begin()
 
     # pin = display.gpioExpanderPin(gpioExpander,pin,mode)
-    # Supported gpio expanders on Soldered Inkplate 6: 1, 2 (internal, external)
+    # Supported gpio expanders on Soldered Inkplate 6PLUS: 1, 2 (internal, external)
     # Supported modes: modeINPUT, modeINPUT_PULLUP, modeINPUT_PULLDOWN, modeOUTPUT
-    # Supported pins on Soldered Inkplate 6 are listed below
+    # Supported pins on Soldered Inkplate 6PLUS are listed below
 
     # Declare all the available pins as output:
 
-    expander1_P1_1 = display.gpioExpanderPin(1, 9, modeOUTPUT)
-    expander1_P1_2 = display.gpioExpanderPin(1, 10, modeOUTPUT)
-    expander1_P1_3 = display.gpioExpanderPin(1, 11, modeOUTPUT)
-    expander1_P1_4 = display.gpioExpanderPin(1, 12, modeOUTPUT)
-    expander1_P1_5 = display.gpioExpanderPin(1, 13, modeOUTPUT)
-    expander1_P1_6 = display.gpioExpanderPin(1, 14, modeOUTPUT)
-    expander1_P1_7 = display.gpioExpanderPin(1, 15, modeOUTPUT)
+    expander2_P0_1 = display.gpioExpanderPin(1, 1, modeOUTPUT)
+    expander2_P0_5 = display.gpioExpanderPin(2, 5, modeOUTPUT)
+    expander2_P0_6 = display.gpioExpanderPin(2, 6, modeOUTPUT)
+    expander2_P0_7 = display.gpioExpanderPin(2, 7, modeOUTPUT)
 
     expander2_P0_0 = display.gpioExpanderPin(2, 0, modeOUTPUT)
     expander2_P0_1 = display.gpioExpanderPin(2, 1, modeOUTPUT)

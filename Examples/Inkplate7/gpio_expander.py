@@ -16,7 +16,6 @@ if __name__ == "__main__":
     display.begin()
 
     # pin = display.gpioExpanderPin(gpioExpander,pin,mode)
-    # Supported gpio expanders on Soldered Inkplate 6: 1, 2 (internal, external)
     # Supported modes: modeINPUT, modeINPUT_PULLUP, modeINPUT_PULLDOWN, modeOUTPUT
     # Supported pins on Soldered Inkplate 7 are listed below
 

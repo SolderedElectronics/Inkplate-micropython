@@ -1,11 +1,11 @@
 # This example shows you how to use the GPIO expander's pins
-# Soldered Inkplate10 has an internal and external GPIO expander
+# Soldered Inkplate6 has an internal and external GPIO expander
 # See below which pins are available
 
 # Include needed libraries
 import time
-from mcp23017 import *
-from inkplate10 import Inkplate
+from PCAL6416A import *
+from soldered_inkplate6 import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 2-bit grayscale, see basicGrayscale.py
@@ -13,14 +13,14 @@ display = Inkplate(Inkplate.INKPLATE_1BIT)
 
 # Main function
 if __name__ == "__main__":
-
+    
     # Initialize the display, needs to be called only once
     display.begin()
 
     # pin = display.gpioExpanderPin(gpioExpander,pin,mode)
-    # Supported gpio expanders on Soldered Inkplate 10: 1, 2 (internal, external)
+    # Supported gpio expanders on Inkplate 6: 1, 2 (internal, external)
     # Supported modes: modeINPUT, modeINPUT_PULLUP, modeINPUT_PULLDOWN, modeOUTPUT
-    # The pins are listed below
+    # Supported pins on Inkplate 6 are listed below
 
     # Declare all the available pins as output:
 

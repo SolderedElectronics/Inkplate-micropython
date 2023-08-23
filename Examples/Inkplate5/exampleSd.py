@@ -1,29 +1,42 @@
+# For this example, copy the files from the directory "Sd_card_example_files"
+# to an empty microSD card's root folder and then insert it into Inkplate
+
+# Include required libraries
 import os, time
 from inkplate5 import Inkplate
 
+# Create Inkplate object in 2-bit (grayscale) mode
 display = Inkplate(Inkplate.INKPLATE_2BIT)
-display.begin()
 
-# SD Card must be initialised with this function
-display.initSDCard()
+# Main function
+if __name__ == "__main__":
+    
+    # Initialize the display, needs to be called only once
+    display.begin()
 
-# This prints all the files on card
-print(os.listdir("/sd"))
+    # SD Card must be initialised with this function
+    display.initSDCard()
 
-f = open("sd/text.txt", "r")
+    # This prints all the files on card
+    print(os.listdir("/sd"))
 
-# Print file contents
-print(f.read())
-f.close()
+    # Open the file text.txt in read only mode and print it's contents
+    f = open("sd/text.txt", "r")
+    print(f.read()) # This should print 5 lines of "Lorem Ipsum"
+    f.close() # Close the file
 
-time.sleep(5)
+    # Wait 5 seconds
+    time.sleep(5)
 
-# Utterly slow, can take minutes :(
-display.drawImageFile(0, 0, "sd/1.bmp")
+    # Draw the image titled "1.bmp"
+    # Warning, this takes quite a while
+    # It's faster with smaller images or in 1-bit mode
+    display.drawImageFile(0, 0, "sd/1.bmp")
 
-# You can turn off the power to the SD card to save power
-display.SDCardSleep()
-# To turn it back on, use: 
-# display.SDCardWake()
+    # You can turn off the power to the SD card to save power
+    display.SDCardSleep()
+    # To turn it back on, use:
+    # display.SDCardWake()
 
-display.display()
+    # Show the image from the buffer
+    display.display()
