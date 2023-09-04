@@ -40,6 +40,7 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
 
 TPS65186_addr = const(0x48)  # I2C address
 TOUCHSCREEN_EN = 12
+FRONTLIGHT_ADDRESS  = 0x2E
 TS_RTS = 10
 TS_INT = 36
 TS_ADDR = 0x15
@@ -106,6 +107,10 @@ class _Inkplate:
 
         cls.TPS_INT = gpioPin(cls._PCAL6416A_1, 6, modeINPUT)
         cls.TPS_PWR_GOOD = gpioPin(cls._PCAL6416A_1, 7, modeINPUT)
+
+        #Frontlight
+        cls.FRONTLIGHT = gpioPin(cls._PCAL6416A_1, 11, modeOUTPUT)
+        cls.FRONTLIGHT.digitalWrite(0)
 
         # Misc
         cls.GPIO0_PUP = gpioPin(cls._PCAL6416A_1, 8, modeOUTPUT)
@@ -180,6 +185,17 @@ class _Inkplate:
         cls.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
+    
+    #Frontlight control
+    @classmethod
+    def frontlight(cls, value):
+        cls.FRONTLIGHT.digitalWrite(value)
+
+    @classmethod
+    def setFrontlight(cls, value):
+        value = (63 - (value & 0b00111111))
+        data_to_send = bytearray([0, value])
+        cls._i2c.writeto(FRONTLIGHT_ADDRESS, data_to_send)
 
     # Touchscreen
     @classmethod
@@ -962,6 +978,8 @@ class Inkplate:
         self.ipm = InkplateMono()
         self.ipp = InkplatePartial(self.ipm)
 
+        self.FRONTLIGHT = _Inkplate.FRONTLIGHT
+
         self.GFX = GFX(
             D_COLS,
             D_ROWS,
@@ -1297,4 +1315,10 @@ class Inkplate:
     # For more info, see https://github.com/SolderedElectronics/Inkplate-micropython/issues/24
     def activeTouch(cls):
          return _Inkplate.activeTouch()
-    
+
+#Frontlight
+    def frontlight(self, value):
+        _Inkplate.frontlight(value)
+
+    def setFrontlight(self, value):
+        _Inkplate.setFrontlight(value)

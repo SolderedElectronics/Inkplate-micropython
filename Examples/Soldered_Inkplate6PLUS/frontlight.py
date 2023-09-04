@@ -25,19 +25,14 @@ if __name__ == "__main__":
     
     # Frontlight strength can be set from values 0 to 64
     # For example:
-    display.setFrontlight(34)
+    display.setFrontlight(10)
 
     # Wait 3 seconds
     time.sleep(3)
 
-    # Slowly gradually increase the frontlight and then decrease it, infinitely
+    # Slowly gradually increase the frontlight, infinitely
     while(True):
         # First, increase the brightness gradually
         for i in range(0, 60):
             display.setFrontlight(i)
-            time.sleep(0.5) # Wait for 500ms
-
-        # Then, decrease
-        for i in range(60, 0):
-            display.setFrontlight(i)
-            time.sleep(0.5) # Wait for 500ms
+            time.sleep(0.2) # Wait for 200ms
