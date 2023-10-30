@@ -1,4 +1,6 @@
-# Copyright © 2020 by Thorsten von Eicken.
+# MicroPython driver for Soldered Inkplate 10
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 import time
 import micropython
 import framebuf
@@ -28,6 +30,7 @@ WAVE_2B = (  # For Inkplate 10, colors 0, 3, 5-tweaked, and 7 from arduino drive
     (0, 2, 1, 2),
     (0, 2, 1, 2),
     (1, 1, 2, 2),
+    (0, 0, 0, 0),
 )
 
 TPS65186_addr = const(0x48)  # I2C address
@@ -99,7 +102,7 @@ class _Inkplate:
         cls.GPIO0_PUP.digitalWrite(0)
 
         cls.VBAT_EN = gpioPin(cls._PCAL6416A_1, 9, modeOUTPUT)
-        cls.VBAT_EN.digitalWrite(1)
+        cls.VBAT_EN.digitalWrite(0) # Initially disable the battery read
 
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
@@ -152,11 +155,11 @@ class _Inkplate:
     # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
     @classmethod
     def read_battery(cls):
-        cls.VBAT_EN.digitalWrite(0)
+        cls.VBAT_EN.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
         time.sleep_ms(1)
         value = cls.VBAT.read()
-        cls.VBAT_EN.digitalWrite(1)
+        cls.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
 
@@ -840,9 +843,13 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = D_COLS
+            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = D_ROWS
+            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 

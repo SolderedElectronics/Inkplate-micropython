@@ -1,3 +1,6 @@
+# MicroPython driver for the PCAL6416A GPIO expander
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 from machine import Pin as mPin
 from micropython import const
 
@@ -70,7 +73,6 @@ modeINPUT = const(0)
 modeOUTPUT = const(1)
 modeINPUT_PULLUP = const(2)
 modeINPUT_PULLDOWN = const(3)
-
 
 # PCAL6416A is a minimal driver for an 16-bit I2C I/O expander
 class PCAL6416A:

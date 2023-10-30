@@ -1,15 +1,19 @@
+# This example will show you how to connect to WiFi
+# get data from the internet and then print it
+
+# Include needed libraries
 import network
 import time
 from soldered_inkplate10 import Inkplate
 
-ssid = "Soldered"
-password = "dasduino"
+# Enter your WiFi credentials here
+ssid = ""
+password = ""
 
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
 def do_connect():
     import network
-
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print("connecting to network...")
@@ -19,11 +23,10 @@ def do_connect():
             pass
     print("network config:", sta_if.ifconfig())
 
-# Does a HTTP GET request
+# This function does a HTTP GET request
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_tcp.html
 def http_get(url):
     import socket
-
     res = ""
     _, _, host, path = url.split("/", 3)
     addr = socket.getaddrinfo(host, 80)[0][-1]
@@ -37,30 +40,32 @@ def http_get(url):
         else:
             break
     s.close()
-
     return res
 
+# Main function
+if __name__ == "__main__":
 
-# Calling functions defined above
-do_connect()
+    # First, connect
+    do_connect()
 
-# Do a GET request to the micropython test page
-# If you were to do a GET request to a different page, change the URL here
-response = http_get("http://micropython.org/ks/test.html")
+    # Do a GET request to the micropython test page
+    # If you were to do a GET request to a different page/resource, change the URL here
+    response = http_get("http://micropython.org/ks/test.html")
 
-# Initialise our Inkplate object
-display = Inkplate(Inkplate.INKPLATE_1BIT)
-display.begin()
+    # Create and initialize our Inkplate object in 1-bit mode
+    display = Inkplate(Inkplate.INKPLATE_1BIT)
+    display.begin()
 
-display.setTextSize(3)
+    # Set text size to double from the original size, so we can see the text better
+    display.setTextSize(2)
 
-# Print response in lines
-cnt = 0
-for x in response.split("\n"):
-    display.printText(
-        10, 28 + cnt, x.upper()
-    )  # Default font has only upper case letters
-    cnt += 28
+    # Print response line by line
+    cnt = 0
+    for x in response.split("\n"):
+        display.printText(
+            10, 20 + cnt, x.upper()
+        )  # Default font has only upper case letters
+        cnt += 20
 
-# Display image from buffer
-display.display()
+    # Display image from buffer in full refresh
+    display.display()

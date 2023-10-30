@@ -1,11 +1,13 @@
-# Copyright © 2020 by Thorsten von Eicken.
+# MicroPython driver for Soldered Inkplate 6PLUS
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 import time
 import micropython
 import framebuf
 import os
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
-from mcp23017 import MCP23017
+from PCAL6416A import *
 from micropython import const
 from shapes import Shapes
 
@@ -22,7 +24,7 @@ D_COLS = const(1024)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-#add discharge to waveforms to try to fix them
+# add discharge to waveforms to try to fix them
 WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (0, 0, 0, 0),
     (0, 0, 0, 0),
@@ -37,8 +39,8 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
 
 TPS65186_addr = const(0x48)  # I2C address
-FRONTLIGHT_ADDRESS  = 0x2E
 TOUCHSCREEN_EN = 12
+FRONTLIGHT_ADDRESS  = 0x2E
 TS_RTS = 10
 TS_INT = 36
 TS_ADDR = 0x15
@@ -70,15 +72,18 @@ class _Inkplate:
     @classmethod
     def init(cls, i2c):
         cls._i2c = i2c
-        cls._mcp23017 = MCP23017(i2c)
+        cls._PCAL6416A_1 = PCAL6416A(i2c)
+        cls._PCAL6416A_2 = PCAL6416A(i2c, 0x21)
         # Display control lines
         cls.EPD_CL = Pin(0, Pin.OUT, value=0)
         cls.EPD_LE = Pin(2, Pin.OUT, value=0)
         cls.EPD_CKV = Pin(32, Pin.OUT, value=0)
         cls.EPD_SPH = Pin(33, Pin.OUT, value=1)
-        cls.EPD_OE = cls._mcp23017.pin(0, Pin.OUT, value=0)
-        cls.EPD_GMODE = cls._mcp23017.pin(1, Pin.OUT, value=0)
-        cls.EPD_SPV = cls._mcp23017.pin(2, Pin.OUT, value=1)
+
+        cls.EPD_OE = gpioPin(cls._PCAL6416A_1, 0, modeOUTPUT)
+        cls.EPD_GMODE = gpioPin(cls._PCAL6416A_1, 1, modeOUTPUT)
+        cls.EPD_SPV = gpioPin(cls._PCAL6416A_1, 2, modeOUTPUT)
+
         cls._tsFlag = False
         cls.rotation = 0
         # Display data lines - we only use the Pin class to init the pins
@@ -91,29 +96,43 @@ class _Inkplate:
         Pin(26, Pin.OUT)
         Pin(27, Pin.OUT)
         # TPS65186 power regulator control
-        cls.TPS_WAKEUP = cls._mcp23017.pin(3, Pin.OUT, value=0)
-        cls.TPS_PWRUP = cls._mcp23017.pin(4, Pin.OUT, value=0)
-        cls.TPS_VCOM = cls._mcp23017.pin(5, Pin.OUT, value=0)
-        cls.TPS_INT = cls._mcp23017.pin(6, Pin.IN)
-        cls.TPS_PWR_GOOD = cls._mcp23017.pin(7, Pin.IN)
+        cls.TPS_WAKEUP = gpioPin(cls._PCAL6416A_1, 3, modeOUTPUT)
+        cls.TPS_WAKEUP.digitalWrite(0)
+
+        cls.TPS_PWRUP = gpioPin(cls._PCAL6416A_1, 4, modeOUTPUT)
+        cls.TPS_PWRUP.digitalWrite(0)
+
+        cls.TPS_VCOM = gpioPin(cls._PCAL6416A_1, 5, modeOUTPUT)
+        cls.TPS_VCOM.digitalWrite(0)
+
+        cls.TPS_INT = gpioPin(cls._PCAL6416A_1, 6, modeINPUT)
+        cls.TPS_PWR_GOOD = gpioPin(cls._PCAL6416A_1, 7, modeINPUT)
+
+        #Frontlight
+        cls.FRONTLIGHT = gpioPin(cls._PCAL6416A_1, 11, modeOUTPUT)
+        cls.FRONTLIGHT.digitalWrite(0)
+
         # Misc
-        cls.GPIO0_PUP = cls._mcp23017.pin(8, Pin.OUT, value=0)
-        cls.VBAT_EN = cls._mcp23017.pin(9, Pin.OUT, value=1)
+        cls.GPIO0_PUP = gpioPin(cls._PCAL6416A_1, 8, modeOUTPUT)
+        cls.GPIO0_PUP.digitalWrite(0)
+        cls.VBAT_EN = gpioPin(cls._PCAL6416A_1, 9, modeOUTPUT)
+        cls.VBAT_EN.digitalWrite(0)
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
-        #Frontlight
-        cls.FRONTLIGHT = cls._mcp23017.pin(11, Pin.OUT, value=0)
 
-        #Toucscreen
+        # Toucscreen
         cls._tsXResolution = 0
         cls._tsYResolution = 0
         cls.touchX = 0
         cls.touchY = 0
-        cls._xPos = [0,0]
-        cls._yPos = [0,0]
-        cls.xraw = [0,0]
-        cls.yraw = [0,0]
+        cls._xPos = [0, 0]
+        cls._yPos = [0, 0]
+        cls.xraw = [0, 0]
+        cls.yraw = [0, 0]
+
+        cls.SD_ENABLE = gpioPin(cls._PCAL6416A_1, 13, modeOUTPUT)
+
         cls._on = False  # whether panel is powered on or not
 
         if len(_Inkplate.byte2gpio) == 0:
@@ -159,27 +178,26 @@ class _Inkplate:
     # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
     @classmethod
     def read_battery(cls):
-        cls.VBAT_EN.value(0)
+        cls.VBAT_EN.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
         time.sleep_ms(1)
         value = cls.VBAT.read()
-        cls.VBAT_EN.value(1)
+        cls.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
-
+    
     #Frontlight control
     @classmethod
     def frontlight(cls, value):
-        cls.FRONTLIGHT.value(value)
+        cls.FRONTLIGHT.digitalWrite(value)
 
     @classmethod
     def setFrontlight(cls, value):
         value = (63 - (value & 0b00111111))
-        cls._i2c.writeto(FRONTLIGHT_ADDRESS, bytes((0,)))
-        cls._i2c.writeto(FRONTLIGHT_ADDRESS, bytes((value,)))
+        data_to_send = bytearray([0, value])
+        cls._i2c.writeto(FRONTLIGHT_ADDRESS, data_to_send)
 
-
-    #Touchscreen
+    # Touchscreen
     @classmethod
     def touchInArea(cls, x, y, width, height):
         x2 = x+width
@@ -191,9 +209,20 @@ class _Inkplate:
                 cls.touchX = cls._xPos[0]
                 cls.touchY = cls._yPos[0]
 
-                if(cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
+                if (cls.touchX > x and cls.touchX < x2) and (cls.touchY > y and cls.touchY < y2):
                     return True
-        return False
+        return False    
+
+    # This function was a contributio by Evan Brynne
+    # For more info, see https://github.com/SolderedElectronics/Inkplate-micropython/issues/24
+    @classmethod
+    def activeTouch(cls):
+         if cls.tsAvailable():
+            fingers = cls.tsGetData()
+            if fingers > 0:
+                cls.touchX = cls._xPos[0]
+                cls.touchY = cls._yPos[0]
+                return (cls.touchX, cls.touchY)
 
     @classmethod
     def tsWriteRegs(cls, addr, buff):
@@ -208,9 +237,11 @@ class _Inkplate:
 
     @classmethod
     def tsHardwareReset(cls):
-        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT, value=0)
+        cls._PCAL6416A_1.pinMode(TS_RTS, mode=modeOUTPUT)
+        cls._PCAL6416A_1.digitalWrite(TS_RTS, 0)
         time.sleep_ms(15)
-        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT, value=1)
+        cls._PCAL6416A_1.pinMode(TS_RTS, mode=modeOUTPUT)
+        cls._PCAL6416A_1.digitalWrite(TS_RTS, 1)
         time.sleep_ms(15)
 
     @classmethod
@@ -244,9 +275,11 @@ class _Inkplate:
 
     @classmethod
     def tsInit(cls, powerState):
-        cls._mcp23017.pin(TOUCHSCREEN_EN, mode=Pin.OUT, value=0)
+        cls._PCAL6416A_1.pinMode(TOUCHSCREEN_EN,mode=modeOUTPUT)
+        cls._PCAL6416A_1.digitalWrite(TOUCHSCREEN_EN, 0)
         ts_intr = Pin(TS_INT, mode=Pin.IN, pull=Pin.PULL_UP)
-        cls._mcp23017.pin(TS_RTS, mode=Pin.OUT)
+        cls._PCAL6416A_1.pinMode(TS_RTS, mode=modeOUTPUT)
+        cls._PCAL6416A_1.digitalWrite(TS_RTS, 0)
         ts_intr.irq(trigger=Pin.IRQ_FALLING, handler=cls.tsInt)
 
         _Inkplate.tsHardwareReset()
@@ -261,7 +294,9 @@ class _Inkplate:
 
     @classmethod
     def tsShutdown(cls):
-        cls._mcp23017.pin(TOUCHSCREEN_EN, mode=Pin.OUT, value=1)
+        cls._PCAL6416A_1.pinMode(TOUCHSCREEN_EN,mode=modeOUTPUT)
+        cls._PCAL6416A_1.digitalWrite(TOUCHSCREEN_EN, 1)
+
 
     @classmethod
     def tsGetRawData(cls):
@@ -384,9 +419,9 @@ class _Inkplate:
             return
         cls._on = True
         # turn on power regulator
-        cls.TPS_WAKEUP(1)
-        cls.TPS_PWRUP(1)
-        cls.TPS_VCOM(1)
+        cls.TPS_WAKEUP.digitalWrite(1)
+        cls.TPS_PWRUP.digitalWrite(1)
+        cls.TPS_VCOM.digitalWrite(1)
         # enable all rails
         cls._tps65186_write(0x01, 0x3F)  # ???
         time.sleep_ms(40)
@@ -394,8 +429,10 @@ class _Inkplate:
         time.sleep_ms(2)
         cls._temperature = cls._tps65186_read(1)
         # wake-up display
-        cls.EPD_GMODE(1)
-        cls.EPD_OE(1)
+        cls.EPD_GMODE.digitalWrite(1)
+        cls.EPD_OE.digitalWrite(1)
+        cls.SD_ENABLE.digitalWrite(0)
+        time.sleep_ms(30)
 
     # power_off puts the display to sleep and cuts the power
     # TODO: also tri-state gpio pins to avoid current leakage during deep-sleep
@@ -405,12 +442,14 @@ class _Inkplate:
             return
         cls._on = False
         # put display to sleep
-        cls.EPD_GMODE(0)
-        cls.EPD_OE(0)
+        cls.EPD_GMODE.digitalWrite(0)
+        cls.EPD_OE.digitalWrite(0)
+
         # turn off power regulator
-        cls.TPS_PWRUP(0)
-        cls.TPS_WAKEUP(0)
-        cls.TPS_VCOM(0)
+        cls.TPS_PWRUP.digitalWrite(0)
+        cls.TPS_WAKEUP.digitalWrite(0)
+        cls.TPS_VCOM.digitalWrite(0)
+        cls.SD_ENABLE.digitalWrite(1)
 
     # ===== Methods that are independent of pixel bit depth
 
@@ -424,9 +463,9 @@ class _Inkplate:
 
         # start a vertical scan pulse
         cls.EPD_CKV(1)  # time.sleep_us(7)
-        cls.EPD_SPV(0)  # time.sleep_us(10)
+        cls.EPD_SPV.digitalWrite(0)  # time.sleep_us(10)
         ckv_pulse()  # time.sleep_us(8)
-        cls.EPD_SPV(1)  # time.sleep_us(10)
+        cls.EPD_SPV.digitalWrite(1)  # time.sleep_us(10)
         # pulse through 3 scan lines that end up being invisible
         ckv_pulse()  # time.sleep_us(18)
         ckv_pulse()  # time.sleep_us(18)
@@ -931,18 +970,6 @@ class Inkplate:
 
     def __init__(self, mode):
         self.displayMode = mode
-        try:
-            os.mount(
-                SDCard(
-                    slot=3,
-                    miso=Pin(12),
-                    mosi=Pin(13),
-                    sck=Pin(14),
-                    cs=Pin(15)),
-                "/sd"
-            )
-        except:
-            print("Sd card could not be read")
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
@@ -963,6 +990,35 @@ class Inkplate:
             None,
             None,
         )
+    
+    def initSDCard(self):
+        _Inkplate.SD_ENABLE.digitalWrite(0)
+        try:
+            os.mount(
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15)),
+                "/sd"
+            )
+        except:
+            print("Sd card could not be read")
+
+    def SDCardSleep(self):
+        _Inkplate.SD_ENABLE.digitalWrite(1)
+        time.sleep_ms(5)
+    
+    def SDCardWake(self):
+        _Inkplate.SD_ENABLE.digitalWrite(0)
+        time.sleep_ms(5)
+    
+    def gpioExpanderPin(self, expander, pin, mode):
+        if (expander == 1):
+            return gpioPin(_Inkplate._PCAL6416A_1, pin, mode)
+        elif (expander == 2):
+            return gpioPin(_Inkplate._PCAL6416A_2, pin, mode)
 
     def clearDisplay(self):
         self.ipm.clear()
@@ -1018,9 +1074,13 @@ class Inkplate:
         _Inkplate.rotation = x % 4
 
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = D_COLS
+            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = D_ROWS
+            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 
@@ -1245,13 +1305,6 @@ class Inkplate:
 
                     self.drawPixel(x + i, y + h - j, val)
 
-#Frontlight
-    def frontlight(self, value):
-        _Inkplate.frontlight(value)
-
-    def setFrontlight(self, value):
-        _Inkplate.setFrontlight(value)
-
 #Touchscreen
     def touchInArea(self, x, y, width, height):
         return _Inkplate.touchInArea(x, y, width, height)
@@ -1261,3 +1314,15 @@ class Inkplate:
 
     def tsShutdown(self):
         _Inkplate.tsShutdown()
+    
+    # This function was a contributio by Evan Brynne
+    # For more info, see https://github.com/SolderedElectronics/Inkplate-micropython/issues/24
+    def activeTouch(cls):
+         return _Inkplate.activeTouch()
+
+#Frontlight
+    def frontlight(self, value):
+        _Inkplate.frontlight(value)
+
+    def setFrontlight(self, value):
+        _Inkplate.setFrontlight(value)

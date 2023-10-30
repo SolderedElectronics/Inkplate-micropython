@@ -1,20 +1,28 @@
+# This example shows you how to use the GPIO expander's pins
+# Soldered Inkplate6 has an internal and external GPIO expander
+# See below which pins are available
+
+# Include needed libraries
 import time
 from PCAL6416A import *
-
 from soldered_inkplate6 import Inkplate
 
+# Create Inkplate object in 1-bit mode, black and white colors only
+# For 2-bit grayscale, see basicGrayscale.py
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
-# This script demonstrates using all the available GPIO expander pins as output
-
+# Main function
 if __name__ == "__main__":
-    # Must be called before using, line in Arduino
+    
+    # Initialize the display, needs to be called only once
     display.begin()
 
     # pin = display.gpioExpanderPin(gpioExpander,pin,mode)
-    # Supported gpio expanders on Soldered Inkplate 6: 1, 2
+    # Supported gpio expanders on Soldered Inkplate 6: 1, 2 (internal, external)
     # Supported modes: modeINPUT, modeINPUT_PULLUP, modeINPUT_PULLDOWN, modeOUTPUT
     # Supported pins on Soldered Inkplate 6 are listed below
+
+    # Declare all the available pins as output:
 
     expander1_P1_1 = display.gpioExpanderPin(1, 9, modeOUTPUT)
     expander1_P1_2 = display.gpioExpanderPin(1, 10, modeOUTPUT)
@@ -42,35 +50,11 @@ if __name__ == "__main__":
     expander2_P1_6 = display.gpioExpanderPin(2, 14, modeOUTPUT)
     expander2_P1_7 = display.gpioExpanderPin(2, 15, modeOUTPUT)
 
-    pins = (expander1_P1_1,
-            expander1_P1_2,
-            expander1_P1_3,
-            expander1_P1_5,
-            expander1_P1_6,
-            expander1_P1_7,
-            expander2_P0_0,
-            expander2_P0_1,
-            expander2_P0_2,
-            expander2_P0_3,
-            expander2_P0_4,
-            expander2_P0_5,
-            expander2_P0_6,
-            expander2_P0_7,
-            expander2_P1_0,
-            expander2_P1_1,
-            expander2_P1_2,
-            expander2_P1_3,
-            expander2_P1_4,
-            expander2_P1_5,
-            expander2_P1_6,
-            expander2_P1_7,
-            )
-
-    # This example writes a 0.2s pulse on the pins consecutively to test the output
-
+    # Take the previously declared pin 1_5 on expander 2 and blink it
+    # To see the blinking, attatch a 300Ohm resistor and LED between that pin and GND
     while (1):
-        for pin in pins:
-            pin.digitalWrite(1)
-            time.sleep(0.2)
-            pin.digitalWrite(0)
-            time.sleep(0.2)
+        expander2_P1_5.digitalWrite(1)
+        time.sleep(0.5)
+        expander2_P1_5.digitalWrite(0)
+        time.sleep(0.5)
+        # Infinite loop, this goes on forever

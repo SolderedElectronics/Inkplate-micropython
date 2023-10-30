@@ -1,3 +1,6 @@
+# MicroPython driver for Inkplate 2
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 import time
 import os
 from machine import ADC, I2C, SPI, Pin
@@ -16,6 +19,7 @@ EPAPER_CLK = const(18)
 EPAPER_DIN = const(23)
 
 pixelMaskLUT = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
+pixelMaskGLUT = [0xF, 0xF0]
 
 # ePaper resolution
 # For Inkplate2 height and width are swapped in relation to the default rotation
@@ -211,9 +215,13 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = E_INK_WIDTH
+            self.GFX.height = E_INK_HEIGHT
             self._width = E_INK_WIDTH
             self._height = E_INK_HEIGHT
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = E_INK_HEIGHT
+            self.GFX.height = E_INK_WIDTH
             self._width = E_INK_HEIGHT
             self._height = E_INK_WIDTH
 
@@ -370,3 +378,16 @@ class Inkplate:
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
         self.endWrite()
+
+    @classmethod
+    def drawColorImage(self, x, y, w, h, buf):
+        scaled_w = int(-(-(w / 4.0) // 1))
+        for i in range(h):
+            for j in range(scaled_w):
+                self.writePixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
+                if 4 * j + x + 1 < w:
+                    self.writePixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
+                if 4 * j + x + 2 < w:
+                    self.writePixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
+                if 4 * j + x + 3 < w:
+                    self.writePixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))
