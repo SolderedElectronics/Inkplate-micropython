@@ -9,7 +9,7 @@ from inkplate2 import Inkplate
 
 # Import the image
 # It should also be copied to Inkplate when copying other libraries
-# Check the README!
+# Check the README for more info
 from color_image_inkplate2 import color_image_inkplate2
 
 # Create Inkplate object
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     display.begin()
 
     # color_image_inkplate2 is 212x104px, draw it over the whole screen
-    # Arguments are x start, y start, width, height, and then the image buffer
+    # Arguments are: x start, y start, width, height, and then the image buffer
     display.drawColorImage(0, 0, 212, 104, color_image_inkplate2)
 
     # Show it on the display

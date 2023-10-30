@@ -7,8 +7,8 @@ import time
 from inkplate2 import Inkplate
 
 # Enter your WiFi credentials here
-ssid = ""
-password = ""
+ssid = "Soldered"
+password = "dasduino"
 
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
@@ -60,9 +60,12 @@ if __name__ == "__main__":
     cnt = 0
     for x in response.split("\n"):
         display.printText(
-            10, 20 + cnt, x.upper()
+            2, 2 + cnt, x.upper()
         )  # Default font has only upper case letters
-        cnt += 20
+        cnt += 10
+
+        # Also print to terminal because the screen is small
+        print(x)
 
     # Display image from buffer
     display.display()

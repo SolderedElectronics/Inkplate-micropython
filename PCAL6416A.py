@@ -1,6 +1,6 @@
-# Driver for the PCAL6416A GPIO expander
-# Used in the drivers for the new Soldered Inkplate boards
-
+# MicroPython driver for the PCAL6416A GPIO expander
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 from machine import Pin as mPin
 from micropython import const
 

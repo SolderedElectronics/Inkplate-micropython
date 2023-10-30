@@ -1,4 +1,6 @@
-# Copyright © 2020 by Thorsten von Eicken.
+# MicroPython driver for Inkplate 6COLOR
+# Contributed by: https://github.com/tve
+# Copyright © 2020 by Thorsten von Eicken
 import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard
@@ -72,13 +74,13 @@ IO_PIN_B7 = const(15)
 
 
 class Inkplate:
-    BLACK = const(0b00000000) # 0
-    WHITE = const(0b00000001) # 1
-    GREEN = const(0b00000010) # 2
-    BLUE = const(0b00000011) # 3
-    RED = const(0b00000100) # 4
-    YELLOW = const(0b00000101) # 5
-    ORANGE = const(0b00000110) # 6
+    BLACK = const(0b00000000)  # 0
+    WHITE = const(0b00000001)  # 1
+    GREEN = const(0b00000010)  # 2
+    BLUE = const(0b00000011)  # 3
+    RED = const(0b00000100)  # 4
+    YELLOW = const(0b00000101)  # 5
+    ORANGE = const(0b00000110)  # 6
 
     _width = D_COLS
     _height = D_ROWS
@@ -104,7 +106,7 @@ class Inkplate:
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
 
-        #self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
+        # self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -161,7 +163,7 @@ class Inkplate:
         return True
 
     def initSDCard(self):
-        #self.SD_ENABLE.digitalWrite(0)
+        # self.SD_ENABLE.digitalWrite(0)
         try:
             os.mount(
                 SDCard(
@@ -176,11 +178,11 @@ class Inkplate:
             print("Sd card could not be read")
 
     def SDCardSleep(self):
-        #self.SD_ENABLE.digitalWrite(1)
+        # self.SD_ENABLE.digitalWrite(1)
         time.sleep_ms(5)
 
     def SDCardWake(self):
-        #self.SD_ENABLE.digitalWrite(0)
+        # self.SD_ENABLE.digitalWrite(0)
         time.sleep_ms(5)
 
     @classmethod
@@ -317,9 +319,13 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = D_COLS
+            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = D_ROWS
+            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 

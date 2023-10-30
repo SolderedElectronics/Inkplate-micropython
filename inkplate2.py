@@ -1,3 +1,6 @@
+# MicroPython driver for Inkplate 2
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 import time
 import os
 from machine import ADC, I2C, SPI, Pin
@@ -212,9 +215,13 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = E_INK_WIDTH
+            self.GFX.height = E_INK_HEIGHT
             self._width = E_INK_WIDTH
             self._height = E_INK_HEIGHT
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = E_INK_HEIGHT
+            self.GFX.height = E_INK_WIDTH
             self._width = E_INK_HEIGHT
             self._height = E_INK_WIDTH
 

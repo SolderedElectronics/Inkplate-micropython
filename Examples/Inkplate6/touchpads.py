@@ -1,5 +1,5 @@
 # This example shows you how to use the touchpads
-# Only older models of Inkplate10 (e-Radionica Inkplate 10) have them
+# Only older models of Inkplate6 (e-Radionica Inkplate 6) have them
 
 # Include required libraries
 from inkplate6 import Inkplate

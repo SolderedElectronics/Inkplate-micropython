@@ -1,6 +1,6 @@
-# Copyright © 2020 by Thorsten von Eicken.
-# Modified by Soldered to work on new Inkplate models
-
+# MicroPython driver for Soldered Inkplate 6
+# By Soldered Electronics
+# Based on the original contribution by https://github.com/tve
 import time
 import micropython
 import framebuf
@@ -844,9 +844,13 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
+            self.GFX.width = D_COLS
+            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
+            self.GFX.width = D_ROWS
+            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 

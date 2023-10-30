@@ -28,14 +28,14 @@ if __name__ == "__main__":
     display.drawCircle(178, 16, 9, display.WHITE)
     display.drawCircle(178, 16, 4, display.RED)
 
-    # Draw a red checkerboard pattern
+    # Draw a red checkerboard pattern with a loop
     for x in range(30):
         display.fillRect(0 + (5*x*2), 38, 5, 5, display.RED)
 
     for x in range(30):
         display.fillRect(5 + (5*x*2), 42, 5, 5, display.RED)
     
-    # Draw some lines
+    # Draw some horizontal lines
     display.drawLine(0, 49, 214, 49, display.BLACK)
     display.drawLine(0, 51, 214, 51, display.RED)
     display.drawLine(0, 53, 214, 53, display.BLACK)
@@ -45,5 +45,6 @@ if __name__ == "__main__":
     display.drawBitmap(0, 58, soldered_logo, 211, 44, display.RED)
 
     # Display everything on Inkplate's display
-    # This function must be called after drawing, or else the display won't update
+    # This function must be called after drawing, or else the display won't update 
+    # The display flickers when it updates and it takes a while, this is normal
     display.display()
