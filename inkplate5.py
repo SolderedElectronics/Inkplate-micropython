@@ -170,6 +170,9 @@ class _Inkplate:
     @classmethod
     def read_temperature(cls):
 
+        # Power on so TPS is visible on I2C
+        cls.power_on()
+
         # start temperature measurement and wait 5 ms
         cls._i2c.writeto_mem(TPS65186_addr, 0x0D, bytes((0x80,)))
         time.sleep_ms(5)
@@ -179,6 +182,8 @@ class _Inkplate:
         cls._temperature = cls._i2c.readfrom(TPS65186_addr, 1)
         # convert data from bytes to integer
         cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
+        
+        cls.power_off()
         return cls.temperatureInt
 
     # _tps65186_write writes an 8-bit value to a register
