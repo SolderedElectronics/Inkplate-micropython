@@ -26,6 +26,12 @@ python3 esptool.py --port /dev/cu.usbserial-1420 erase_flash
 // Windows
 python esptool.py --port COM5 erase_flash 
 ```
+
+If you're having problems on Windows, use:
+```
+esptool --port COM5 erase_flash 
+```
+
 **NOTE:** You should change the serial port listed here to the one which corresponds to your connected Inkplate device.
 
 Now it's possible to flash MicroPython firmware. Do so by running this command:
