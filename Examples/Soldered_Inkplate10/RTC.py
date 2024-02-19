@@ -1,7 +1,7 @@
 # This example will show you how to use the onboard RTC to preserve time across reboots
 
 # Include all the required libraries
-from inkplate5 import Inkplate
+from soldered_inkplate10 import Inkplate
 import time
 
 # Create Inkplate object in 1-bit mode, black and white colors only

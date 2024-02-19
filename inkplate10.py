@@ -58,6 +58,10 @@ EPD_SPH = const(0x00000002)  # in W1Tx1
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
 
+RTC_I2C_ADDR = 0x51
+RTC_RAM_by = 0x03
+RTC_DAY_ADDR = 0x07
+RTC_SECOND_ADDR = 0x04
 
 class _Inkplate:
     @classmethod
@@ -175,6 +179,70 @@ class _Inkplate:
     @classmethod
     def _tps65186_read(cls, reg):
         cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+
+    @classmethod
+    def rtc_dec_to_bcd(cls, val):
+        return (val // 10 * 16) + (val % 10)
+
+    @classmethod
+    def rtc_bcd_to_dec(cls, val):
+        return (val // 16 * 10) + (val % 16)
+
+    @classmethod
+    def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
+        data = bytearray([
+            RTC_RAM_by,
+            170,  # Write in RAM 170 to know that RTC is set
+            cls.rtc_dec_to_bcd(rtc_second),
+            cls.rtc_dec_to_bcd(rtc_minute),
+            cls.rtc_dec_to_bcd(rtc_hour)
+        ])
+
+        cls._i2c.writeto(RTC_I2C_ADDR, data)
+
+    @classmethod
+    def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
+        rtcYear = rtc_yr - 2000
+
+        data = bytearray([
+            RTC_RAM_by,
+            170,  # Write in RAM 170 to know that RTC is set
+        ])
+
+        cls._i2c.writeto(RTC_I2C_ADDR, data)
+
+        data = bytearray([
+            RTC_DAY_ADDR,
+            cls.rtc_dec_to_bcd(rtc_day),
+            cls.rtc_dec_to_bcd(rtc_weekday),
+            cls.rtc_dec_to_bcd(rtc_month),
+            cls.rtc_dec_to_bcd(rtcYear),
+        ])
+
+        cls._i2c.writeto(RTC_I2C_ADDR, data)
+
+    @classmethod
+    def rtc_get_rtc_data(cls):
+        cls._i2c.writeto(RTC_I2C_ADDR, bytearray([RTC_SECOND_ADDR]))
+        data = cls._i2c.readfrom(RTC_I2C_ADDR, 7)
+
+        rtc_second = cls.rtc_bcd_to_dec(data[0] & 0x7F)  # Ignore bit 7
+        rtc_minute = cls.rtc_bcd_to_dec(data[1] & 0x7F)
+        rtc_hour = cls.rtc_bcd_to_dec(data[2] & 0x3F)  # Ignore bits 7 & 6
+        rtc_day = cls.rtc_bcd_to_dec(data[3] & 0x3F)
+        rtc_weekday = cls.rtc_bcd_to_dec(data[4] & 0x07)  # Ignore bits 7,6,5,4 & 3
+        rtc_month = cls.rtc_bcd_to_dec(data[5] & 0x1F)  # Ignore bits 7,6 & 5
+        rtc_year = cls.rtc_bcd_to_dec(data[6]) + 2000
+
+        return {
+            'second': rtc_second,
+            'minute': rtc_minute,
+            'hour': rtc_hour,
+            'day': rtc_day,
+            'weekday': rtc_weekday,
+            'month': rtc_month,
+            'year': rtc_year
+        }
 
     # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
     @classmethod
@@ -1084,3 +1152,12 @@ class Inkplate:
                         val >>= 1
 
                     self.drawPixel(x + i, y + h - j, val)
+
+    def rtcSetTime(self, rtc_hour, rtc_minute, rtc_second):
+        return _Inkplate.rtc_set_time(rtc_hour, rtc_minute, rtc_second)
+
+    def rtcSetDate(self, rtc_weekday, rtc_day, rtc_month, rtc_yr):
+        return _Inkplate.rtc_set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
+
+    def rtcGetData(self):
+        return _Inkplate.rtc_get_rtc_data()
