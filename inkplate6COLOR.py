@@ -20,6 +20,7 @@ EPAPER_CS_PIN = const(27)
 EPAPER_BUSY_PIN = const(32)
 EPAPER_CLK = const(18)
 EPAPER_DIN = const(23)
+VBAT_PIN = const(35)
 
 # Timeout for init of epaper(1.5 sec in this case)
 # INIT_TIMEOUT 1500
@@ -109,6 +110,11 @@ class Inkplate:
         self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
         self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
         self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
+        self.VBAT = ADC(Pin(35))
+        self.VBAT.atten(ADC.ATTN_11DB)
+        self.VBAT.width(ADC.WIDTH_12BIT)
+        self.VBAT_EN = gpioPin(self._PCAL6416A, 9, modeOUTPUT)
+        self.VBAT_EN.digitalWrite(0)
 
         # self.SD_ENABLE = gpioPin(self._PCAL6416A, 10, modeOUTPUT)
 
@@ -538,11 +544,11 @@ class Inkplate:
 
     @classmethod
     def readBattery(self):
-        self.VBAT_EN.value(0)
+        self.VBAT_EN.digitalWrite(1)
         # Probably don't need to delay since Micropython is slow, but we do it anyway
-        time.sleep_ms(1)
+        time.sleep_ms(5)
         value = self.VBAT.read()
-        self.VBAT_EN.value(1)
+        self.VBAT_EN.digitalWrite(0)
         result = (value / 4095.0) * 1.1 * 3.548133892 * 2
         return result
 
