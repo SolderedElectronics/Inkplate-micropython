@@ -6,7 +6,7 @@ from inkplate6COLOR import Inkplate
 # Import the image
 # It should also be copied to Inkplate when copying other libraries
 # Check the README!
-from color_image_inkplate6COLOR import color_image_inkplate6color
+from color_image_inkplate6COLOR import color_image_inkplate6COLOR
 
 # Create Inkplate object
 display = Inkplate()
@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # color_image_inkplate6color is 600x488px, draw it over the whole screen
     # Arguments are x start, y start, width, height, and then the image buffer
-    display.drawColorImage(0, 0, 600, 488, color_image_inkplate6color)
+    display.drawColorImage(0, 0, 600, 488, color_image_inkplate6COLOR)
 
     # Show on the display
     display.display()
