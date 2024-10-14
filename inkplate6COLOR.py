@@ -73,7 +73,7 @@ IO_PIN_B5 = const(13)
 IO_PIN_B6 = const(14)
 IO_PIN_B7 = const(15)
 
-RTC_I2C_ADDR = 0x51
+RTCwire_ADDR = 0x51
 RTC_RAM_by = 0x03
 RTC_DAY_ADDR = 0x07
 RTC_SECOND_ADDR = 0x04
@@ -303,7 +303,7 @@ class Inkplate:
             cls.rtc_dec_to_bcd(rtc_hour)
         ])
 
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
+        cls.wire.writeto(RTCwire_ADDR, data)
 
     @classmethod
     def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
@@ -314,7 +314,7 @@ class Inkplate:
             170,  # Write in RAM 170 to know that RTC is set
         ])
 
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
+        cls.wire.writeto(RTCwire_ADDR, data)
 
         data = bytearray([
             RTC_DAY_ADDR,
@@ -324,12 +324,12 @@ class Inkplate:
             cls.rtc_dec_to_bcd(rtcYear),
         ])
 
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
+        cls.wire.writeto(RTCwire_ADDR, data)
 
     @classmethod
     def rtc_get_rtc_data(cls):
-        cls._i2c.writeto(RTC_I2C_ADDR, bytearray([RTC_SECOND_ADDR]))
-        data = cls._i2c.readfrom(RTC_I2C_ADDR, 7)
+        cls.wire.writeto(RTCwire_ADDR, bytearray([RTC_SECOND_ADDR]))
+        data = cls.wire.readfrom(RTCwire_ADDR, 7)
 
         rtc_second = cls.rtc_bcd_to_dec(data[0] & 0x7F)  # Ignore bit 7
         rtc_minute = cls.rtc_bcd_to_dec(data[1] & 0x7F)
@@ -586,10 +586,10 @@ class Inkplate:
                 self.writePixel(x2 + x, y2 + y, pixel_value2)
     
     def rtcSetTime(self, rtc_hour, rtc_minute, rtc_second):
-        return _Inkplate.rtc_set_time(rtc_hour, rtc_minute, rtc_second)
+        return Inkplate.rtc_set_time(rtc_hour, rtc_minute, rtc_second)
 
     def rtcSetDate(self, rtc_weekday, rtc_day, rtc_month, rtc_yr):
-        return _Inkplate.rtc_set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
+        return Inkplate.rtc_set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
 
     def rtcGetData(self):
-        return _Inkplate.rtc_get_rtc_data()
+        return Inkplate.rtc_get_rtc_data()
