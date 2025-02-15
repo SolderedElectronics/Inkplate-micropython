@@ -34,7 +34,7 @@ esptool --port COM5 erase_flash
 
 **NOTE:** You should change the serial port listed here to the one which corresponds to your connected Inkplate device.
 
-**NOTE:** If you see a message like `A fatal error occurred: Failed to connect to Espressif device: No serial data received.`ou may need to wake up your InkPlate by pressing the button next to the USB port.
+**NOTE:** If you see a message like `A fatal error occurred: Failed to connect to Espressif device: No serial data received.` you may need to wake up your InkPlate by pressing the button next to the USB port.
 
 Now it's possible to flash MicroPython firmware. Do so by running this command:
 ```
