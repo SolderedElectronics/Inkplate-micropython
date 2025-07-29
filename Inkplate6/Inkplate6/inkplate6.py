@@ -154,7 +154,6 @@ class _Inkplate:
     def clearDisplay(self):
         self.ipg.clear()
         self.ipm.clear()
-        self.ipp.start()
 
     @classmethod
     def display(self):
@@ -171,7 +170,6 @@ class _Inkplate:
             if self.partialUpdateCounter < self.fullUpdateThreshold:
                 self.partialUpdateCounter = self.partialUpdateCounter + 1
                 self.ipp.display()
-                self.ipp.start()
             else:
                 self.partialUpdateCounter = 0
                 self.ipm.display()
@@ -512,7 +510,6 @@ class Inkplate:
 
     def clearDisplay(self):
         self.ipm.clear()
-        self.ipp.start()
         self.ipg.clear()
 
     def display(self):
@@ -535,7 +532,6 @@ class Inkplate:
             else:
                 self.partialUpdateCounter = 0
                 self.ipm.display()
-                self.ipp.start()
     
     def drawPolygon(self,x,y,coords,color):
         import array
@@ -1724,3 +1720,4 @@ class Inkplate:
                 # Clear next buffer in one pass
                 for i in range(errbuf_size):
                     error_next[i] = 0
+
