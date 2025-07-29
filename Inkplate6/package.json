@@ -15,9 +15,7 @@
     [
         "inkplatePartial.py",
         "github:SolderedElectronics/Inkplate-micropython/tree/micropython-library-revamp/Inkplate6/Inkplate6/inkplatePartial.py"
-    ]
-  ],
-  "deps": [
+    ],
     [
         "gfx.py",
         "github:SolderedElectronics/Inkplate-micropython/tree/micropython-library-revamp/Dependencies/gfx.py"
@@ -34,6 +32,8 @@
         "shapes.py",
         "github:SolderedElectronics/Inkplate-micropython/tree/micropython-library-revamp/Dependencies/shapes.py"
     ]
+  ],
+  "deps": [
   ],
   "version": "1.0"
 }
