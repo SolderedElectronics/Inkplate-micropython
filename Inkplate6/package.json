@@ -5,7 +5,7 @@
       "github:SolderedElectronics/Inkplate-micropython/Inkplate6/Inkplate6/inkplate6.py@micropython-library-revamp"
     ],
     [
-      "inkplateGS.py",  
+      "inkplateGS.py",
       "github:SolderedElectronics/Inkplate-micropython/Inkplate6/Inkplate6/inkplateGS.py@micropython-library-revamp"
     ],
     [
@@ -13,27 +13,26 @@
       "github:SolderedElectronics/Inkplate-micropython/Inkplate6/Inkplate6/inkplateMono.py@micropython-library-revamp"
     ],
     [
-        "inkplatePartial.py",
-        "github:SolderedElectronics/Inkplate-micropython/Inkplate6/Inkplate6/inkplatePartial.py@micropython-library-revamp"
+      "inkplatePartial.py",
+      "github:SolderedElectronics/Inkplate-micropython/Inkplate6/Inkplate6/inkplatePartial.py@micropython-library-revamp"
     ],
     [
-        "gfx.py",
-        "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx.py@micropython-library-revamp"
+      "gfx.py",
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx.py@micropython-library-revamp"
     ],
     [
-        "gfx_standard_font_01.py",
-        "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx_standard_font_01.py@micropython-library-revamp"
+      "gfx_standard_font_01.py",
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx_standard_font_01.py@micropython-library-revamp"
     ],
     [
-        "PCAL6416A.py",
-        "github:SolderedElectronics/Inkplate-micropython/Dependencies/PCAL6416A.py@micropython-library-revamp"
+      "PCAL6416A.py",
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/PCAL6416A.py@micropython-library-revamp"
     ],
     [
-        "shapes.py",
-        "github:SolderedElectronics/Inkplate-micropython/Dependencies/shapes.py@micropython-library-revamp"
+      "shapes.py",
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/shapes.py@micropython-library-revamp"
     ]
   ],
-  "deps": [
-  ],
+  "deps": [],
   "version": "1.0"
 }
