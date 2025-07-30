@@ -487,14 +487,14 @@ class Inkplate:
                     miso=Pin(12),
                     mosi=Pin(13),
                     sck=Pin(14),
-                    cs=Pin(15)),
+                    cs=Pin(15),
+                    freq=80000000),
                     
                 "/sd"
             )
             if fastBoot == True:
-                if machine.wake_reason() == machine.PWRON_RESET or machine.wake_reason() == machine.HARD_RESET or machine.wake_reason() == machine.WDT_RESET:
-                    import sys
-                    sys.exit()
+                if machine.reset_cause() == machine.PWRON_RESET or machine.reset_cause() == machine.HARD_RESET or machine.reset_cause() == machine.WDT_RESET:
+                    machine.soft_reset()
             
         except Exception as e:
             print("Sd card could not be read")
