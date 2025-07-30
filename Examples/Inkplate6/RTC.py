@@ -1,4 +1,7 @@
-# This example will show you how to use the onboard RTC to preserve time across reboots
+# FILE: Inkplate6-RTC.py
+# AUTHOR: Soldered
+# BRIEF: An example showing how to use the onboard RTC to preserve time across reboots
+# LAST UPDATED: 2025-07-29
 
 # Include all the required libraries
 from inkplate6 import Inkplate

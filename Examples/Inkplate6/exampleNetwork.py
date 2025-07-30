@@ -1,5 +1,8 @@
-# This example will show you how to connect to WiFi
-# get data from the internet and then print it
+# FILE: Inkplate6-exampleNetwork.py
+# AUTHOR: Soldered
+# BRIEF: An example showing how to connect to WiFi
+#        and get data from the internet
+# LAST UPDATED: 2025-07-30
 
 # Include needed libraries
 import network
@@ -42,30 +45,23 @@ def http_get(url):
     s.close()
     return res
 
-# Main function
-if __name__ == "__main__":
 
-    # First, connect
-    do_connect()
+# First, connect
+do_connect()
 
-    # Do a GET request to the micropython test page
-    # If you were to do a GET request to a different page/resource, change the URL here
-    response = http_get("http://micropython.org/ks/test.html")
+# Do a GET request to the micropython test page
+# If you were to do a GET request to a different page/resource, change the URL here
+response = http_get("http://micropython.org/ks/test.html")
 
-    # Create and initialize our Inkplate object in 1-bit mode
-    display = Inkplate(Inkplate.INKPLATE_1BIT)
-    display.begin()
+# Create and initialize our Inkplate object in 1-bit mode
+display = Inkplate(Inkplate.INKPLATE_1BIT)
+display.begin()
 
-    # Set text size to double from the original size, so we can see the text better
-    display.setTextSize(2)
+# Set text size to double from the original size, so we can see the text better
+display.setTextSize(1)
 
-    # Print response line by line
-    cnt = 0
-    for x in response.split("\n"):
-        display.printText(
-            10, 20 + cnt, x.upper()
-        )  # Default font has only upper case letters
-        cnt += 20
+# Print response line by line
+display.print(response)
 
-    # Display image from buffer in full refresh
-    display.display()
+# Display image from buffer in full refresh
+display.display()
