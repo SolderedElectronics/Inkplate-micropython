@@ -608,20 +608,34 @@ class Inkplate:
         if not (0 <= x < self._width and 0 <= y < self._height):
             return
 
-        #r = self.rotation
-        #if r != 0:
-            #if r == 1:
-                #x, y = y, self._width - x - 1
-            #elif r == 2:
-                #x, y = self._width - x - 1, self._height - y - 1
-            #elif r == 3:
-                #x, y = self._height - y - 1, x
+        r = self.rotation
+        if r != 0:
+            if r == 1:
+                x, y = y, self._width - x - 1
+            elif r == 2:
+                x, y = self._width - x - 1, self._height - y - 1
+            elif r == 3:
+                x, y = self._height - y - 1, x
 
         # Inline direct method call to avoid function branching
         if self.displayMode == self.INKPLATE_2BIT:
             self.ipg.pixel(x, y, c)
         else:
             self.ipm.pixel(x, y, c)
+    
+    def drawBitmap(self, x, y, data, w, h, c=1):
+        byteWidth = (w + 7) // 8
+        byte = 0
+        self.startWrite()
+        for j in range(h):
+            for i in range(w):
+                if i & 7:
+                    byte <<= 1
+                else:
+                    byte = data[j * byteWidth + i // 8]
+                if byte & 0x80:
+                    self.writePixel(x + i, y + j, c)
+        self.endWrite()
 
     def writeFillRect(self, x, y, w, h, c):
         for j in range(w):
