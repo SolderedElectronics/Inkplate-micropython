@@ -436,6 +436,11 @@ class Inkplate:
     rotation = 0
     displayMode = 0
     textSize = 1
+
+    KERNEL_FLOYD_STEINBERG = 0
+    KERNEL_JJN             = 1
+    KERNEL_STUCKI          = 2
+    KERNEL_BURKES          = 3
     
     
 
