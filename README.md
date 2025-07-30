@@ -42,7 +42,7 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
 
 **You only have to do steps 1-4 once when writing MicroPython firmware on your Inkplate!** If you have already done this, proceed from step 5 onwards.
 
-5. Now you can flash 
+5. Now you can flash examples and write code with the IDE of your choosing!
 
 
 ### Code examples
