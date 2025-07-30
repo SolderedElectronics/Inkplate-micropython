@@ -189,8 +189,10 @@ class _Inkplate:
     @classmethod
     def read_temperature(cls):
         # start temperature measurement and wait 5 ms
-        cls._i2c.writeto_mem(TPS65186_addr, 0x0D, bytes((0x80,)))
-        time.sleep_ms(5)
+        cls.TPS_WAKEUP.digitalWrite(1)
+        cls.TPS_PWRUP.digitalWrite(1)
+        cls._tps65186_write(0x0D, 0x80) 
+        time.sleep_ms(2)
 
         # request temperature data from panel
         cls._i2c.writeto(TPS65186_addr, bytearray((0x00,)))
@@ -198,6 +200,9 @@ class _Inkplate:
 
         # convert data from bytes to integer
         cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
+        
+        cls.TPS_WAKEUP.digitalWrite(0)
+        cls.TPS_PWRUP.digitalWrite(0)
         return cls.temperatureInt
 
     # _tps65186_write writes an 8-bit value to a register
