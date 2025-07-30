@@ -9,33 +9,31 @@ import time
 
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 2-bit grayscale, see basicGrayscale.py
-display = Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
-# Main function
-if __name__ == "__main__":
     
-    # Initialize the display, needs to be called only once
-    display.begin()
+# Initialize the display, needs to be called only once
+inkplate.begin()
 
-    # Clear the frame buffer
-    display.clearDisplay()
+# Clear the frame buffer
+inkplate.clearDisplay()
 
-    # This has to be called every time you want to update the screen
-    # Drawing or printing text will have no effect on the display itself before you call this function
-    display.display()
+# This has to be called every time you want to update the screen
+# Drawing or printing text will have no effect on the display itself before you call this function
+inkplate.display()
 
-    # This is how to set the RTC's time
-    # Arguments are hour, minute, seconds
-    display.rtcSetTime(9,39,10)
-    # And this is the date
-    # Arguments are weekday, day in month, month and year
-    display.rtcSetDate(5,9,2,2024)
+# This is how to set the RTC's time
+# Arguments are hour, minute, seconds
+inkplate.rtcSetTime(9,39,10)
+# And this is the date
+# Arguments are weekday, day in month, month and year
+inkplate.rtcSetDate(5,9,2,2024)
+
+# Infinite loop
+while True:
 
     # Show the set time
-    print(display.rtcGetData())
+    print(inkplate.rtcGetData())
 
     # Let's wait 10 seconds
     time.sleep(10)
-
-    # Let's see if the time has updated
-    print(display.rtcGetData())

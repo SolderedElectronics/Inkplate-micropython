@@ -9,10 +9,10 @@ from inkplate6 import Inkplate
 from os import listdir
 
 # Create Inkplate object in 2-bit (grayscale) mode
-display = Inkplate(Inkplate.INKPLATE_2BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
 
 # Initialize the display, needs to be called only once
-display.begin()
+inkplate.begin()
 
 # Initializes the SD card.
 #
@@ -25,7 +25,7 @@ display.begin()
 # Note:
 # - This function must be called before accessing files on the SD card.
 # - The fastboot option has no effect if the device is already running.
-display.initSDCard(fastBoot=True)
+inkplate.initSDCard(fastBoot=True)
 
 # This prints all the files on card
 print(listdir("/sd"))
@@ -59,11 +59,11 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-display.drawImage("sd/lake.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
+inkplate.drawImage("sd/lake.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
 
 # Show the image from the buffer
-display.display()
+inkplate.display()
 
-display.SDCardSleep()
+inkplate.SDCardSleep()
 # To turn it back on, use:
-# display.SDCardWake()
+# inkplate.SDCardWake()
