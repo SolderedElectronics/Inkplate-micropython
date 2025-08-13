@@ -400,8 +400,8 @@ class GFX:
     def _print_text(self, framebuf, x0, y0, string, size, *args, **kwargs):
         """Optimized text rendering for 1bpp and 2bpp framebuffers with text wrapping"""
         # Display parameters (adjust to your display)
-        DISPLAY_WIDTH = 800
-        DISPLAY_HEIGHT = 600
+        DISPLAY_WIDTH = self.width
+        DISPLAY_HEIGHT = self.height
         
         # Default to 2bpp if not specified
         bpp = kwargs.get('bpp', 2)
