@@ -7,7 +7,7 @@
 # Include needed libraries
 import network
 import time
-from soldered_inkplate6 import Inkplate
+from inkplate6 import Inkplate
 
 # Enter your WiFi credentials here
 ssid = ""

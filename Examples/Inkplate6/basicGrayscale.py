@@ -4,8 +4,6 @@
 #        as well as displaying a bitmap of the Soldered logo
 # LAST UPDATED: 2025-07-30
 
-# This example will show you how to draw different shades of gray using grayscale mode
-
 # Include needed libraries
 from inkplate6 import Inkplate
 import time

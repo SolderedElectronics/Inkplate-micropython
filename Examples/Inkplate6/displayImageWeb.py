@@ -1,5 +1,5 @@
 # FILE: Inkplate6-displayImageWiFi.py
-# AUTHOR: Adapted by OpenAI (based on Josip Šimun Kuči @ Soldered)
+# AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to connect to WiFi and render an image from a URL
 # LAST UPDATED: 2025-07-30
 
