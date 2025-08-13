@@ -1,0 +1,38 @@
+{
+  "urls": [
+    [
+      "inkplate6.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate10/Inkplate10/inkplate10.py"
+    ],
+    [
+      "inkplateGS.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate10/Inkplate10/inkplateGS.py"
+    ],
+    [
+      "inkplateMono.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate10/Inkplate10/inkplateMono.py"
+    ],
+    [
+      "inkplatePartial.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate10/Inkplate10/inkplatePartial.py"
+    ],
+    [
+      "gfx.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/gfx.py"
+    ],
+    [
+      "gfx_standard_font_01.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/gfx_standard_font_01.py"
+    ],
+    [
+      "PCAL6416A.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/PCAL6416A.py"
+    ],
+    [
+      "shapes.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/shapes.py"
+    ]
+  ],
+  "deps": [],
+  "version": "1.0"
+}
