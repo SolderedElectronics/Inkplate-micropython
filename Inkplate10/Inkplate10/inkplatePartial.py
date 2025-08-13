@@ -5,11 +5,8 @@
 # Only InkplateMono is supported at the moment.
 
 import time
-import micropython
 import framebuf
-import os
 from uarray import array
-from mcp23017 import MCP23017
 from micropython import const
 from shapes import Shapes
 from inkplate10 import _Inkplate
