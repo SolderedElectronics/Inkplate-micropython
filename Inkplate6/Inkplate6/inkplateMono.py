@@ -12,6 +12,8 @@ from inkplate6 import _Inkplate
 D_ROWS = const(600)
 D_COLS = const(800)
 
+
+
 # Waveforms for 2 bits per pixel grey-scale.
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip

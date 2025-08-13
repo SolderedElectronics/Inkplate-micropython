@@ -727,6 +727,9 @@ class Inkplate:
     def resetCursor(self):
         self.cursor=[0,0]
 
+    def setCursor(self, x, y):
+        self.cursor=[x,y]
+
     def printText(self, x, y, s):
         if self.displayMode == Inkplate.INKPLATE_2BIT:
             self.GFX._print_text(self.ipg._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=2)
