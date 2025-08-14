@@ -9,8 +9,8 @@ import time
 from inkplate10 import Inkplate
 
 # Enter your WiFi credentials here
-ssid = "ENTER_SSID_HERE"
-password = "ENTER_PASSWORD_HERE"
+SSID = "ENTER_SSID_HERE"
+PASSWORD = "ENTER_PASSWORD_HERE"
 
 # Connects to a WiFi network using given SSID and PASSWORD.
 #

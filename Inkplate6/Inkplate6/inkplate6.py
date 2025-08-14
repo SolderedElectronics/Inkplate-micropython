@@ -1174,7 +1174,7 @@ class Inkplate:
                 )
                 gc.collect()
         except Exception as e:
-            print("Error in drawPNGFromWeb:", e)
+            print("Error in drawBMPFromWeb:", e)
             if 'response' in locals():
                 response.close()
 
