@@ -5,18 +5,6 @@
       "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/inkplate2.py"
     ],
     [
-      "inkplateGS.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/inkplateGS.py"
-    ],
-    [
-      "inkplateMono.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/inkplateMono.py"
-    ],
-    [
-      "inkplatePartial.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/inkplatePartial.py"
-    ],
-    [
       "gfx.py",
       "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/gfx.py"
     ],
