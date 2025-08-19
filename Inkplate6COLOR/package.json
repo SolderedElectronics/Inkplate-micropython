@@ -1,0 +1,26 @@
+{
+  "urls": [
+    [
+      "inkplate6COLOR.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate6COLOR/Inkplate6COLOR/inkplate6COLOR.py"
+    ],
+    [
+      "gfx.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate6COLOR/Inkplate6COLOR/gfx.py"
+    ],
+    [
+      "gfx_standard_font_01.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/gfx_standard_font_01.py"
+    ],
+    [
+      "PCAL6416A.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/PCAL6416A.py"
+    ],
+    [
+      "shapes.py",
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/shapes.py"
+    ]
+  ],
+  "deps": [],
+  "version": "1.0"
+}
