@@ -1,4 +1,4 @@
-# FILE: Inkplate6-displayImageSd.py
+# FILE: Inkplate6COLOR-displayImageSd.py
 # AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to initialize an SD card and
 #        render an image located on it

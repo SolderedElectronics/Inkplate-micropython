@@ -1,4 +1,4 @@
-# FILE: Inkplate6-displayImageWiFi.py
+# FILE: Inkplate6COLOR-displayImageWiFi.py
 # AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to connect to WiFi and render an image from a URL
 # LAST UPDATED: 2025-07-30
