@@ -2,19 +2,19 @@
   "urls": [
     [
       "inkplate2.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/inkplate2.py"
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate2/Inkplate2/inkplate2.py"
     ],
     [
       "gfx.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/gfx.py"
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate2/Inkplate2/gfx.py"
     ],
     [
       "gfx_standard_font_01.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Inkplate2/Inkplate2/gfx_standard_font_01.py"
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate2/Inkplate2/gfx_standard_font_01.py"
     ],
     [
       "shapes.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/micropython-library-revamp/Dependencies/shapes.py"
+      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Dependencies/shapes.py"
     ]
   ],
   "deps": [],
