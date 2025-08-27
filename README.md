@@ -51,9 +51,9 @@ There are several examples which will indicate all the functions you can use in 
 * The basic examples show you drawing shapes, lines and text on the screen in different colors, also a bitmap image in a single color
 * The network examples show you how to use the network features like doing a GET request and downloading a file
 * The batteryAndTemperatureRead examples show you how to read the internal battery status and the temperature from the internal sensor
-* The exampleSD example shows you how to read image files and text from the SD card
-* The gpio_expander example shows how to use the GPIO expander on new Inkplate models
-* The touchpad examples show you how to use the touchpad on older Inkplates
+* The displayImageSd example shows you how to draw a JPG/BMP/PNG image with or without dithering from an SD card
+* The displayImageWeb example shows you how to draw a JPG/BMP/PNG image with or without dithering from a URL
+* The gpioExpander example shows how to use the GPIO expander on new Inkplate models
 
 More information is provided in the examples themselves in the shape of comments.
 
@@ -61,42 +61,20 @@ More information is provided in the examples themselves in the shape of comments
 
 Find Inkplate documentation [here](https://soldered.com/documentation/inkplate/). 
 
-### Battery power
-
-Inkplate boards have two options for powering it. The first one is obvious - USB port at side of the board. Just plug any microUSB/USB-C (depending on your board version) cable and you are good to go. The second option is using a battery. Supported batteries are standard Li-Ion/Li-Poly batteries with a 3.7V nominal voltage. Connector for the battery is standard 2.00mm pitch JST connector (except on Inkplate 2, it uses SMD solder pads for battery terminals). The onboard charger will charge the battery with 500mA when USB is plugged at the same time. You can use battery of any size or capacity if you don't have a enclosure. If you are using our enclosure, battery size shouldn't exceed 90mm x 40mm (3.5 x 1.57 inch) and 5mm (0.19 inch) in height (excluding Inkplate 2, it uses [this battery](https://soldered.com/product/li-ion-baterija-600mah-3-7v/). [This battery](https://soldered.com/product/li-ion-battery-1200mah-3-7v/) is a good fit for all Inkplate models. Also, Inkplate's hardware is specially optimized for low power consumption in deep sleep mode, making it extremely suitable for battery applications.
-
-#### ⚠️ WARNING
-Please check the polarity on the battery JST connector! Some batteries that can be purchased from the web have reversed polarity that can damage Inkplate board! You are safe if you are using the pouch battery from [soldered.com](https://soldered.com/categories/power-sources-batteries/batteries/lithium-batteries/) or Inkplate with the built-in battery . 
-
-#### ℹ NOTE
-CR2032 battery is only for RTC backup. Inkplate cannot be powered with it.
-
 ### License
 
 This repo is licensed with the MIT License. For more info, see LICENSE.
 
-### Open-source
+---
 
-All of Inkplate-related development is open-sourced:
+## About Soldered
 
-- [Arduino library](https://github.com/SolderedElectronics/Inkplate-Arduino-library)
-- Hardware design:
-  - [Soldered Inkplate 2](https://github.com/SolderedElectronics/Soldered-Inkplate-2-hardware-design)
-  - [Soldered Inkplate 6](https://github.com/SolderedElectronics/Soldered-Inkplate-6-hardware-design)
-  - [Soldered Inkplate 6PLUS](https://github.com/SolderedElectronics/Soldered-Inkplate-6PLUS-hardware-design)
-  - [Soldered Inkplate 10](https://github.com/SolderedElectronics/Soldered-Inkplate-10-hardware-design)
-  - [Soldered Inkplate 6COLOR](https://github.com/SolderedElectronics/Soldered-Inkplate-6COLOR-hardware-design)
-  - [e-radionica.com Inkplate 6](https://github.com/SolderedElectronics/Inkplate-6-hardware)
-  - [e-radionica.com Inkplate 10](https://github.com/SolderedElectronics/Inkplate-10-hardware)
-  - [e-radionica.com Inkplate 6PLUS](https://github.com/SolderedElectronics/Inkplate-6PLUS-Hardware)
-- [OSHWA cerfiticates](https://certification.oshwa.org/list.html?q=inkplate)
+<img src="https://raw.githubusercontent.com/SolderedElectronics/Soldered-Simple-Sensor-Arduino-Library/dev/extras/Soldered-logo-color.png" alt="soldered-logo" width="500"/>
 
-### Where to buy
+At Soldered, we design and manufacture a wide selection of electronic products to help you turn your ideas into acts and bring you one step closer to your final project. Our products are intented for makers and crafted in-house by our experienced team in Osijek, Croatia. We believe that sharing is a crucial element for improvement and innovation, and we work hard to stay connected with all our makers regardless of their skill or experience level. Therefore, all our products are open-source. Finally, we always have your back. If you face any problem concerning either your shopping experience or your electronics project, our team will help you deal with it, offering efficient customer service and cost-free technical support anytime. 
 
-Inkplate boards are available for purchase via:
+## Have fun!
 
-- [soldered.com](https://soldered.com/categories/inkplate/)
-- [Crowd Supply](https://www.crowdsupply.com/soldered)
-- [Mouser](https://hr.mouser.com/Search/Refine?Keyword=inkplate)
+And thank you from your fellow makers at Soldered Electronics.
 
-For all questions and issues please reach us via [e-mail](mailto:hello@soldered.com) or our [contact form](https://soldered.com/contact/).
+
