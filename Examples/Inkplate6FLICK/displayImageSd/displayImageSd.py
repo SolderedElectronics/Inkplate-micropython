@@ -1,16 +1,15 @@
-# FILE: Inkplate10-displayImageWiFi.py
+# FILE: Inkplate2-displayImageWeb.py
 # AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to connect to WiFi and render an image from a URL
-# LAST UPDATED: 2025-08-12
+# LAST UPDATED: 2025-08-14
 
-# Include needed libraries
 import network
 import time
-from inkplate10 import Inkplate
+from inkplate2 import Inkplate
 
 # Enter your WiFi credentials here
-SSID = "ENTER_SSID_HERE"
-PASSWORD = "ENTER_PASSWORD_HERE"
+SSID = "Xiaomi 13 Lite"
+PASSWORD = "asdqwe12345"
 
 # Connects to a WiFi network using given SSID and PASSWORD.
 #
@@ -40,7 +39,7 @@ def do_connect():
 
 
 # Create Inkplate object in 2-bit (grayscale) mode
-inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
+inkplate = Inkplate()
 
 # Initialize the display, needs to be called only once
 inkplate.begin()
@@ -63,27 +62,24 @@ if not do_connect():
 #
 # - dither (bool, default=False): If True, applies a dithering algorithm to the image for better grayscale rendering.
 #
-# - kernel_type (int): Specifies the dithering algorithm to use.
-#     Available options:
-#       Inkplate.KERNEL_FLOYD_STEINBERG = 0
-#       Inkplate.KERNEL_JJN             = 1
-#       Inkplate.KERNEL_STUCKI          = 2
-#       Inkplate.KERNEL_BURKES          = 3
-#
 # Performance Notes:
-# - JPG: ~3 seconds (or ~7s with dithering)
-# - PNG: ~10 seconds (or ~14s with dithering)
-# - BMP: ~15 seconds (or ~20s with dithering)
+# - JPG: ~3 seconds (or ~5s with dithering)
+# - PNG: ~4 seconds (or ~6s with dithering)
+# - BMP: ~6 seconds (or ~7s with dithering)
 # - Maximum image file size: ~800kB
 #
 # Example usage:
+drawLenght=time.ticks_ms()
 inkplate.drawImage(
-    "https://i.imgur.com/6vMuKxa.jpeg",  # URL to image
+    "https://i.imgur.com/VSRtgBr.jpeg",  # URL to image
     0, 0,                                # X, Y position
-    invert=False,                       # Do not invert colors
-    dither=True,                        # Enable dithering
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG  # Dithering algorithm
+    dither = True						 # Enable dithering
 )
+drawLenght=time.ticks_ms()-drawLenght
+print("time it took to draw to buffer: {} ms ".format(drawLenght))
 
 # Show the image from the internal buffer
+drawLenght=time.ticks_ms()
 inkplate.display()
+drawLenght=time.ticks_ms()-drawLenght
+print("time it took to display: {} ms ".format(drawLenght))

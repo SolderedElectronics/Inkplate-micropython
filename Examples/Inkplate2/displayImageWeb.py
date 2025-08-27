@@ -1,4 +1,4 @@
-# FILE: Inkplate6-displayImageWeb.py
+# FILE: Inkplate2-displayImageWeb.py
 # AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to connect to WiFi and render an image from a URL
 # LAST UPDATED: 2025-08-14
@@ -71,7 +71,7 @@ if not do_connect():
 # Example usage:
 drawLenght=time.ticks_ms()
 inkplate.drawImage(
-    "https://i.imgur.com/Y74hAae.jpeg",  # URL to image
+    "https://i.imgur.com/VSRtgBr.jpeg",  # URL to image
     0, 0,                                # X, Y position
     dither = True						 # Enable dithering
 )

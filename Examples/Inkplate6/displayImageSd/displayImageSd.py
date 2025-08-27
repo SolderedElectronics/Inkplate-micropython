@@ -59,7 +59,7 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-inkplate.drawImage("sd/lake.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
+inkplate.drawImage("sd/coastal.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
 
 # Show the image from the buffer
 inkplate.display()

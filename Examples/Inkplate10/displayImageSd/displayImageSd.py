@@ -1,10 +1,11 @@
-# FILE: Inkplate6FLICK-displayImageSd.py
+# FILE: Inkplate10-displayImageSd.py
 # AUTHOR: Josip Šimun Kuči @ Soldered
 # BRIEF: An example showing how to initialize an SD card and
 #        render an image located on it
-# LAST UPDATED: 2025-08-27
+# LAST UPDATED: 2025-08-12
 # Include needed libraries
-from inkplate6FLICK import Inkplate
+from inkplate10 import Inkplate
+import time
 from os import listdir
 
 # Create Inkplate object in 2-bit (grayscale) mode
@@ -52,18 +53,19 @@ print(listdir("/sd"))
 #       Inkplate.KERNEL_BURKES          = 3
 #
 # Performance Notes:
-# - JPG: ~5 seconds (or ~11s with dithering)
+# - JPG: ~3 seconds (or ~7s with dithering)
 # - PNG: ~10 seconds (or ~14s with dithering)
 # - BMP: ~15 seconds (or ~20s with dithering)
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-inkplate.drawImage("sd/screen.png", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
-
+drawLenght=time.ticks_ms()
+inkplate.drawImage("sd/mountain.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
+drawLenght=time.ticks_ms()-drawLenght
+print("time it took to draw to buffer: {} ms ".format(drawLenght))
 # Show the image from the buffer
 inkplate.display()
 
 inkplate.SDCardSleep()
 # To turn it back on, use:
 # inkplate.SDCardWake()
-
