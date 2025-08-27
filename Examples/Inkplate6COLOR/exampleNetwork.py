@@ -10,8 +10,8 @@ import time
 from inkplate6COLOR import Inkplate
 
 # Enter your WiFi credentials here
-ssid = "Soldered-testingPurposes"
-password = "Testing443"
+ssid = "YOUR_SSID_HERE"
+password = "YOUR_PASSWORD_HERE"
 
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html

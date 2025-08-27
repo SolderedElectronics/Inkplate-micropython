@@ -8,8 +8,8 @@ import time
 from inkplate2 import Inkplate
 
 # Enter your WiFi credentials here
-SSID = "Xiaomi 13 Lite"
-PASSWORD = "asdqwe12345"
+SSID = "YOUR_SSID_HERE"
+PASSWORD = "YOUR_PASSWORD_HERE"
 
 # Connects to a WiFi network using given SSID and PASSWORD.
 #
