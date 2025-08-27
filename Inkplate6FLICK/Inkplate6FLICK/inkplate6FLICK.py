@@ -1991,3 +1991,5 @@ class Inkplate:
                     error_next[i] = 0
 
 
+if __name__ == '__main__':
+    print("WARNING: You are running the Inkplate module itself, import this module into your example and use it that way")
