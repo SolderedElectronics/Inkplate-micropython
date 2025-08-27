@@ -2,35 +2,35 @@
   "urls": [
     [
       "inkplate5v2.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplate5v2.py"
+      "github:SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplate5v2.py"
     ],
     [
       "inkplateGS.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplateGS.py"
+      "github:SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplateGS.py"
     ],
     [
       "inkplateMono.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplateMono.py"
+      "github:SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplateMono.py"
     ],
     [
       "inkplatePartial.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplatePartial.py"
+      "github:SolderedElectronics/Inkplate-micropython/Inkplate5v2/Inkplate5v2/inkplatePartial.py"
     ],
     [
       "gfx.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Dependencies/gfx.py"
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx.py"
     ],
     [
       "gfx_standard_font_01.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Dependencies/gfx_standard_font_01.py"
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/gfx_standard_font_01.py"
     ],
     [
       "PCAL6416A.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Dependencies/PCAL6416A.py"
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/PCAL6416A.py"
     ],
     [
       "shapes.py",
-      "https://raw.githubusercontent.com/SolderedElectronics/Inkplate-micropython/Dependencies/shapes.py"
+      "github:SolderedElectronics/Inkplate-micropython/Dependencies/shapes.py"
     ]
   ],
   "deps": [],
