@@ -495,8 +495,8 @@ class Inkplate:
             return gpioPin(_Inkplate._PCAL6416A_2, pin, mode)
 
     def clearDisplay(self):
-        self.ipm.clear()
-        self.ipg.clear()
+        InkplateMono.clear(self.ipm._framebuf)
+        InkplateGS2.clear(self.ipg._framebuf)
 
     def display(self):
         if self.displayMode == 0:
@@ -586,23 +586,60 @@ class Inkplate:
         pass
         
     def writePixel(self, x, y, c):
-        if not (0 <= x < self._width and 0 <= y < self._height):
-            return
-
-        r = self.rotation
-        if r != 0:
-            if r == 1:
-                x, y = y, self._width - x - 1
-            elif r == 2:
-                x, y = self._width - x - 1, self._height - y - 1
-            elif r == 3:
-                x, y = self._height - y - 1, x
-
-        # Inline direct method call to avoid function branching
-        if self.displayMode == self.INKPLATE_2BIT:
-            self.ipg.pixel(x, y, c)
+        if self.displayMode == 0:
+            Inkplate.writePixel_viper(self.ipm._framebuf, x, y, c, self.rotation, self.displayMode)
         else:
-            self.ipm.pixel(x, y, c)
+            Inkplate.writePixel_viper(self.ipg._framebuf, x, y, c, self.rotation, self.displayMode)
+            
+    @micropython.viper
+    def writePixel_viper(fb: ptr8, x: int, y: int, c: int, rot: int, display_mode: int):
+        w = 800  # physical width
+        h = 600   # physical height
+
+        # Logical bounds (swap for 90°/270° so we never address past h)
+        if rot & 1:  # 1 or 3 -> 90°/270°
+            if x < 0 or y < 0 or x >= h or y >= w:
+                return
+        else:
+            if x < 0 or y < 0 or x >= w or y >= h:
+                return
+
+        # Map (x,y) -> physical (px,py) inside w×h
+        if rot == 0:            # 0°
+            px = x
+            py = y
+        elif rot == 1:          # 90° CW
+            px = y
+            py = h - 1 - x
+        elif rot == 2:          # 180°
+            px = w - 1 - x
+            py = h - 1 - y
+        else:                   # 270° CCW (rot == 3)
+            px = w - 1 - y
+            py = x
+        if display_mode == 0:  # 1bpp
+            idx = (py * w + px) >> 3      # 8 pixels per byte
+            shift = (px & 7)
+            if c:
+                fb[idx] = fb[idx] | (1 << shift)
+            else:
+                fb[idx] = fb[idx] & ~(1 << shift)
+
+        else:  
+            c &= 0x03  
+
+            # Find byte index
+            byte_index = py * 200 + (px >> 2)
+
+            # Which pixel inside this byte (0..3)
+            pixel_index = px & 3
+            shift = pixel_index * 2
+
+            # Load current byte
+            temp = fb[byte_index]
+
+            # Clear and write the new pixel
+            fb[byte_index] = (temp & int(pixelMaskGLUT[pixel_index])) | (c << shift)
     
     def drawBitmap(self, x, y, data, w, h, c=1):
         byteWidth = (w + 7) // 8

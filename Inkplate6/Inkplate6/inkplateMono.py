@@ -178,10 +178,9 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_off()
 
     @micropython.viper
-    def clear(self):
-         fb = ptr8(self._framebuf)
-         for ix in range(D_ROWS * D_COLS // 8):
-            fb[ix] = 0x00
+    def clear(fb:ptr8):
+        for ix in range(800*600//8):
+           fb[ix] = 0x00
 
 
 Shapes.__mix_me_in(InkplateMono)
