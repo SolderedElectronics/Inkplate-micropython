@@ -1510,7 +1510,7 @@ class Inkplate:
         try:
             # 1. Initialize decoder
 
-            decoder = jpeg.Decoder(rotation=0, format="RGB565_LE", clipper_width=self._width, clipper_height=self._height)
+            decoder = jpeg.Decoder(rotation=0, format="RGB565_LE", clipper_width=Inkplate._width, clipper_height=Inkplate._height)
             
             # 2. Read file
             with open(path, "rb") as f:
@@ -1520,7 +1520,6 @@ class Inkplate:
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             except:
-                print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             
@@ -1550,7 +1549,7 @@ class Inkplate:
         
         try:
             # 1. Initialize decoder
-            decoder = jpeg.Decoder(rotation=0, format="RGB565_LE", clipper_width=self._width, clipper_height=self._height)
+            decoder = jpeg.Decoder(rotation=0, format="RGB565_LE", clipper_width=Inkplate._width, clipper_height=Inkplate._height)
             
             # 2. Download the image (with timeout and basic error handling)
             response = urequests.get(url, timeout=20)
@@ -1563,7 +1562,6 @@ class Inkplate:
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             except:
-                print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             
