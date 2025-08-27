@@ -40,6 +40,9 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (1, 1, 2, 0),
     (1, 2, 2, 2),
 )
+
+# Lookup mask to clear just that pixel's 2 bits
+pixelMaskGLUT = bytearray(b'\xFC\xF3\xCF\x3F')  # precomputed masks
 # Ink6 WAVEFORM3BIT from arduino driver
 # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
 #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
