@@ -1562,7 +1562,6 @@ class Inkplate:
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             except:
-                print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             
