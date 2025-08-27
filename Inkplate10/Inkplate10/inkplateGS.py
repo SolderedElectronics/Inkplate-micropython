@@ -152,12 +152,11 @@ class InkplateGS2(framebuf.FrameBuffer):
         )
         ip.clean(3, 1)
         ip.power_off()
-    # @micropython.viper
-    def clear(self):
-        self.fill(3)
-        # fb = ptr8(self._framebuf)
-        # for ix in range(int(len(self._framebuf))):
-        #    fb[ix] = 0xFF
+
+    @micropython.viper
+    def clear(fb:ptr8):
+        for ix in range(1200*825//4):
+           fb[ix] = 0xFF
 
 
 Shapes.__mix_me_in(InkplateGS2)
