@@ -150,23 +150,6 @@ class _Inkplate:
             None,
         )
 
-    @classmethod
-    def clearDisplay(self):
-        self.ipg.clear()
-        self.ipm.clear()
-
-    @classmethod
-    def display(self):
-        if self.displayMode == 0:
-            self.ipm.display()
-        elif self.displayMode == 1:
-            self.ipg.display()
-
-    @classmethod
-    def partialUpdate(self):
-        if self.displayMode == 1:
-            return
-        self.ipp.display()
 
     # Read the battery voltage. Note that the result depends on the ADC calibration, and be a bit off.
     @classmethod
@@ -547,10 +530,10 @@ class Inkplate:
             if self.partialUpdateCounter < self.fullUpdateThreshold:
                 self.partialUpdateCounter = self.partialUpdateCounter + 1
                 self.ipp.display()
-                self.ipp.start()
             else:
                 self.partialUpdateCounter = 0
                 self.ipm.display()
+            self.ipp.start()
     def clean(self):
         self.einkOn()
         _Inkplate.clean(0, 1)
