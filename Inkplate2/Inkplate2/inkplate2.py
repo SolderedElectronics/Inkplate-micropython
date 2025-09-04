@@ -367,7 +367,8 @@ class Inkplate:
 
     @classmethod
     def setFont(self, f):
-        self.GFX.font = f
+        self.GFX.font_family = f
+        self.GFX.font=self.GFX.font_family._font
 
     def setCursor(self, x, y):
         self.cursor=[x,y]

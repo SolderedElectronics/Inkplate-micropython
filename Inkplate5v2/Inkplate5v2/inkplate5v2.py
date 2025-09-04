@@ -726,7 +726,8 @@ class Inkplate:
         self.textSize = s
 
     def setFont(self, f):
-        self.GFX.font = f
+        self.GFX.font_family = f
+        self.GFX.font=self.GFX.font_family._font
 
     def resetCursor(self):
         self.cursor=[0,0]

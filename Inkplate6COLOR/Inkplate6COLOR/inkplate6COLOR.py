@@ -125,6 +125,8 @@ class Inkplate:
         self.cursor = [0,0]
         
         self.textColor= 0
+        
+        self.wrap_text = True
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -612,6 +614,9 @@ class Inkplate:
     @classmethod
     def fillRoundRect(self, x, y, q, h, r, c):
         self.GFX.fill_round_rect(x, y, q, h, r, c)
+    @classmethod
+    def setTextWrapping(self, state:bool):
+        self.wrap_text=state
 
     @classmethod
     def setDisplayMode(self, mode):
@@ -631,7 +636,8 @@ class Inkplate:
 
     @classmethod
     def setFont(self, f):
-        self.GFX.font = f
+        self.GFX.font_family = f
+        self.GFX.font=self.GFX.font_family._font
 
     def resetCursor(self):
         self.cursor=[0,0]
@@ -644,6 +650,8 @@ class Inkplate:
             
     def println(self, text):
         self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text)
+        self.cursor[1]+=line_height
+        self.cursor[0]=0
         
     def print(self, text):
         self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text)
@@ -1625,10 +1633,4 @@ class Inkplate:
 
 if __name__ == '__main__':
     print("WARNING: You are running the Inkplate module itself, import this module into your example and use it that way")
-
-
-
-
-
-
 
