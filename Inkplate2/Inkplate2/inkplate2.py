@@ -60,6 +60,7 @@ class Inkplate:
         self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         self.textColor = 1
+        self.textWrapping=1
 
         self.GFX = GFX(
             E_INK_HEIGHT,
@@ -372,17 +373,20 @@ class Inkplate:
 
     def setCursor(self, x, y):
         self.cursor=[x,y]
+    
+    def setTextWrapping(self, state:bool):
+        self.textWrapping=state
 
     def printText(self, x, y, s, c=1):
-        self.GFX._print_text(self._framebuf_BW,x, y, s, self.textSize,c, text_wrap=self.wrap_text, bpp=1)
+        self.GFX._print_text(self._framebuf_BW,x, y, s, self.textSize,c, text_wrap=self.textWrapping, bpp=1)
             
     def println(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=1)
+        self.cursor,line_height = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
         self.cursor[1]+=line_height
         self.cursor[0]=0
         
     def print(self, text):
-        self.cursor,_ = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=1)
+        self.cursor,_ = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
         
     def wrap_text(self,text, max_chars):
         lines = []

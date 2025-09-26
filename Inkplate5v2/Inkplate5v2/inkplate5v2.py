@@ -478,6 +478,8 @@ class Inkplate:
             None,
         )
 
+        self.textWrapping=1
+
     def initSDCard(self, fastBoot=False):
         _Inkplate.SD_ENABLE.digitalWrite(0)
         try:
@@ -729,6 +731,12 @@ class Inkplate:
         self.GFX.font_family = f
         self.GFX.font=self.GFX.font_family._font
 
+    def setTextColor(self, c):
+        self.textColor=c
+    
+    def setTextWrapping(self, state:bool):
+        self.textWrapping=state
+
     def resetCursor(self):
         self.cursor=[0,0]
 
@@ -737,23 +745,23 @@ class Inkplate:
 
     def printText(self, x, y, s):
         if self.displayMode == Inkplate.INKPLATE_2BIT:
-            self.GFX._print_text(self.ipg._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=2)
+            self.GFX._print_text(self.ipg._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=2)
         else:
-            self.GFX._print_text(self.ipm._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=1)
+            self.GFX._print_text(self.ipm._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
             
     def println(self, text):
         if self.displayMode == Inkplate.INKPLATE_2BIT:
-            self.cursor,line_height = self.GFX._print_text(self.ipg._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=2)
+            self.cursor,line_height = self.GFX._print_text(self.ipg._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=2)
         else:
-            self.cursor,line_height = self.GFX._print_text(self.ipm._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=1)
+            self.cursor,line_height = self.GFX._print_text(self.ipm._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
         self.cursor[1]+=line_height
         self.cursor[0]=0
         
     def print(self, text):
         if self.displayMode == Inkplate.INKPLATE_2BIT:
-            self.cursor,line_height = self.GFX._print_text(self.ipg._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=2)
+            self.cursor,line_height = self.GFX._print_text(self.ipg._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=2)
         else:
-            self.cursor,_ = self.GFX._print_text(self.ipm._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text, bpp=1)
+            self.cursor,_ = self.GFX._print_text(self.ipm._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
         
     def wrap_text(self,text, max_chars):
         lines = []

@@ -126,7 +126,7 @@ class Inkplate:
         
         self.textColor= 0
         
-        self.wrap_text = True
+        self.textWrapping = 1
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
@@ -616,7 +616,7 @@ class Inkplate:
         self.GFX.fill_round_rect(x, y, q, h, r, c)
     @classmethod
     def setTextWrapping(self, state:bool):
-        self.wrap_text=state
+        self.textWrapping=state
 
     @classmethod
     def setDisplayMode(self, mode):
@@ -646,15 +646,15 @@ class Inkplate:
         self.cursor=[x,y]
 
     def printText(self, x, y, s):
-        self.GFX._print_text(self._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.wrap_text)
+        self.GFX._print_text(self._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.textWrapping)
             
     def println(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text)
+        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping)
         self.cursor[1]+=line_height
         self.cursor[0]=0
         
     def print(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.wrap_text)
+        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping)
         
     def wrap_text(self,text, max_chars):
         lines = []
