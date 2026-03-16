@@ -406,6 +406,7 @@ class GFX:
         
         wrap_text = kwargs.get('text_wrap', False)
         BYTES_PER_ROW = getattr(self, 'phys_row_bytes', DISPLAY_WIDTH // 2)
+        rotation = getattr(self, 'rotation', 1)
 
         # Color handling
         color = args[0] if args else 1  # Default to white
@@ -436,7 +437,7 @@ class GFX:
                 GFX._draw_char_4bpp(
                         framebuf, x, y, char_data, ch_w, ch_h,
                         size, color, BYTES_PER_ROW,
-                        DISPLAY_WIDTH, DISPLAY_HEIGHT
+                        DISPLAY_WIDTH, DISPLAY_HEIGHT, rotation
                     )
                 x += ch_w * size
             except (ValueError, TypeError):
@@ -467,7 +468,7 @@ class GFX:
                     GFX._draw_char_4bpp(
                             framebuf, x, y, char_data, ch_w, ch_h,
                             size, color, BYTES_PER_ROW,
-                            DISPLAY_WIDTH, DISPLAY_HEIGHT
+                            DISPLAY_WIDTH, DISPLAY_HEIGHT, rotation
                         )
                     x += ch_w * size
         return [x,y], line_height
@@ -476,26 +477,27 @@ class GFX:
     def _draw_char_4bpp(framebuf: ptr8, x0: int, y0: int, char_data: ptr8,
                         width: int, height: int, size: int,
                         color: int, bytes_per_row: int,
-                        display_width: int, display_height: int):
+                        display_width: int, display_height: int, rotation: int):
         """
-        4bpp character draw with rotation 1 transform (landscape).
-        Logical (x_pos, y_pos) -> physical (dx=y_pos, dy=display_width-1-x_pos).
+        4bpp character draw with rotation-aware transform.
+        Applies the same coordinate mapping as writePixel for each rotation:
+          rot 0: dx = display_width-1-x,  dy = display_height-1-y
+          rot 1: dx = y,                  dy = display_width-1-x
+          rot 2: dx = x,                  dy = y  (no transform)
+          rot 3: dx = display_height-1-y, dy = x
         bytes_per_row is the physical framebuffer row width (D_COLS // 2).
-        Nibble order: even x -> high nibble.
+        Nibble order: even physical x -> high nibble.
         """
         shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')
         color = int(color) & 0x0F
-        # Masks for nibble writes (avoid bitwise ~ in viper)
-        CLR_LOW  = 0xF0  # clears low  nibble
-        CLR_HIGH = 0x0F  # clears high nibble
+        CLR_LOW  = 0xF0  # clears low  nibble (preserves high)
+        CLR_HIGH = 0x0F  # clears high nibble (preserves low)
 
-        # Iterate glyph bitmap rows/cols (source coords)
         for row in range(height):
             row_bytes = (width + 7) >> 3
             row_offset = row * row_bytes
             y_base = y0 + row * size
 
-            # quick reject on source coords
             if (y_base + size) <= 0 or y_base >= display_height:
                 continue
 
@@ -507,7 +509,6 @@ class GFX:
                     if (x_base + size) <= 0 or x_base >= display_width:
                         continue
 
-                    # scaled "on" pixel block
                     for sy in range(size):
                         y_pos = y_base + sy
                         if y_pos < 0:
@@ -520,18 +521,26 @@ class GFX:
                             if x_pos < 0 or x_pos >= display_width:
                                 continue
 
-                            # Rotation 1 transform: physical_x = y_pos, physical_y = display_width - 1 - x_pos
-                            dx = y_pos
-                            dy = display_width - 1 - x_pos
+                            # Apply the same rotation transform as writePixel
+                            if rotation == 1:
+                                dx = y_pos
+                                dy = display_width - 1 - x_pos
+                            elif rotation == 3:
+                                dx = display_height - 1 - y_pos
+                                dy = x_pos
+                            elif rotation == 0:
+                                dx = display_width - 1 - x_pos
+                                dy = display_height - 1 - y_pos
+                            else:  # rotation == 2
+                                dx = x_pos
+                                dy = y_pos
 
-                            fb_idx = dy * bytes_per_row + (dx >> 1)  # 2 pixels per byte (4bpp)
+                            fb_idx = dy * bytes_per_row + (dx >> 1)
                             fb = int(framebuf[fb_idx])
 
                             if (dx & 1) == 0:
-                                # even dest x -> high nibble
                                 framebuf[fb_idx] = (fb & CLR_HIGH) | (color << 4)
                             else:
-                                # odd dest x  -> low nibble
                                 framebuf[fb_idx] = (fb & CLR_LOW) | color
 
 

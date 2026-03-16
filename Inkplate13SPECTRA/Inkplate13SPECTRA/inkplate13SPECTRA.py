@@ -190,6 +190,8 @@ class Inkplate:
         self.GFX.phys_row_bytes = D_COLS // 2
         # Color palette for mapping user indices to panel values in text rendering
         self.GFX.color_palette = self._colorPalette
+        # Sync rotation so text rendering applies the correct transform
+        self.GFX.rotation = self.rotation
 
         self.setPCALForLowPower()
 
@@ -539,6 +541,7 @@ class Inkplate:
             self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
+        self.GFX.rotation = self.rotation
 
     @classmethod
     def getRotation(self):
