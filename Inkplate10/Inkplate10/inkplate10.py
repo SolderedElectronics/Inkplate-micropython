@@ -564,6 +564,7 @@ class Inkplate:
     # Arduino compatibility functions
     def setRotation(self, x):
         self.rotation = x % 4
+        self.GFX.rotation = self.rotation
         if self.rotation == 0 or self.rotation == 2:
             self.GFX.width = D_COLS
             self.GFX.height = D_ROWS

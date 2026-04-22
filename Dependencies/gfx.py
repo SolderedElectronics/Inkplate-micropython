@@ -58,6 +58,11 @@ class GFX:
     ):
         self.width = width
         self.height = height
+        # Physical framebuffer dimensions, unchanged by setRotation. Used
+        # by _print_text to compute the correct stride and remap pixels.
+        self.phys_width = width
+        self.phys_height = height
+        self.rotation = 0
         self._pixel = pixel
         # Default to slow horizontal & vertical line implementations if no
         # faster versions are provided.
@@ -399,15 +404,20 @@ class GFX:
                 
     def _print_text(self, framebuf, x0, y0, string, size, *args, **kwargs):
         """Optimized text rendering for 1bpp and 2bpp framebuffers with text wrapping"""
-        # Display parameters (adjust to your display)
+        # Logical (possibly rotated) clip bounds
         DISPLAY_WIDTH = self.width
         DISPLAY_HEIGHT = self.height
-        
+
         # Default to 2bpp if not specified
         bpp = kwargs.get('bpp', 2)
-        
+
         wrap_text = kwargs.get('text_wrap', False)
-        BYTES_PER_ROW = (DISPLAY_WIDTH * bpp) // 8
+        # Stride is based on the PHYSICAL framebuffer width, not the logical
+        # (rotated) width — the framebuffer layout doesn't change with rotation.
+        rotation = self.rotation
+        phys_w = self.phys_width
+        phys_h = self.phys_height
+        BYTES_PER_ROW = (phys_w * bpp) // 8
         
         # Color handling
         color = args[0] if args else (1 if bpp == 1 else 3)  # Default to white
@@ -437,13 +447,15 @@ class GFX:
                     GFX._draw_char_1bpp(
                         framebuf, x, y, char_data, ch_w, ch_h,
                         size, color, BYTES_PER_ROW,
-                        DISPLAY_WIDTH, DISPLAY_HEIGHT
+                        DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                        rotation, phys_w, phys_h
                     )
                 else:
                     GFX._draw_char_2bpp(
                         framebuf, x, y, char_data, ch_w, ch_h,
                         size, color, BYTES_PER_ROW,
-                        DISPLAY_WIDTH, DISPLAY_HEIGHT
+                        DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                        rotation, phys_w, phys_h
                     )
                 x += ch_w * size
             except (ValueError, TypeError):
@@ -474,13 +486,15 @@ class GFX:
                         GFX._draw_char_1bpp(
                             framebuf, x, y, char_data, ch_w, ch_h,
                             size, color, BYTES_PER_ROW,
-                            DISPLAY_WIDTH, DISPLAY_HEIGHT
+                            DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                            rotation, phys_w, phys_h
                         )
                     else:
                         GFX._draw_char_2bpp(
                             framebuf, x, y, char_data, ch_w, ch_h,
                             size, color, BYTES_PER_ROW,
-                            DISPLAY_WIDTH, DISPLAY_HEIGHT
+                            DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                            rotation, phys_w, phys_h
                         )
                     x += ch_w * size
         return [x,y], line_height
@@ -489,89 +503,117 @@ class GFX:
     def _draw_char_1bpp(framebuf: ptr8, x0: int, y0: int, char_data: ptr8,
                        width: int, height: int, size: int,
                        color: int, bytes_per_row: int,
-                       display_width: int, display_height: int):
-        """Optimized 1bpp character drawing"""
-        shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')  # Bit masks
-        color_bit = 0x01 if color else 0x00
-        
+                       display_width: int, display_height: int,
+                       rotation: int, phys_w: int, phys_h: int):
+        """Optimized 1bpp character drawing with rotation-aware pixel remap.
+
+        (x0,y0) and display_width/height are in LOGICAL (post-rotation) coords.
+        bytes_per_row and phys_w/phys_h describe the PHYSICAL framebuffer.
+        """
+        shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')
+
         for row in range(height):
             row_bytes = (width + 7) // 8
             row_offset = row * row_bytes
-            
+
             for col in range(width):
                 byte_idx = col // 8
                 bit_mask = int(shift_mask[col % 8])
                 pixel_on = int(char_data[row_offset + byte_idx]) & bit_mask
-                
+
                 if pixel_on:
                     x_base = x0 + col * size
                     y_base = y0 + row * size
-                    
-                    # Clip to display bounds
+
                     if x_base >= display_width or y_base >= display_height:
                         continue
-                    if x_base < 0 or y_base < 0:
+                    if x_base + size <= 0 or y_base + size <= 0:
                         continue
-                    
-                    # Handle scaling
+
                     for sy in range(size):
                         y_pos = y_base + sy
-                        if y_pos >= display_height:
-                            break
+                        if y_pos < 0 or y_pos >= display_height:
+                            continue
                         for sx in range(size):
                             x_pos = x_base + sx
-                            if x_pos < display_width and x_pos >= 0:
-                                # Calculate framebuffer position (1bpp specific)
-                                fb_idx = y_pos * bytes_per_row + (x_pos // 8)
-                                shift =(x_pos % 8)
-                                
-                                # Set or clear the bit
-                                if color:
-                                    framebuf[fb_idx] |= (1 << shift)
-                                else:
-                                    framebuf[fb_idx] &= ~(1 << shift)
+                            if x_pos < 0 or x_pos >= display_width:
+                                continue
+
+                            # Remap logical (x_pos,y_pos) to physical (px,py)
+                            if rotation == 0:
+                                px = x_pos
+                                py = y_pos
+                            elif rotation == 1:
+                                px = y_pos
+                                py = phys_h - 1 - x_pos
+                            elif rotation == 2:
+                                px = phys_w - 1 - x_pos
+                                py = phys_h - 1 - y_pos
+                            else:
+                                px = phys_w - 1 - y_pos
+                                py = x_pos
+
+                            fb_idx = py * bytes_per_row + (px >> 3)
+                            shift = px & 7
+
+                            if color:
+                                framebuf[fb_idx] |= (1 << shift)
+                            else:
+                                framebuf[fb_idx] &= ~(1 << shift)
 
     @micropython.viper
     def _draw_char_2bpp(framebuf: ptr8, x0: int, y0: int, char_data: ptr8,
                        width: int, height: int, size: int,
                        color: int, bytes_per_row: int,
-                       display_width: int, display_height: int):
-        """Optimized 2bpp character drawing"""
-        shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')  # Bit masks
-        
+                       display_width: int, display_height: int,
+                       rotation: int, phys_w: int, phys_h: int):
+        """Optimized 2bpp character drawing with rotation-aware pixel remap."""
+        shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')
+
         for row in range(height):
             row_bytes = (width + 7) // 8
             row_offset = row * row_bytes
-            
+
             for col in range(width):
                 byte_idx = col // 8
                 bit_mask = int(shift_mask[col % 8])
                 pixel_on = int(char_data[row_offset + byte_idx]) & bit_mask
-                
+
                 if pixel_on:
                     x_base = x0 + col * size
                     y_base = y0 + row * size
-                    
-                    # Clip to display bounds
+
                     if x_base >= display_width or y_base >= display_height:
                         continue
-                    if x_base < 0 or y_base < 0:
+                    if x_base + size <= 0 or y_base + size <= 0:
                         continue
-                    
-                    # Handle scaling
+
                     for sy in range(size):
                         y_pos = y_base + sy
-                        if y_pos >= display_height:
-                            break
+                        if y_pos < 0 or y_pos >= display_height:
+                            continue
                         for sx in range(size):
                             x_pos = x_base + sx
-                            if x_pos < display_width and x_pos >= 0:
-                                # Calculate framebuffer position (2bpp specific)
-                                fb_idx = y_pos * bytes_per_row + (x_pos // 4)
-                                shift =((x_pos % 4) * 2)
-                                
-                                # Clear existing bits and set new color
-                                framebuf[fb_idx] = (framebuf[fb_idx] & ~(0x03 << shift)) | (color << shift)
+                            if x_pos < 0 or x_pos >= display_width:
+                                continue
+
+                            if rotation == 0:
+                                px = x_pos
+                                py = y_pos
+                            elif rotation == 1:
+                                px = y_pos
+                                py = phys_h - 1 - x_pos
+                            elif rotation == 2:
+                                px = phys_w - 1 - x_pos
+                                py = phys_h - 1 - y_pos
+                            else:
+                                px = phys_w - 1 - y_pos
+                                py = x_pos
+
+                            fb_idx = py * bytes_per_row + (px >> 2)
+                            shift = (px & 3) << 1
+
+                            framebuf[fb_idx] = (framebuf[fb_idx] & ~(0x03 << shift)) | (color << shift)
         
 
 

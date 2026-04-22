@@ -675,6 +675,7 @@ class Inkplate:
     def setRotation(self, x):
         self.rotation = x % 4
         _Inkplate.rotation = x % 4
+        self.GFX.rotation = self.rotation
 
         if self.rotation == 0 or self.rotation == 2:
             self.GFX.width = D_COLS
