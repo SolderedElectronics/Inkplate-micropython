@@ -1,5 +1,8 @@
-# This example will show you how to connect to WiFi
-# get data from the internet and then print it
+# FILE: Inkplate2-exampleNetwork.py
+# AUTHOR: Soldered
+# BRIEF: An example showing how to connect to WiFi
+#        and get data from the internet
+# LAST UPDATED: 2025-08-12
 
 # Include needed libraries
 import network
@@ -7,8 +10,8 @@ import time
 from inkplate2 import Inkplate
 
 # Enter your WiFi credentials here
-ssid = "Soldered"
-password = "dasduino"
+ssid = "ENTER_SSID_HERE"
+password = "ENTER_PASSWORD_HERE"
 
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
@@ -42,30 +45,25 @@ def http_get(url):
     s.close()
     return res
 
-# Main function
-if __name__ == "__main__":
 
-    # First, connect
-    do_connect()
+# First, connect
+do_connect()
 
-    # Do a GET request to the micropython test page
-    # If you were to do a GET request to a different page/resource, change the URL here
-    response = http_get("http://micropython.org/ks/test.html")
+# Do a GET request to the micropython test page
+# If you were to do a GET request to a different page/resource, change the URL here
+response = http_get("http://micropython.org/ks/test.html")
 
-    # Create and initialize our Inkplate object
-    display = Inkplate()
-    display.begin()
+# Create and initialize our Inkplate object in 1-bit mode
+inkplate = Inkplate()
+inkplate.begin()
 
-    # Print response line by line
-    cnt = 0
-    for x in response.split("\n"):
-        display.printText(
-            2, 2 + cnt, x.upper()
-        )  # Default font has only upper case letters
-        cnt += 10
+# Set text size to double from the original size, so we can see the text better
+inkplate.setTextSize(1)
 
-        # Also print to terminal because the screen is small
-        print(x)
+# Print response line by line
+inkplate.print(response)
 
-    # Display image from buffer
-    display.display()
+print(response)
+
+# Display image from buffer in full refresh
+inkplate.display()
