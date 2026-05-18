@@ -12,16 +12,16 @@ Original effort to enable MicroPython support for Inkplate was done by [tve](htt
 ### Setting up Inkplate with MicroPython
 
 In order to get started with running your code on Inkplate, connect the device to your computer via USB and follow these steps:
-1. Download the Inkplate-firmware.bin file onto your computer
+1. Download the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file onto your computer
 
 2. Flash the aformentioned firmware onto the Inkplate device, this can be done via our [Micropython VSCode Extention](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper) or the [Thonny IDE](https://thonny.org/)
 
 #### Flashing with the VSCode extension
-After [setting up the VSCode extension](https://soldered.com/documentation/micropython/getting-started-with-vscode/), go to  `Install Micropython on your board` and pick `Upload Binary file from PC`, pick the Inkplate-firmware.bin file and wait for it to flash on the device
+After [setting up the VSCode extension](https://soldered.com/documentation/micropython/getting-started-with-vscode/), go to  `Install Micropython on your board` and pick `Upload Binary file from PC`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file and wait for it to flash on the device
 
 #### Flashing via Thonny IDE
 
-In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the window go to `Install or update Micropython`. On the bottom of that window click on the `≡` button and pick `Select local MicroPython image`, pick the Inkplate-firmware.bin file on your computer and press `Install`
+In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the window go to `Install or update Micropython`. On the bottom of that window click on the `≡` button and pick `Select local MicroPython image`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file on your computer and press `Install`
 
 3. [Install the mpremote package](https://docs.micropython.org/en/latest/reference/mpremote.html)
 

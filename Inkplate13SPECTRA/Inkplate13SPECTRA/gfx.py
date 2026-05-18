@@ -406,29 +406,33 @@ class GFX:
         
         wrap_text = kwargs.get('text_wrap', False)
         BYTES_PER_ROW = getattr(self, 'phys_row_bytes', DISPLAY_WIDTH // 2)
-        rotation = getattr(self, 'rotation', 0)
+        rotation = getattr(self, 'rotation', 1)
 
         # Color handling
         color = args[0] if args else 1  # Default to white
         color = min(max(color, 0), 5)
-
+        # Map user color index to panel value via palette
+        palette = getattr(self, 'color_palette', None)
+        if palette:
+            color = palette[color]
+        
         x = int(x0)
         y = int(y0)
         line_height = 0  # Will be set when we draw the first character
-
+        
         for chunk in string.split("__"):
             try:
                 # Try to draw as special character first
                 char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
                 line_height = max(line_height, ch_h * size)
-
+                
                 if wrap_text==True:
                     # Check if this would go beyond display width
                     if x + ch_w * size > DISPLAY_WIDTH:
                         x = 0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = ch_h * size  # Reset line height for new line
-
+                
 
                 GFX._draw_char_4bpp(
                         framebuf, x, y, char_data, ch_w, ch_h,
@@ -445,22 +449,22 @@ class GFX:
                         y += line_height  # Move to next line
                         line_height = 0  # Reset line height for new line
                         continue
-
+                        
                     try:
                         char_data, ch_h, ch_w = self.font_family.get_ch(char)
                     except (ValueError, TypeError):
                         char_data, ch_h, ch_w = self.font_family.get_ch("?")
-
+                    
                     line_height = max(line_height, ch_h * size)
-
+                    
                     # Check if this character would go beyond display width
                     if wrap_text==True:
                         if x + ch_w * size > DISPLAY_WIDTH:
                             x = 0  # Reset to initial x position
                             y += line_height  # Move to next line
                             line_height = ch_h * size  # Reset line height for new line
-
-
+                    
+                    
                     GFX._draw_char_4bpp(
                             framebuf, x, y, char_data, ch_w, ch_h,
                             size, color, BYTES_PER_ROW,
@@ -474,16 +478,16 @@ class GFX:
                         width: int, height: int, size: int,
                         color: int, bytes_per_row: int,
                         display_width: int, display_height: int, rotation: int):
-        “””
+        """
         4bpp character draw with rotation-aware transform.
         Applies the same coordinate mapping as writePixel for each rotation:
           rot 0: dx = display_width-1-x,  dy = display_height-1-y
-          rot 1: dx = display_height-1-y, dy = x
+          rot 1: dx = y,                  dy = display_width-1-x
           rot 2: dx = x,                  dy = y  (no transform)
-          rot 3: dx = y,                  dy = display_width-1-x
+          rot 3: dx = display_height-1-y, dy = x
         bytes_per_row is the physical framebuffer row width (D_COLS // 2).
         Nibble order: even physical x -> high nibble.
-        “””
+        """
         shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')
         color = int(color) & 0x0F
         CLR_LOW  = 0xF0  # clears low  nibble (preserves high)
@@ -518,15 +522,15 @@ class GFX:
                                 continue
 
                             # Apply the same rotation transform as writePixel
-                            if rotation == 0:
-                                dx = display_width - 1 - x_pos
-                                dy = display_height - 1 - y_pos
-                            elif rotation == 1:
-                                dx = display_height - 1 - y_pos
-                                dy = x_pos
-                            elif rotation == 3:
+                            if rotation == 1:
                                 dx = y_pos
                                 dy = display_width - 1 - x_pos
+                            elif rotation == 3:
+                                dx = display_height - 1 - y_pos
+                                dy = x_pos
+                            elif rotation == 0:
+                                dx = display_width - 1 - x_pos
+                                dy = display_height - 1 - y_pos
                             else:  # rotation == 2
                                 dx = x_pos
                                 dy = y_pos
@@ -544,8 +548,8 @@ class GFX:
     @micropython.viper
     def rotate_framebuffer(fb: ptr8):
         """Rotate 4bpp framebuffer 180° in place (width/height in pixels)"""
-        width:int = 600
-        height:int = 448
+        width:int = 1200
+        height:int = 1600
         bytes_per_row = width >> 1  # 2 pixels per byte
         total_bytes = bytes_per_row * height
         half_bytes = total_bytes >> 1  # only need to swap first half with second half
@@ -580,3 +584,4 @@ class GFX:
         """
         self.text_bkgnd_args = args
         self.text_bkgnd_kwargs = kwargs
+
