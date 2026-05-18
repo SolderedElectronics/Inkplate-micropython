@@ -140,6 +140,8 @@ class Inkplate:
             None,
             None,
         )
+        self.GFX.phys_row_bytes = D_COLS // 2
+        self.GFX.rotation = self.rotation
 
         self.resetPanel()
 
@@ -490,6 +492,7 @@ class Inkplate:
             self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
+        self.GFX.rotation = self.rotation
 
     @classmethod
     def getRotation(self):
