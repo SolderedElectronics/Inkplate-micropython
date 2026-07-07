@@ -10,27 +10,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build check (placeholder)
-        run: echo "No C module/firmware to build yet — real check lands with Phase 1."
+      - uses: actions/checkout@v5
+      - name: Build check (host-compiled C sources)
+        run: gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/board_config.c -o /dev/null
 
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install ruff
         run: pip install -r requirements-dev.txt
       - name: ruff format --check (Python)
         run: ruff format --check .
-      - name: clang-format check (placeholder)
-        run: echo "No C sources yet — real check lands with Phase 1."
+      - name: clang-format check (C)
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang-format
+          clang-format --dry-run --Werror $(find firmware -name '*.c' -o -name '*.h')
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Unit test runner (placeholder)
-        run: echo "No host-compiled C tests yet — real check lands with Phase 1."
+      - uses: actions/checkout@v5
+      - name: Unit test runner (host-compiled C tests)
+        run: |
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_board_config.c \
+            firmware/usermods/inkplate/board_config.c \
+            -o /tmp/test_board_config
+          /tmp/test_board_config

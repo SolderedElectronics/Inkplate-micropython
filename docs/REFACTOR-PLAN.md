@@ -31,7 +31,7 @@ Firmware build (MicroPython + ESP-IDF) is the user's own responsibility — not 
 
 ## Phase 1 — Board-config abstraction (data only, no transport)
 
-5. Define a C `board_config` struct: resolution, data-bus pin list, control pins (CL/LE/CKV/SPH), PCAL6416A pin assignments (OE/GMODE/SPV), PMIC I2C address, waveform table pointer, feature flags (touch/frontlight). Populate the Inkplate10 instance from confirmed constants above. **Verify**: host-compiled C unit test instantiates config, asserts fields match known Inkplate10 values.
+5. **[DONE]** Define a C `board_config` struct: resolution, data-bus pin list, control pins (CL/LE/CKV/SPH), PCAL6416A pin assignments (OE/GMODE/SPV), PMIC I2C address, waveform table pointer, feature flags (touch/frontlight). Populate the Inkplate10 instance from confirmed constants above. **Verify**: host-compiled C unit test instantiates config, asserts fields match known Inkplate10 values. **Verified**: `firmware/usermods/inkplate/board_config.{h,c}` + `tests/test_board_config.c`, host-compiled with gcc, all assertions pass; CI `build`/`format`/`test` jobs wired to real checks (were placeholders since Phase 0).
 6. Decide + implement how C reaches the PCAL6416A-controlled lines (OE/GMODE/SPV — not in the hot per-row loop, so keep `PCAL6416A.py` in Python, expose a clean C-callable interface, revisit only if timing demands otherwise). **Verify (HIL)**: toggle each line via the new interface, confirm with multimeter/logic analyzer or observed PMIC behavior.
 
 ## Phase 2 — De-risk: bit-bang control lines in C (no DMA yet)
