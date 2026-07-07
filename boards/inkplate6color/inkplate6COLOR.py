@@ -79,6 +79,7 @@ RTC_RAM_by = 0x03
 RTC_DAY_ADDR = 0x07
 RTC_SECOND_ADDR = 0x04
 
+
 class Inkplate:
     BLACK = const(0b00000000)  # 0
     WHITE = const(0b00000001)  # 1
@@ -87,11 +88,11 @@ class Inkplate:
     RED = const(0b00000100)  # 4
     YELLOW = const(0b00000101)  # 5
     ORANGE = const(0b00000110)  # 6
-    
+
     KERNEL_FLOYD_STEINBERG = 0
-    KERNEL_JJN             = 1
-    KERNEL_STUCKI          = 2
-    KERNEL_BURKES          = 3
+    KERNEL_JJN = 1
+    KERNEL_STUCKI = 2
+    KERNEL_BURKES = 3
 
     _width = D_COLS
     _height = D_ROWS
@@ -121,11 +122,11 @@ class Inkplate:
         self.VBAT.width(ADC.WIDTH_12BIT)
         self.VBAT_EN = gpioPin(self._PCAL6416A, 9, modeOUTPUT)
         self.VBAT_EN.digitalWrite(0)
-        
-        self.cursor = [0,0]
-        
-        self.textColor= 0
-        
+
+        self.cursor = [0, 0]
+
+        self.textColor = 0
+
         self.textWrapping = 1
 
         self.framebuf = bytearray(D_ROWS * D_COLS // 2)
@@ -170,7 +171,7 @@ class Inkplate:
         self.sendData(b"\x20")
         self.sendCommand(RESOLUTION_SET_REGISTER)
         self.sendData(b"\x02\x58\x01\xc0")
-        self.sendCommand(b"\xE3")
+        self.sendCommand(b"\xe3")
         self.sendData(b"\xaa")
 
         time.sleep_ms(100)
@@ -188,16 +189,15 @@ class Inkplate:
         # self.SD_ENABLE.digitalWrite(0)
         try:
             os.mount(
-                SDCard(
-                    slot=3,
-                    miso=Pin(12),
-                    mosi=Pin(13),
-                    sck=Pin(14),
-                    cs=Pin(15)),
-                "/sd"
+                SDCard(slot=3, miso=Pin(12), mosi=Pin(13), sck=Pin(14), cs=Pin(15)),
+                "/sd",
             )
             if fastBoot == True:
-                if machine.reset_cause() == machine.PWRON_RESET or machine.reset_cause() == machine.HARD_RESET or machine.reset_cause() == machine.WDT_RESET:
+                if (
+                    machine.reset_cause() == machine.PWRON_RESET
+                    or machine.reset_cause() == machine.HARD_RESET
+                    or machine.reset_cause() == machine.WDT_RESET
+                ):
                     machine.soft_reset()
         except:
             print("Sd card could not be read")
@@ -212,7 +212,6 @@ class Inkplate:
 
     @classmethod
     def setPCALForLowPower(self):
-
         for x in range(16):
             self._PCAL6416A.pinMode(int(x), modeOUTPUT)
             self._PCAL6416A.digitalWrite(int(x), 0)
@@ -244,7 +243,9 @@ class Inkplate:
 
             # Wait until panel is ready
             start_time = time.ticks_ms()
-            while (not self.EPAPER_BUSY_PIN.value()) and (time.ticks_diff(time.ticks_ms(), start_time) < 1500):
+            while (not self.EPAPER_BUSY_PIN.value()) and (
+                time.ticks_diff(time.ticks_ms(), start_time) < 1500
+            ):
                 pass
 
             if not self.EPAPER_BUSY_PIN.value():
@@ -279,7 +280,7 @@ class Inkplate:
             self.sendCommand(RESOLUTION_SET_REGISTER)
             self.sendData(res_set_data)
 
-            self.sendCommand("\xE3")
+            self.sendCommand("\xe3")
             self.sendData(bytearray([0xAA]))
 
             time.sleep_ms(100)
@@ -302,10 +303,10 @@ class Inkplate:
             # SPI deinit removed per instructions
 
             # Set SPI pins low
-            #self.EPAPER_CLK.init(self.EPAPER_CLK.OUT)
-            #self.EPAPER_DIN.init(self.EPAPER_DIN.OUT)
-            #self.EPAPER_CLK.value(0)
-            #self.EPAPER_DIN.value(0)
+            # self.EPAPER_CLK.init(self.EPAPER_CLK.OUT)
+            # self.EPAPER_DIN.init(self.EPAPER_DIN.OUT)
+            # self.EPAPER_CLK.value(0)
+            # self.EPAPER_DIN.value(0)
 
             return True
 
@@ -368,7 +369,7 @@ class Inkplate:
             pass
 
         time.sleep_ms(200)
-        
+
         self.setPanelDeepSleep(True)
 
     @classmethod
@@ -385,13 +386,15 @@ class Inkplate:
 
     @classmethod
     def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
-        data = bytearray([
-            RTC_RAM_by,
-            170,  # Write in RAM 170 to know that RTC is set
-            cls.rtc_dec_to_bcd(rtc_second),
-            cls.rtc_dec_to_bcd(rtc_minute),
-            cls.rtc_dec_to_bcd(rtc_hour)
-        ])
+        data = bytearray(
+            [
+                RTC_RAM_by,
+                170,  # Write in RAM 170 to know that RTC is set
+                cls.rtc_dec_to_bcd(rtc_second),
+                cls.rtc_dec_to_bcd(rtc_minute),
+                cls.rtc_dec_to_bcd(rtc_hour),
+            ]
+        )
 
         cls.wire.writeto(RTC_I2C_ADDR, data)
 
@@ -399,20 +402,24 @@ class Inkplate:
     def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
         rtcYear = rtc_yr - 2000
 
-        data = bytearray([
-            RTC_RAM_by,
-            170,  # Write in RAM 170 to know that RTC is set
-        ])
+        data = bytearray(
+            [
+                RTC_RAM_by,
+                170,  # Write in RAM 170 to know that RTC is set
+            ]
+        )
 
         cls.wire.writeto(RTC_I2C_ADDR, data)
 
-        data = bytearray([
-            RTC_DAY_ADDR,
-            cls.rtc_dec_to_bcd(rtc_day),
-            cls.rtc_dec_to_bcd(rtc_weekday),
-            cls.rtc_dec_to_bcd(rtc_month),
-            cls.rtc_dec_to_bcd(rtcYear),
-        ])
+        data = bytearray(
+            [
+                RTC_DAY_ADDR,
+                cls.rtc_dec_to_bcd(rtc_day),
+                cls.rtc_dec_to_bcd(rtc_weekday),
+                cls.rtc_dec_to_bcd(rtc_month),
+                cls.rtc_dec_to_bcd(rtcYear),
+            ]
+        )
 
         cls.wire.writeto(RTC_I2C_ADDR, data)
 
@@ -430,13 +437,13 @@ class Inkplate:
         rtc_year = cls.rtc_bcd_to_dec(data[6]) + 2000
 
         return {
-            'second': rtc_second,
-            'minute': rtc_minute,
-            'hour': rtc_hour,
-            'day': rtc_day,
-            'weekday': rtc_weekday,
-            'month': rtc_month,
-            'year': rtc_year
+            "second": rtc_second,
+            "minute": rtc_minute,
+            "hour": rtc_hour,
+            "day": rtc_day,
+            "weekday": rtc_weekday,
+            "month": rtc_month,
+            "year": rtc_year,
         }
 
     @classmethod
@@ -513,7 +520,7 @@ class Inkplate:
     def writePixel(self, x, y, c):
         w = self.width()
         h = self.height()
-        
+
         if x < 0 or y < 0 or x >= w or y >= h:
             return
 
@@ -531,9 +538,9 @@ class Inkplate:
         shift = (x & 1) * 4
         mask = pixelMaskGLUT[x & 1]
 
-        self._framebuf[idx + (x >> 1)] = (self._framebuf[idx + (x >> 1)] & mask) | (c << (4 - shift))
-
-
+        self._framebuf[idx + (x >> 1)] = (self._framebuf[idx + (x >> 1)] & mask) | (
+            c << (4 - shift)
+        )
 
     @classmethod
     def writeFillRect(self, x, y, w, h, c):
@@ -550,6 +557,7 @@ class Inkplate:
     def writeFastHLine(self, x, y, w, c):
         for i in range(w):
             self.writePixel(x + i, y, c)
+
     @classmethod
     def setTextColor(self, c):
         self.textColor = c
@@ -617,9 +625,10 @@ class Inkplate:
     @classmethod
     def fillRoundRect(self, x, y, q, h, r, c):
         self.GFX.fill_round_rect(x, y, q, h, r, c)
+
     @classmethod
-    def setTextWrapping(self, state:bool):
-        self.textWrapping=state
+    def setTextWrapping(self, state: bool):
+        self.textWrapping = state
 
     @classmethod
     def setDisplayMode(self, mode):
@@ -640,31 +649,55 @@ class Inkplate:
     @classmethod
     def setFont(self, f):
         self.GFX.font_family = f
-        self.GFX.font=self.GFX.font_family._font
+        self.GFX.font = self.GFX.font_family._font
 
     def resetCursor(self):
-        self.cursor=[0,0]
+        self.cursor = [0, 0]
 
     def setCursor(self, x, y):
-        self.cursor=[x,y]
+        self.cursor = [x, y]
 
     def printText(self, x, y, s):
-        self.GFX._print_text(self._framebuf,x, y, s, self.textSize, self.textColor, text_wrap=self.textWrapping)
-            
+        self.GFX._print_text(
+            self._framebuf,
+            x,
+            y,
+            s,
+            self.textSize,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
+
     def println(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping)
-        self.cursor[1]+=line_height
-        self.cursor[0]=0
-        
+        self.cursor, line_height = self.GFX._print_text(
+            self._framebuf,
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.textSize,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
+        self.cursor[1] += line_height
+        self.cursor[0] = 0
+
     def print(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping)
-        
-    def wrap_text(self,text, max_chars):
+        self.cursor, line_height = self.GFX._print_text(
+            self._framebuf,
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.textSize,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
+
+    def wrap_text(self, text, max_chars):
         lines = []
-        for paragraph in text.split('\n'):
+        for paragraph in text.split("\n"):
             while len(paragraph) > max_chars:
                 # Find last space within limit
-                wrap_at = paragraph.rfind(' ', 0, max_chars)
+                wrap_at = paragraph.rfind(" ", 0, max_chars)
                 if wrap_at == -1:
                     wrap_at = max_chars
                 lines.append(paragraph[:wrap_at])
@@ -672,24 +705,23 @@ class Inkplate:
             if paragraph:
                 lines.append(paragraph)
         return lines
-    
+
     def drawTextBox(self, x0, y0, x1, y1, text, line_height=20, text_size=None):
-        
         if text_size != None:
             self.setTextSize(text_size)
-        max_width=x1-x0
+        max_width = x1 - x0
         char_width = 6 * self.textSize  # rough estimate
         max_chars = max_width // char_width
         lines = self.wrap_text(text, max_chars)
-        max_height=y1
-        y=y0
+        max_height = y1
+        y = y0
         for line in lines:
-            if y > y1 - 2*line_height:
-                s=list(line)
-                s[-1]='.'
-                s[-2]='.'
-                s[-3]='.'
-                s="".join(s)
+            if y > y1 - 2 * line_height:
+                s = list(line)
+                s[-1] = "."
+                s[-2] = "."
+                s[-3] = "."
+                s = "".join(s)
                 self.printText(x0, y, s)
                 break
             self.printText(x0, y, line)
@@ -727,17 +759,17 @@ class Inkplate:
             pixel_value2 = image[i] & 0b00001111
 
             # Calculate the x and y coordinates of the pixels
-            x1 = (2*i) % width
-            y1 = (2*i) // width
-            x2 = (2*i + 1) % width
-            y2 = (2*i + 1) // width
+            x1 = (2 * i) % width
+            y1 = (2 * i) // width
+            x2 = (2 * i + 1) % width
+            y2 = (2 * i + 1) // width
 
             # Check if the coordinates are within the image bounds
             if x1 < width and y1 < height:
                 self.writePixel(x1 + x, y1 + y, pixel_value1)
             if x2 < width and y2 < height:
                 self.writePixel(x2 + x, y2 + y, pixel_value2)
-    
+
     def rtcSetTime(self, rtc_hour, rtc_minute, rtc_second):
         return self.rtc_set_time(rtc_hour, rtc_minute, rtc_second)
 
@@ -746,7 +778,7 @@ class Inkplate:
 
     def rtcGetData(self):
         return self.rtc_get_rtc_data()
-    
+
     def drawImage(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """
         Draw an image from either web URL or local file system
@@ -758,43 +790,52 @@ class Inkplate:
             invert: Invert colors
         """
         # Check if path is a web URL
-        if path.startswith(('http://', 'https://')):
+        if path.startswith(("http://", "https://")):
             # Determine image type from URL
-            if path.lower().endswith('.bmp'):
+            if path.lower().endswith(".bmp"):
                 self.drawBMPFromWeb(path, x0, y0, invert, dither)
-            elif path.lower().endswith('.jpg') or path.lower().endswith('.jpeg'):
+            elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
                 self.drawJPGFromWeb(path, x0, y0, invert, dither, kernel_type)
-            elif path.lower().endswith('.png'):
+            elif path.lower().endswith(".png"):
                 self.drawPNGFromWeb(path, x0, y0, invert, dither, kernel_type)
             else:
-                raise ValueError("Unsupported web image format. Must be .bmp, .jpg, or .png")
+                raise ValueError(
+                    "Unsupported web image format. Must be .bmp, .jpg, or .png"
+                )
         else:
             # Handle local file
-            if path.lower().endswith('.bmp'):
-                self.drawBMPFromSd(path, x0, y0,invert, dither)
-            elif path.lower().endswith('.jpg') or path.lower().endswith('.jpeg'):
+            if path.lower().endswith(".bmp"):
+                self.drawBMPFromSd(path, x0, y0, invert, dither)
+            elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
                 self.drawJPGFromSd(path, x0, y0, invert, dither, kernel_type)
-            elif path.lower().endswith('.png'):
+            elif path.lower().endswith(".png"):
                 self.drawPNGFromSd(path, x0, y0, invert, dither, kernel_type)
             else:
-                raise ValueError("Unsupported local image format. Must be .bmp, .jpg, or .png")
-    
-    
-    
-    def drawJPGFromSd(self, path, x0=0, y0=0, invert=False, dither:bool=False, kernel_type:int=0):
+                raise ValueError(
+                    "Unsupported local image format. Must be .bmp, .jpg, or .png"
+                )
+
+    def drawJPGFromSd(
+        self, path, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
+    ):
         import jpeg
         import gc
         import time
-        
+
         try:
             # 1. Initialize decoder
 
-            decoder = jpeg.Decoder(rotation=180, format="CbYCrY", clipper_width=self._width, clipper_height=self._height)
-            
+            decoder = jpeg.Decoder(
+                rotation=180,
+                format="CbYCrY",
+                clipper_width=self._width,
+                clipper_height=self._height,
+            )
+
             # 2. Read file
             with open(path, "rb") as f:
                 jpeg_data = f.read()
-            
+
             # 3. Get image info before decoding
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
@@ -802,52 +843,70 @@ class Inkplate:
                 print(e)
                 decoder = jpeg.Decoder(rotation=0, format="CbYCrY")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
-            
 
-                
-            
             # 4. Decode image
             decoded = decoder.decode(jpeg_data)
-            
+
             from array import array
-            
+
             draw_width = self._width
-            err_cur, err_next = array('h', (0 for _ in range(draw_width*3))), array('h', (0 for _ in range(draw_width*3)))
-            
-            Inkplate.writeImage(self._framebuf, x0, y0, width, height, decoded, invert, dither, kernel_type, err_cur, err_next)
-            
+            err_cur, err_next = (
+                array("h", (0 for _ in range(draw_width * 3))),
+                array("h", (0 for _ in range(draw_width * 3))),
+            )
+
+            Inkplate.writeImage(
+                self._framebuf,
+                x0,
+                y0,
+                width,
+                height,
+                decoded,
+                invert,
+                dither,
+                kernel_type,
+                err_cur,
+                err_next,
+            )
+
             gc.collect()
-            
-        
+
         except Exception as e:
             print("\nJPEG Decode error:", e)
             raise
-    
+
     # Color palette (7 colors)
     palette = [
-            (0, 0, 0),        # 0 black
-            (255, 255, 255),  # 1 white
-            (0, 255, 0),      # 2 green
-            (0, 0, 255),      # 3 blue
-            (255, 0, 0),      # 4 red
-            (255, 255, 0),    # 5 yellow
-            (255, 165, 0)     # 6 orange
-        ]
-        
-    def drawJPGFromSd(self, path, x0=0, y0=0, invert=False, dither:bool=False, kernel_type:int=0):
+        (0, 0, 0),  # 0 black
+        (255, 255, 255),  # 1 white
+        (0, 255, 0),  # 2 green
+        (0, 0, 255),  # 3 blue
+        (255, 0, 0),  # 4 red
+        (255, 255, 0),  # 5 yellow
+        (255, 165, 0),  # 6 orange
+    ]
+
+    def drawJPGFromSd(
+        self, path, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
+    ):
         import jpeg
         import gc
         import time
-        
+
         try:
             # 1. Initialize decoder
 
-            decoder = jpeg.Decoder(rotation=180, format="RGB565_LE", clipper_width=self._width, clipper_height=self._height)
-            
+            decoder = jpeg.Decoder(
+                rotation=180,
+                format="RGB565_LE",
+                clipper_width=self._width,
+                clipper_height=self._height,
+            )
+
             # 2. Read file
             with open(path, "rb") as f:
                 jpeg_data = f.read()
-            
+
             # 3. Get image info before decoding
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
@@ -855,70 +914,119 @@ class Inkplate:
                 print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
-                
+
             # 4. Decode image
             decoded = decoder.decode(jpeg_data)
-            
-            
-            Inkplate.writeImage(self._framebuf, x0, y0, width, height, decoded, invert, dither, kernel_type)
-            
+
+            Inkplate.writeImage(
+                self._framebuf,
+                x0,
+                y0,
+                width,
+                height,
+                decoded,
+                invert,
+                dither,
+                kernel_type,
+            )
+
             gc.collect()
-            
-        
+
         except Exception as e:
             print("\nJPEG Decode error:", e)
             raise
-    
 
     @staticmethod
     @micropython.viper
-    def writeImage(framebuf: ptr8, x0: int, y0: int, width: int, height: int, imagedata: ptr8, invert: bool, dither: bool, kernel_type: int):
+    def writeImage(
+        framebuf: ptr8,
+        x0: int,
+        y0: int,
+        width: int,
+        height: int,
+        imagedata: ptr8,
+        invert: bool,
+        dither: bool,
+        kernel_type: int,
+    ):
         _SCREEN_WIDTH = const(600)
         _SCREEN_HEIGHT = const(488)
         _BYTES_PER_ROW = const(_SCREEN_WIDTH // 2)  # 2 pixels per byte (4bpp)
 
         # Dithering kernels (dx, dy, wt) — weights will be pre-scaled (<<6) to avoid divides
         fs_dx = (1, -1, 0, 1)
-        fs_dy = (0,  1, 1, 1)
-        fs_wt = (7,  3, 5, 1);  fs_div = 16
+        fs_dy = (0, 1, 1, 1)
+        fs_wt = (7, 3, 5, 1)
+        fs_div = 16
 
         jjn_dx = (1, 2, -2, -1, 0, 1, 2)
-        jjn_dy = (0, 0,  1,  1, 1, 1, 1)
-        jjn_wt = (7, 5,  3,  5, 7, 5, 3); jjn_div = 48
+        jjn_dy = (0, 0, 1, 1, 1, 1, 1)
+        jjn_wt = (7, 5, 3, 5, 7, 5, 3)
+        jjn_div = 48
 
         stucki_dx = (1, 2, -2, -1, 0, 1, 2)
-        stucki_dy = (0, 0,  1,  1, 1, 1, 1)
-        stucki_wt = (8, 4,  2,  4, 8, 4, 2); stucki_div = 42
+        stucki_dy = (0, 0, 1, 1, 1, 1, 1)
+        stucki_wt = (8, 4, 2, 4, 8, 4, 2)
+        stucki_div = 42
 
         burkes_dx = (1, 2, -2, -1, 0, 1, 2)
-        burkes_dy = (0, 0,  1,  1, 1, 1, 1)
-        burkes_wt = (8, 4,  2,  4, 8, 4, 2); burkes_div = 32
+        burkes_dy = (0, 0, 1, 1, 1, 1, 1)
+        burkes_wt = (8, 4, 2, 4, 8, 4, 2)
+        burkes_div = 32
 
         # Palette flattened to avoid tuple indexing overhead
         # index: 0..6 -> (r,g,b)
-        p0r = 0   ; p0g = 0   ; p0b = 0     # black
-        p1r = 255 ; p1g = 255 ; p1b = 255   # white
-        p2r = 0   ; p2g = 255 ; p2b = 0     # green
-        p3r = 0   ; p3g = 0   ; p3b = 255   # blue
-        p4r = 255 ; p4g = 0   ; p4b = 0     # red
-        p5r = 255 ; p5g = 255 ; p5b = 0     # yellow
-        p6r = 255 ; p6g = 165 ; p6b = 0     # orange
+        p0r = 0
+        p0g = 0
+        p0b = 0  # black
+        p1r = 255
+        p1g = 255
+        p1b = 255  # white
+        p2r = 0
+        p2g = 255
+        p2b = 0  # green
+        p3r = 0
+        p3g = 0
+        p3b = 255  # blue
+        p4r = 255
+        p4g = 0
+        p4b = 0  # red
+        p5r = 255
+        p5g = 255
+        p5b = 0  # yellow
+        p6r = 255
+        p6g = 165
+        p6b = 0  # orange
 
         draw_width: int = width if (x0 + width) <= _SCREEN_WIDTH else _SCREEN_WIDTH - x0
-        draw_height: int = height if (y0 + height) <= _SCREEN_HEIGHT else _SCREEN_HEIGHT - y0
+        draw_height: int = (
+            height if (y0 + height) <= _SCREEN_HEIGHT else _SCREEN_HEIGHT - y0
+        )
 
         inv_mask: int = 0x0F if invert else 0x00
-        
+
         # Select kernel and pre-scale weights by 64 (>>6 later)
-        dx0:int = 0; dx1:int = 0; dx2:int = 0; dx3:int = 0
-        dx4:int = 0; dx5:int = 0; dx6:int = 0
-        dy0:int = 0; dy1:int = 0; dy2:int = 0; dy3:int = 0
-        dy4:int = 0; dy5:int = 0; dy6:int = 0
+        dx0: int = 0
+        dx1: int = 0
+        dx2: int = 0
+        dx3: int = 0
+        dx4: int = 0
+        dx5: int = 0
+        dx6: int = 0
+        dy0: int = 0
+        dy1: int = 0
+        dy2: int = 0
+        dy3: int = 0
+        dy4: int = 0
+        dy5: int = 0
+        dy6: int = 0
 
         # Prepare dithering
         kernel_len: int = 0
         if dither:
-            errbuf_size: int = draw_width * 3  # RGB error per pixel (signed byte in [-128,127] encoded as 0..255)
+            errbuf_size: int = (
+                draw_width * 3
+            )  # RGB error per pixel (signed byte in [-128,127] encoded as 0..255)
             error_current = bytearray(errbuf_size)
             error_next = bytearray(errbuf_size)
             error_current_ptr = ptr8(error_current)
@@ -928,109 +1036,133 @@ class Inkplate:
             # Select kernel and pre-scale weights by 64 (>>6 later)
             if kernel_type == 1:
                 # Jarvis, Judice, Ninke
-                dx0 = int(jjn_dx[0]); dy0 = int(jjn_dy[0])
-                dx1 = int(jjn_dx[1]); dy1 = int(jjn_dy[1])
-                dx2 = int(jjn_dx[2]); dy2 = int(jjn_dy[2])
-                dx3 = int(jjn_dx[3]); dy3 = int(jjn_dy[3])
-                dx4 = int(jjn_dx[4]); dy4 = int(jjn_dy[4])
-                dx5 = int(jjn_dx[5]); dy5 = int(jjn_dy[5])
-                dx6 = int(jjn_dx[6]); dy6 = int(jjn_dy[6])
-                coeff0:int = (int(jjn_wt[0]) << 6) // jjn_div
-                coeff1:int = (int(jjn_wt[1]) << 6) // jjn_div
-                coeff2:int = (int(jjn_wt[2]) << 6) // jjn_div
-                coeff3:int = (int(jjn_wt[3]) << 6) // jjn_div
-                coeff4:int = (int(jjn_wt[4]) << 6) // jjn_div
-                coeff5:int = (int(jjn_wt[5]) << 6) // jjn_div
-                coeff6:int = (int(jjn_wt[6]) << 6) // jjn_div
-                kernel_len:int = 7
+                dx0 = int(jjn_dx[0])
+                dy0 = int(jjn_dy[0])
+                dx1 = int(jjn_dx[1])
+                dy1 = int(jjn_dy[1])
+                dx2 = int(jjn_dx[2])
+                dy2 = int(jjn_dy[2])
+                dx3 = int(jjn_dx[3])
+                dy3 = int(jjn_dy[3])
+                dx4 = int(jjn_dx[4])
+                dy4 = int(jjn_dy[4])
+                dx5 = int(jjn_dx[5])
+                dy5 = int(jjn_dy[5])
+                dx6 = int(jjn_dx[6])
+                dy6 = int(jjn_dy[6])
+                coeff0: int = (int(jjn_wt[0]) << 6) // jjn_div
+                coeff1: int = (int(jjn_wt[1]) << 6) // jjn_div
+                coeff2: int = (int(jjn_wt[2]) << 6) // jjn_div
+                coeff3: int = (int(jjn_wt[3]) << 6) // jjn_div
+                coeff4: int = (int(jjn_wt[4]) << 6) // jjn_div
+                coeff5: int = (int(jjn_wt[5]) << 6) // jjn_div
+                coeff6: int = (int(jjn_wt[6]) << 6) // jjn_div
+                kernel_len: int = 7
 
             elif kernel_type == 2:
                 # Stucki
-                dx0 = int(stucki_dx[0]); dy0 = int(stucki_dy[0])
-                dx1 = int(stucki_dx[1]); dy1 = int(stucki_dy[1])
-                dx2 = int(stucki_dx[2]); dy2 = int(stucki_dy[2])
-                dx3 = int(stucki_dx[3]); dy3 = int(stucki_dy[3])
-                dx4 = int(stucki_dx[4]); dy4 = int(stucki_dy[4])
-                dx5 = int(stucki_dx[5]); dy5 = int(stucki_dy[5])
-                dx6 = int(stucki_dx[6]); dy6 = int(stucki_dy[6])
-                coeff0:int = (int(stucki_wt[0]) << 6) // stucki_div
-                coeff1:int = (int(stucki_wt[1]) << 6) // stucki_div
-                coeff2:int = (int(stucki_wt[2]) << 6) // stucki_div
-                coeff3:int = (int(stucki_wt[3]) << 6) // stucki_div
-                coeff4:int = (int(stucki_wt[4]) << 6) // stucki_div
-                coeff5:int = (int(stucki_wt[5]) << 6) // stucki_div
-                coeff6:int = (int(stucki_wt[6]) << 6) // stucki_div
-                kernel_len:int = 7
+                dx0 = int(stucki_dx[0])
+                dy0 = int(stucki_dy[0])
+                dx1 = int(stucki_dx[1])
+                dy1 = int(stucki_dy[1])
+                dx2 = int(stucki_dx[2])
+                dy2 = int(stucki_dy[2])
+                dx3 = int(stucki_dx[3])
+                dy3 = int(stucki_dy[3])
+                dx4 = int(stucki_dx[4])
+                dy4 = int(stucki_dy[4])
+                dx5 = int(stucki_dx[5])
+                dy5 = int(stucki_dy[5])
+                dx6 = int(stucki_dx[6])
+                dy6 = int(stucki_dy[6])
+                coeff0: int = (int(stucki_wt[0]) << 6) // stucki_div
+                coeff1: int = (int(stucki_wt[1]) << 6) // stucki_div
+                coeff2: int = (int(stucki_wt[2]) << 6) // stucki_div
+                coeff3: int = (int(stucki_wt[3]) << 6) // stucki_div
+                coeff4: int = (int(stucki_wt[4]) << 6) // stucki_div
+                coeff5: int = (int(stucki_wt[5]) << 6) // stucki_div
+                coeff6: int = (int(stucki_wt[6]) << 6) // stucki_div
+                kernel_len: int = 7
 
             elif kernel_type == 3:
                 # Burkes
-                dx0 = int(burkes_dx[0]); dy0 = int(burkes_dy[0])
-                dx1 = int(burkes_dx[1]); dy1 = int(burkes_dy[1])
-                dx2 = int(burkes_dx[2]); dy2 = int(burkes_dy[2])
-                dx3 = int(burkes_dx[3]); dy3 = int(burkes_dy[3])
-                dx4 = int(burkes_dx[4]); dy4 = int(burkes_dy[4])
-                dx5 = int(burkes_dx[5]); dy5 = int(burkes_dy[5])
-                dx6 = int(burkes_dx[6]); dy6 = int(burkes_dy[6])
-                coeff0:int = (int(burkes_wt[0]) << 6) // burkes_div
-                coeff1:int = (int(burkes_wt[1]) << 6) // burkes_div
-                coeff2:int = (int(burkes_wt[2]) << 6) // burkes_div
-                coeff3:int = (int(burkes_wt[3]) << 6) // burkes_div
-                coeff4:int = (int(burkes_wt[4]) << 6) // burkes_div
-                coeff5:int = (int(burkes_wt[5]) << 6) // burkes_div
-                coeff6:int = (int(burkes_wt[6]) << 6) // burkes_div
-                kernel_len:int = 7
+                dx0 = int(burkes_dx[0])
+                dy0 = int(burkes_dy[0])
+                dx1 = int(burkes_dx[1])
+                dy1 = int(burkes_dy[1])
+                dx2 = int(burkes_dx[2])
+                dy2 = int(burkes_dy[2])
+                dx3 = int(burkes_dx[3])
+                dy3 = int(burkes_dy[3])
+                dx4 = int(burkes_dx[4])
+                dy4 = int(burkes_dy[4])
+                dx5 = int(burkes_dx[5])
+                dy5 = int(burkes_dy[5])
+                dx6 = int(burkes_dx[6])
+                dy6 = int(burkes_dy[6])
+                coeff0: int = (int(burkes_wt[0]) << 6) // burkes_div
+                coeff1: int = (int(burkes_wt[1]) << 6) // burkes_div
+                coeff2: int = (int(burkes_wt[2]) << 6) // burkes_div
+                coeff3: int = (int(burkes_wt[3]) << 6) // burkes_div
+                coeff4: int = (int(burkes_wt[4]) << 6) // burkes_div
+                coeff5: int = (int(burkes_wt[5]) << 6) // burkes_div
+                coeff6: int = (int(burkes_wt[6]) << 6) // burkes_div
+                kernel_len: int = 7
 
             else:
                 # Floyd–Steinberg
-                dx0 = int(fs_dx[0]); dy0 = int(fs_dy[0])
-                dx1 = int(fs_dx[1]); dy1 = int(fs_dy[1])
-                dx2 = int(fs_dx[2]); dy2 = int(fs_dy[2])
-                dx3 = int(fs_dx[3]); dy3 = int(fs_dy[3])
-                coeff0:int = (int(fs_wt[0]) << 6) // fs_div
-                coeff1:int = (int(fs_wt[1]) << 6) // fs_div
-                coeff2:int = (int(fs_wt[2]) << 6) // fs_div
-                coeff3:int = (int(fs_wt[3]) << 6) // fs_div
-                kernel_len:int = 4
-
+                dx0 = int(fs_dx[0])
+                dy0 = int(fs_dy[0])
+                dx1 = int(fs_dx[1])
+                dy1 = int(fs_dy[1])
+                dx2 = int(fs_dx[2])
+                dy2 = int(fs_dy[2])
+                dx3 = int(fs_dx[3])
+                dy3 = int(fs_dy[3])
+                coeff0: int = (int(fs_wt[0]) << 6) // fs_div
+                coeff1: int = (int(fs_wt[1]) << 6) // fs_div
+                coeff2: int = (int(fs_wt[2]) << 6) // fs_div
+                coeff3: int = (int(fs_wt[3]) << 6) // fs_div
+                kernel_len: int = 4
 
         else:
             # Dummy pointers to satisfy types, not used
             error_current_ptr = ptr8(bytearray(0))
             error_next_ptr = ptr8(bytearray(0))
 
-        row:int = 0
+        row: int = 0
         while row < draw_height:
             fb_row_pos: int = (y0 + row) * _BYTES_PER_ROW + (x0 // 2)
             img_row_start: int = row * width * 2
 
-            col:int = 0
+            col: int = 0
             while col < draw_width:
-                pix_grp:int = 2 if (col + 2) <= draw_width else draw_width - col
-                packed:int = 0
+                pix_grp: int = 2 if (col + 2) <= draw_width else draw_width - col
+                packed: int = 0
 
-                i:int = 0
+                i: int = 0
                 while i < pix_grp:
-                    idx:int = img_row_start + ((col + i) * 2)
-                    pixel:int = imagedata[idx] | (imagedata[idx + 1] << 8)
+                    idx: int = img_row_start + ((col + i) * 2)
+                    pixel: int = imagedata[idx] | (imagedata[idx + 1] << 8)
 
                     # RGB565 -> RGB888 (bit expand)
-                    r_:int = (pixel >> 8) & 0xF8
-                    g_:int = (pixel >> 3) & 0xFC
-                    b_:int = (pixel << 3) & 0xF8
+                    r_: int = (pixel >> 8) & 0xF8
+                    g_: int = (pixel >> 3) & 0xFC
+                    b_: int = (pixel << 3) & 0xF8
                     r_ |= r_ >> 5
                     g_ |= g_ >> 6
                     b_ |= b_ >> 5
 
                     if dither:
-                        epos:int = (col + i) * 3
+                        epos: int = (col + i) * 3
                         # decode signed byte: s = b-256 if b>127 else b
-                        er:int = error_current_ptr[epos]
+                        er: int = error_current_ptr[epos]
                         if er > 127:
                             er -= 256
-                        eg:int = error_current_ptr[epos + 1]
+                        eg: int = error_current_ptr[epos + 1]
                         if eg > 127:
                             eg -= 256
-                        eb:int = error_current_ptr[epos + 2]
+                        eb: int = error_current_ptr[epos + 2]
                         if eb > 127:
                             eb -= 256
 
@@ -1038,92 +1170,148 @@ class Inkplate:
                         g_ += eg
                         b_ += eb
                         # clamp 0..255 manually
-                        if r_ < 0: r_ = 0
-                        elif r_ > 255: r_ = 255
-                        if g_ < 0: g_ = 0
-                        elif g_ > 255: g_ = 255
-                        if b_ < 0: b_ = 0
-                        elif b_ > 255: b_ = 255
+                        if r_ < 0:
+                            r_ = 0
+                        elif r_ > 255:
+                            r_ = 255
+                        if g_ < 0:
+                            g_ = 0
+                        elif g_ > 255:
+                            g_ = 255
+                        if b_ < 0:
+                            b_ = 0
+                        elif b_ > 255:
+                            b_ = 255
 
                     # Unrolled nearest-color search over 7 palette entries
-                    best_idx:int = 0
+                    best_idx: int = 0
                     # start with black
-                    dr:int = r_ - 0   ; dg:int = g_ - 0   ; db:int = b_ - 0
-                    best_dist:int = dr*dr + dg*dg + db*db
+                    dr: int = r_ - 0
+                    dg: int = g_ - 0
+                    db: int = b_ - 0
+                    best_dist: int = dr * dr + dg * dg + db * db
 
                     # white
-                    dr = r_ - 255 ; dg = g_ - 255 ; db = b_ - 255
-                    dist:int = dr*dr + dg*dg + db*db
+                    dr = r_ - 255
+                    dg = g_ - 255
+                    db = b_ - 255
+                    dist: int = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 1
+                        best_dist = dist
+                        best_idx = 1
 
                     # green
-                    dr = r_ - 0   ; dg = g_ - 255 ; db = b_ - 0
-                    dist = dr*dr + dg*dg + db*db
+                    dr = r_ - 0
+                    dg = g_ - 255
+                    db = b_ - 0
+                    dist = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 2
+                        best_dist = dist
+                        best_idx = 2
 
                     # blue
-                    dr = r_ - 0   ; dg = g_ - 0   ; db = b_ - 255
-                    dist = dr*dr + dg*dg + db*db
+                    dr = r_ - 0
+                    dg = g_ - 0
+                    db = b_ - 255
+                    dist = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 3
+                        best_dist = dist
+                        best_idx = 3
 
                     # red
-                    dr = r_ - 255 ; dg = g_ - 0   ; db = b_ - 0
-                    dist = dr*dr + dg*dg + db*db
+                    dr = r_ - 255
+                    dg = g_ - 0
+                    db = b_ - 0
+                    dist = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 4
+                        best_dist = dist
+                        best_idx = 4
 
                     # yellow
-                    dr = r_ - 255 ; dg = g_ - 255 ; db = b_ - 0
-                    dist = dr*dr + dg*dg + db*db
+                    dr = r_ - 255
+                    dg = g_ - 255
+                    db = b_ - 0
+                    dist = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 5
+                        best_dist = dist
+                        best_idx = 5
 
                     # orange
-                    dr = r_ - 255 ; dg = g_ - 165 ; db = b_ - 0
-                    dist = dr*dr + dg*dg + db*db
+                    dr = r_ - 255
+                    dg = g_ - 165
+                    db = b_ - 0
+                    dist = dr * dr + dg * dg + db * db
                     if dist < best_dist:
-                        best_dist = dist ; best_idx = 6
+                        best_dist = dist
+                        best_idx = 6
 
                     # pack 4bpp
-                    val:int = best_idx ^ inv_mask
+                    val: int = best_idx ^ inv_mask
                     if i == 0:
-                        packed = (val << 4)
+                        packed = val << 4
                     else:
                         packed |= val
 
                     if dither:
                         # Get chosen palette RGB
                         if best_idx == 0:
-                            pr = 0   ; pg = 0   ; pb = 0
+                            pr = 0
+                            pg = 0
+                            pb = 0
                         elif best_idx == 1:
-                            pr = 255 ; pg = 255 ; pb = 255
+                            pr = 255
+                            pg = 255
+                            pb = 255
                         elif best_idx == 2:
-                            pr = 0   ; pg = 255 ; pb = 0
+                            pr = 0
+                            pg = 255
+                            pb = 0
                         elif best_idx == 3:
-                            pr = 0   ; pg = 0   ; pb = 255
+                            pr = 0
+                            pg = 0
+                            pb = 255
                         elif best_idx == 4:
-                            pr = 255 ; pg = 0   ; pb = 0
+                            pr = 255
+                            pg = 0
+                            pb = 0
                         elif best_idx == 5:
-                            pr = 255 ; pg = 255 ; pb = 0
+                            pr = 255
+                            pg = 255
+                            pb = 0
                         else:
-                            pr = 255 ; pg = 165 ; pb = 0
+                            pr = 255
+                            pg = 165
+                            pb = 0
 
                         # quantization error
-                        drq:int = r_ - pr
-                        dgq:int = g_ - pg
-                        dbq:int = b_ - pb
+                        drq: int = r_ - pr
+                        dgq: int = g_ - pg
+                        dbq: int = b_ - pb
 
                         # diffuse error — branchless across kernel_len (4 or 7)
                         # helper to write one target (signed byte encode back to 0..255)
                         @micropython.viper
-                        def _accum(error_current_ptr: ptr8, error_next_ptr: ptr8,
-                                   nx: int, ny: int, row: int, draw_width: int, draw_height: int,
-                                   dyv: int, k: int, cr: int, cg: int, cb: int):
+                        def _accum(
+                            error_current_ptr: ptr8,
+                            error_next_ptr: ptr8,
+                            nx: int,
+                            ny: int,
+                            row: int,
+                            draw_width: int,
+                            draw_height: int,
+                            dyv: int,
+                            k: int,
+                            cr: int,
+                            cg: int,
+                            cb: int,
+                        ):
                             # bounds check
-                            if nx < 0 or nx >= draw_width or ny < 0 or ny >= draw_height:
+                            if (
+                                nx < 0
+                                or nx >= draw_width
+                                or ny < 0
+                                or ny >= draw_height
+                            ):
                                 return
 
                             # choose which buffer (same row or next row)
@@ -1147,56 +1335,143 @@ class Inkplate:
                             tb += (cb * k) >> 6
 
                             # clamp
-                            if tr < -128: tr = -128
-                            elif tr > 127: tr = 127
-                            if tg < -128: tg = -128
-                            elif tg > 127: tg = 127
-                            if tb < -128: tb = -128
-                            elif tb > 127: tb = 127
+                            if tr < -128:
+                                tr = -128
+                            elif tr > 127:
+                                tr = 127
+                            if tg < -128:
+                                tg = -128
+                            elif tg > 127:
+                                tg = 127
+                            if tb < -128:
+                                tb = -128
+                            elif tb > 127:
+                                tb = 127
 
                             # re-encode signed byte to 0..255
-                            target[tpos]     = tr + 256 if tr < 0 else tr
+                            target[tpos] = tr + 256 if tr < 0 else tr
                             target[tpos + 1] = tg + 256 if tg < 0 else tg
                             target[tpos + 2] = tb + 256 if tb < 0 else tb
 
+                        nx0: int = col + i + dx0
+                        dy0: int = dy0
+                        _accum(
+                            error_current_ptr,
+                            error_next_ptr,
+                            nx0,
+                            row + dy0,
+                            row,
+                            draw_width,
+                            draw_height,
+                            dy0,
+                            coeff0,
+                            drq,
+                            dgq,
+                            dbq,
+                        )
 
-                        nx0:int = col + i + dx0; dy0:int = dy0
-                        _accum(error_current_ptr, error_next_ptr,
-                               nx0, row + dy0, row, draw_width, draw_height,
-                               dy0, coeff0, drq, dgq, dbq)
+                        nx1: int = col + i + dx1
+                        dy1: int = dy1
+                        _accum(
+                            error_current_ptr,
+                            error_next_ptr,
+                            nx1,
+                            row + dy1,
+                            row,
+                            draw_width,
+                            draw_height,
+                            dy1,
+                            coeff1,
+                            drq,
+                            dgq,
+                            dbq,
+                        )
 
-                        nx1:int = col + i + dx1; dy1:int = dy1
-                        _accum(error_current_ptr, error_next_ptr,
-                               nx1, row + dy1, row, draw_width, draw_height,
-                               dy1, coeff1, drq, dgq, dbq)
+                        nx2: int = col + i + dx2
+                        dy2: int = dy2
+                        _accum(
+                            error_current_ptr,
+                            error_next_ptr,
+                            nx2,
+                            row + dy2,
+                            row,
+                            draw_width,
+                            draw_height,
+                            dy2,
+                            coeff2,
+                            drq,
+                            dgq,
+                            dbq,
+                        )
 
-                        nx2:int = col + i + dx2; dy2:int = dy2
-                        _accum(error_current_ptr, error_next_ptr,
-                               nx2, row + dy2, row, draw_width, draw_height,
-                               dy2, coeff2, drq, dgq, dbq)
-
-                        nx3:int = col + i + dx3; dy3:int = dy3
-                        _accum(error_current_ptr, error_next_ptr,
-                               nx3, row + dy3, row, draw_width, draw_height,
-                               dy3, coeff3, drq, dgq, dbq)
+                        nx3: int = col + i + dx3
+                        dy3: int = dy3
+                        _accum(
+                            error_current_ptr,
+                            error_next_ptr,
+                            nx3,
+                            row + dy3,
+                            row,
+                            draw_width,
+                            draw_height,
+                            dy3,
+                            coeff3,
+                            drq,
+                            dgq,
+                            dbq,
+                        )
 
                         if kernel_len == 7:
-                            nx4:int = col + i + dx4; dy4:int = dy4
-                            _accum(error_current_ptr, error_next_ptr,
-                                   nx4, row + dy4, row, draw_width, draw_height,
-                                   dy4, coeff4, drq, dgq, dbq)
+                            nx4: int = col + i + dx4
+                            dy4: int = dy4
+                            _accum(
+                                error_current_ptr,
+                                error_next_ptr,
+                                nx4,
+                                row + dy4,
+                                row,
+                                draw_width,
+                                draw_height,
+                                dy4,
+                                coeff4,
+                                drq,
+                                dgq,
+                                dbq,
+                            )
 
-                            nx5:int = col + i + dx5; dy5:int = dy5
-                            _accum(error_current_ptr, error_next_ptr,
-                                   nx5, row + dy5, row, draw_width, draw_height,
-                                   dy5, coeff5, drq, dgq, dbq)
+                            nx5: int = col + i + dx5
+                            dy5: int = dy5
+                            _accum(
+                                error_current_ptr,
+                                error_next_ptr,
+                                nx5,
+                                row + dy5,
+                                row,
+                                draw_width,
+                                draw_height,
+                                dy5,
+                                coeff5,
+                                drq,
+                                dgq,
+                                dbq,
+                            )
 
-                            nx6:int = col + i + dx6; dy6:int = dy6
-                            _accum(error_current_ptr, error_next_ptr,
-                                   nx6, row + dy6, row, draw_width, draw_height,
-                                   dy6, coeff6, drq, dgq, dbq)
-
-
+                            nx6: int = col + i + dx6
+                            dy6: int = dy6
+                            _accum(
+                                error_current_ptr,
+                                error_next_ptr,
+                                nx6,
+                                row + dy6,
+                                row,
+                                draw_width,
+                                draw_height,
+                                dy6,
+                                coeff6,
+                                drq,
+                                dgq,
+                                dbq,
+                            )
 
                     i += 1  # next pixel in pair
 
@@ -1218,89 +1493,120 @@ class Inkplate:
                 error_current_ptr = error_next_ptr
                 error_next_ptr = tmp
                 # clear next buffer (fast zero)
-                i2:int = 0
+                i2: int = 0
                 while i2 < errbuf_size:
                     error_next_ptr[i2] = 0
                     i2 += 1
 
             row += 1
-    
-    def drawPNGFromSd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+
+    def drawPNGFromSd(
+        self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0
+    ):
         import gc
-        with open(path, 'rb') as f:
+
+        with open(path, "rb") as f:
             png_data = f.read()
 
-        width,height,png_data=Inkplate.png_to_rgb565(png_data, len(png_data))
-        
-        Inkplate.writeImage(self._framebuf, x0, y0, width, height, png_data, invert, dither, kernel_type)
-        
+        width, height, png_data = Inkplate.png_to_rgb565(png_data, len(png_data))
+
+        Inkplate.writeImage(
+            self._framebuf, x0, y0, width, height, png_data, invert, dither, kernel_type
+        )
+
         gc.collect()
-    
-    def drawPNGFromWeb(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+
+    def drawPNGFromWeb(
+        self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0
+    ):
         import gc
         import urequests
         import ssl
-        
+
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 print(f"HTTP Error {response.status_code}")
-            
+
             png_data = response.content
             response.close()
-            
-            width,height,png_data=Inkplate.png_to_rgb565(png_data, len(png_data))
-        
-            Inkplate.writeImage(self._framebuf, x0, y0, width, height, png_data, invert, dither, kernel_type)
-            
+
+            width, height, png_data = Inkplate.png_to_rgb565(png_data, len(png_data))
+
+            Inkplate.writeImage(
+                self._framebuf,
+                x0,
+                y0,
+                width,
+                height,
+                png_data,
+                invert,
+                dither,
+                kernel_type,
+            )
+
             gc.collect()
         except Exception as e:
             print("Error in drawPNGFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
 
-    def drawJPGFromWeb(self, url, x0=0, y0=0, invert=False, dither:bool=False, kernel_type:int=0):
+    def drawJPGFromWeb(
+        self, url, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
+    ):
         import jpeg
         import gc
         import urequests
         import ssl
-        
+
         try:
             # 1. Initialize decoder
-            decoder = jpeg.Decoder(rotation=180, format="RGB565_LE", clipper_width=self._width, clipper_height=self._height)
-            
+            decoder = jpeg.Decoder(
+                rotation=180,
+                format="RGB565_LE",
+                clipper_width=self._width,
+                clipper_height=self._height,
+            )
+
             # 2. Download the image (with timeout and basic error handling)
             response = urequests.get(url, timeout=20)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
-            
+
             jpeg_data = response.content
             response.close()
-            
+
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             except Exception as e:
                 print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
-            
+
             # 4. Decode image
             decoded = decoder.decode(jpeg_data)
-            
 
-            Inkplate.writeImage(self._framebuf, x0, y0, width, height, decoded, invert, dither, kernel_type)
-            
+            Inkplate.writeImage(
+                self._framebuf,
+                x0,
+                y0,
+                width,
+                height,
+                decoded,
+                invert,
+                dither,
+                kernel_type,
+            )
+
             gc.collect()
-            
-            
+
         except Exception as e:
             print("Error in drawJPGFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
             raise
-        
 
-    _PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
+    _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
     @micropython.viper
     def png_to_rgb565(png_data: ptr8, png_len: int):
@@ -1308,10 +1614,18 @@ class Inkplate:
         import io
         import array
         from uctypes import addressof, bytearray_at
+
         # --- Signature check ---
-        if (png_data[0] != 0x89 or png_data[1] != 0x50 or png_data[2] != 0x4E or 
-            png_data[3] != 0x47 or png_data[4] != 0x0D or png_data[5] != 0x0A or 
-            png_data[6] != 0x1A or png_data[7] != 0x0A):
+        if (
+            png_data[0] != 0x89
+            or png_data[1] != 0x50
+            or png_data[2] != 0x4E
+            or png_data[3] != 0x47
+            or png_data[4] != 0x0D
+            or png_data[5] != 0x0A
+            or png_data[6] != 0x1A
+            or png_data[7] != 0x0A
+        ):
             raise ValueError("Invalid PNG signature")
 
         # --- Parse chunks (your original logic) ---
@@ -1322,29 +1636,50 @@ class Inkplate:
         idat_data = bytearray()
 
         while pos + 8 <= png_len:
-            chunk_len: int = (png_data[pos] << 24) | (png_data[pos+1] << 16) | (png_data[pos+2] << 8) | png_data[pos+3]
+            chunk_len: int = (
+                (png_data[pos] << 24)
+                | (png_data[pos + 1] << 16)
+                | (png_data[pos + 2] << 8)
+                | png_data[pos + 3]
+            )
 
-            is_ihdr = (png_data[pos+4] == 0x49 and 
-                       png_data[pos+5] == 0x48 and 
-                       png_data[pos+6] == 0x44 and 
-                       png_data[pos+7] == 0x52)
+            is_ihdr = (
+                png_data[pos + 4] == 0x49
+                and png_data[pos + 5] == 0x48
+                and png_data[pos + 6] == 0x44
+                and png_data[pos + 7] == 0x52
+            )
 
-            is_idat = (png_data[pos+4] == 0x49 and 
-                       png_data[pos+5] == 0x44 and 
-                       png_data[pos+6] == 0x41 and 
-                       png_data[pos+7] == 0x54)
+            is_idat = (
+                png_data[pos + 4] == 0x49
+                and png_data[pos + 5] == 0x44
+                and png_data[pos + 6] == 0x41
+                and png_data[pos + 7] == 0x54
+            )
 
-            is_iend = (png_data[pos+4] == 0x49 and 
-                       png_data[pos+5] == 0x45 and 
-                       png_data[pos+6] == 0x4E and 
-                       png_data[pos+7] == 0x44)
+            is_iend = (
+                png_data[pos + 4] == 0x49
+                and png_data[pos + 5] == 0x45
+                and png_data[pos + 6] == 0x4E
+                and png_data[pos + 7] == 0x44
+            )
 
             chunk_start: int = pos + 8
 
             if is_ihdr:
-                width  = (png_data[chunk_start]   << 24) | (png_data[chunk_start+1] << 16) | (png_data[chunk_start+2] << 8) | png_data[chunk_start+3]
-                height = (png_data[chunk_start+4] << 24) | (png_data[chunk_start+5] << 16) | (png_data[chunk_start+6] << 8) | png_data[chunk_start+7]
-                color_type = png_data[chunk_start+9]
+                width = (
+                    (png_data[chunk_start] << 24)
+                    | (png_data[chunk_start + 1] << 16)
+                    | (png_data[chunk_start + 2] << 8)
+                    | png_data[chunk_start + 3]
+                )
+                height = (
+                    (png_data[chunk_start + 4] << 24)
+                    | (png_data[chunk_start + 5] << 16)
+                    | (png_data[chunk_start + 6] << 8)
+                    | png_data[chunk_start + 7]
+                )
+                color_type = png_data[chunk_start + 9]
                 if color_type != 2 and color_type != 6:
                     raise ValueError("Unsupported PNG color type")
 
@@ -1372,7 +1707,7 @@ class Inkplate:
         row_size: int = width * bpp
         stride: int = row_size + 1
 
-        rgb565_data = array.array('H', bytearray(width * height * 2))
+        rgb565_data = array.array("H", bytearray(width * height * 2))
         rgb565_ptr = ptr16(addressof(rgb565_data))
 
         idat_mv = bytearray_at(addressof(idat_data), len(idat_data))
@@ -1432,19 +1767,28 @@ class Inkplate:
                 x = 0
                 while x < width:
                     i = x * 3
-                    r = cur[i]; g = cur[i+1]; b = cur[i+2]
-                    rgb565_ptr[row_off + (width - 1 - x)] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                    r = cur[i]
+                    g = cur[i + 1]
+                    b = cur[i + 2]
+                    rgb565_ptr[row_off + (width - 1 - x)] = (
+                        ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                    )
                     x += 1
             else:  # RGBA
                 x = 0
                 while x < width:
                     i = x * 4
-                    r = cur[i]; g = cur[i+1]; b = cur[i+2]; a = cur[i+3]
+                    r = cur[i]
+                    g = cur[i + 1]
+                    b = cur[i + 2]
+                    a = cur[i + 3]
                     if a < 255:
                         r = (r * a) // 255
                         g = (g * a) // 255
                         b = (b * a) // 255
-                    rgb565_ptr[row_off + (width - 1 - x)] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                    rgb565_ptr[row_off + (width - 1 - x)] = (
+                        ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                    )
                     x += 1
 
             # swap buffers
@@ -1455,23 +1799,29 @@ class Inkplate:
             y += 1
 
         return (width, height, rgb565_data)
-    
-    
-    def drawBMPFromSd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+
+    def drawBMPFromSd(
+        self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0
+    ):
         import gc
+
         gc.collect()
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             bmp_data = f.read()
 
-        width,height,bmp_data=Inkplate.bmp24_to_rgb565(bmp_data, len(bmp_data))
-        
-        Inkplate.writeImage(self._framebuf, x0, y0, width, height, bmp_data, invert, dither, kernel_type)
+        width, height, bmp_data = Inkplate.bmp24_to_rgb565(bmp_data, len(bmp_data))
+
+        Inkplate.writeImage(
+            self._framebuf, x0, y0, width, height, bmp_data, invert, dither, kernel_type
+        )
         del bmp_data
         gc.collect()
-        
-    def drawBMPFromWeb(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type = 0):
+
+    def drawBMPFromWeb(
+        self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0
+    ):
         """Display a BMP image downloaded from the web
-        
+
         Args:
             bmp_data (bytes): Raw BMP file data
             x0 (int): X position to start drawing
@@ -1482,40 +1832,48 @@ class Inkplate:
         import gc
         import urequests
         import ssl
-    
+
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 print(f"HTTP Error {response.status_code}")
-            
+
             bmp_data = response.content
             response.close()
-            width,height,bmp_data=Inkplate.bmp24_to_rgb565(bmp_data, len(bmp_data))
-        
-            Inkplate.writeImage(self._framebuf, x0, y0, width, height, bmp_data, invert, dither, kernel_type)
+            width, height, bmp_data = Inkplate.bmp24_to_rgb565(bmp_data, len(bmp_data))
+
+            Inkplate.writeImage(
+                self._framebuf,
+                x0,
+                y0,
+                width,
+                height,
+                bmp_data,
+                invert,
+                dither,
+                kernel_type,
+            )
             del bmp_data
             gc.collect()
         except Exception as e:
             print("Error in drawBMPFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
-    
 
-    
     @micropython.viper
     def bmp24_to_rgb565(bmp_data: ptr8, bmp_len: int):
         # keep imports inside the function per your environment
         from uctypes import addressof
-        
+
         @micropython.viper
         def le32_and_sign(data: ptr8, off: int):
             b0: int = data[off]
-            b1: int = data[off+1]
-            b2: int = data[off+2]
-            b3: int = data[off+3]
+            b1: int = data[off + 1]
+            b2: int = data[off + 2]
+            b3: int = data[off + 3]
             uval: int = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
             top_down: int = 0
-            if b3 & 0x80:    # negative
+            if b3 & 0x80:  # negative
                 top_down = 1
                 # absolute value: two’s complement, but we can do (0 - uval)
                 uval = -uval
@@ -1529,40 +1887,46 @@ class Inkplate:
         # Little-endian helpers (inline)
         # le32 at offset 'o'
         o: int = 10
-        pixel_ofs: int = (bmp_data[o] |
-                          (bmp_data[o+1] << 8) |
-                          (bmp_data[o+2] << 16) |
-                          (bmp_data[o+3] << 24))
+        pixel_ofs: int = (
+            bmp_data[o]
+            | (bmp_data[o + 1] << 8)
+            | (bmp_data[o + 2] << 16)
+            | (bmp_data[o + 3] << 24)
+        )
 
         # --- DIB header (assume BITMAPINFOHEADER >= 40 bytes) ---
-        dib_sz: int = (bmp_data[14] |
-                       (bmp_data[15] << 8) |
-                       (bmp_data[16] << 16) |
-                       (bmp_data[17] << 24))
+        dib_sz: int = (
+            bmp_data[14]
+            | (bmp_data[15] << 8)
+            | (bmp_data[16] << 16)
+            | (bmp_data[17] << 24)
+        )
         if dib_sz < 40:
             raise ValueError("Unsupported DIB header")
 
         # width (int32 le)
         w_off: int = 18
-        width: int = (bmp_data[w_off] |
-                      (bmp_data[w_off+1] << 8) |
-                      (bmp_data[w_off+2] << 16) |
-                      (bmp_data[w_off+3] << 24))
+        width: int = (
+            bmp_data[w_off]
+            | (bmp_data[w_off + 1] << 8)
+            | (bmp_data[w_off + 2] << 16)
+            | (bmp_data[w_off + 3] << 24)
+        )
         if width <= 0:
             raise ValueError("Unsupported BMP width")
 
         # height (int32 le, may be negative for top-down)
         h_off: int = 22
         b0: int = bmp_data[h_off]
-        b1: int = bmp_data[h_off+1]
-        b2: int = bmp_data[h_off+2]
-        b3: int = bmp_data[h_off+3]
+        b1: int = bmp_data[h_off + 1]
+        b2: int = bmp_data[h_off + 2]
+        b3: int = bmp_data[h_off + 3]
         height_le: int = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
 
         top_down: int = 0
-        if b3 & 0x80:     # check sign bit
+        if b3 & 0x80:  # check sign bit
             top_down = 1
-            abs_height: int = -height_le   # safe negation, no big mask
+            abs_height: int = -height_le  # safe negation, no big mask
         else:
             abs_height = height_le
 
@@ -1570,20 +1934,22 @@ class Inkplate:
             raise ValueError("Unsupported BMP height")
 
         # planes (must be 1)
-        planes: int = (bmp_data[26] | (bmp_data[27] << 8))
+        planes: int = bmp_data[26] | (bmp_data[27] << 8)
         if planes != 1:
             raise ValueError("Invalid planes")
 
         # bpp (must be 24)
-        bpp: int = (bmp_data[28] | (bmp_data[29] << 8))
+        bpp: int = bmp_data[28] | (bmp_data[29] << 8)
         if bpp != 24:
             raise ValueError("Only 24-bit BMP supported")
 
         # compression (must be BI_RGB = 0)
-        comp: int = (bmp_data[30] |
-                     (bmp_data[31] << 8) |
-                     (bmp_data[32] << 16) |
-                     (bmp_data[33] << 24))
+        comp: int = (
+            bmp_data[30]
+            | (bmp_data[31] << 8)
+            | (bmp_data[32] << 16)
+            | (bmp_data[33] << 24)
+        )
         if comp != 0:
             raise ValueError("Compressed BMP not supported")
 
@@ -1630,10 +1996,10 @@ class Inkplate:
                 x += 1
             y += 1
 
-
         return (width, abs_height, outbuf)
 
 
-if __name__ == '__main__':
-    print("WARNING: You are running the Inkplate module itself, import this module into your example and use it that way")
-
+if __name__ == "__main__":
+    print(
+        "WARNING: You are running the Inkplate module itself, import this module into your example and use it that way"
+    )

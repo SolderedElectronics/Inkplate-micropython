@@ -19,7 +19,7 @@ soldered_logo = bytearray(
 # Create Inkplate object in 2-bit grayscale mode
 inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
 
-    
+
 # Initialize the display, needs to be called only once
 inkplate.begin()
 

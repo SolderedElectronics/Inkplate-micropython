@@ -13,10 +13,12 @@ from inkplate2 import Inkplate
 ssid = "ENTER_SSID_HERE"
 password = "ENTER_PASSWORD_HERE"
 
+
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
 def do_connect():
     import network
+
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print("connecting to network...")
@@ -26,10 +28,12 @@ def do_connect():
             pass
     print("network config:", sta_if.ifconfig())
 
+
 # This function does a HTTP GET request
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_tcp.html
 def http_get(url):
     import socket
+
     res = ""
     _, _, host, path = url.split("/", 3)
     addr = socket.getaddrinfo(host, 80)[0][-1]

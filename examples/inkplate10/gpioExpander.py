@@ -52,7 +52,7 @@ expander2_P1_7 = inkplate.gpioExpanderPin(2, 15, modeOUTPUT)
 
 # Take the previously declared pin 1_5 on expander 2 and blink it
 # To see the blinking, attatch a 300Ohm resistor and LED between that pin and GND
-while (1):
+while 1:
     expander2_P1_5.digitalWrite(1)
     time.sleep(0.5)
     expander2_P1_5.digitalWrite(0)

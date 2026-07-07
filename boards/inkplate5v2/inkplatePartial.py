@@ -37,6 +37,7 @@ EPD_LE = const(0x00000004)  # in W1Tx0
 EPD_CKV = const(0x00000001)  # in W1Tx1
 EPD_SPH = const(0x00000002)  # in W1Tx1
 
+
 class InkplatePartial:
     def __init__(self, base):
         self._base = base
@@ -59,7 +60,7 @@ class InkplatePartial:
         skip_rows = InkplatePartial._skip_rows
         vscan_write = ip.vscan_write
         nfb = self._base._framebuf  # new framebuffer
-        ofb = self._framebuf        # old framebuffer
+        ofb = self._framebuf  # old framebuffer
         lut = InkplatePartial._lut_mono
         h -= 1
 
@@ -90,7 +91,6 @@ class InkplatePartial:
         ip.clean(2, 2)
         ip.clean(3, 1)
         ip.power_off()
-
 
     # gen_lut_mono generates a look-up tables to change the display from a nibble of old
     # pixels (4 bits = 4 pixels) to a nibble of new pixels. The LUT contains the

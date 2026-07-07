@@ -30,7 +30,7 @@ display.clearDisplay()
 display.writeFillRect(0, 0, 50, 720, 3)
 display.writeFillRect(50, 0, 50, 720, 2)
 display.writeFillRect(100, 0, 50, 720, 1)
-display.writeFillRect(150, 0, 50, 720 , 0)
+display.writeFillRect(150, 0, 50, 720, 0)
 
 # Show on the display
 # This has to be called every time you want to update the screen

@@ -1,4 +1,3 @@
-
 # InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
 # and then when asked to draw it renders the differences between the copy and the new framebuffer
 # state. The constructor needs a reference to the current/main display object (InkplateMono).
@@ -66,6 +65,8 @@ RTC_I2C_ADDR = 0x51
 RTC_RAM_by = 0x03
 RTC_DAY_ADDR = 0x07
 RTC_SECOND_ADDR = 0x04
+
+
 class InkplatePartial:
     def __init__(self, base):
         self._base = base

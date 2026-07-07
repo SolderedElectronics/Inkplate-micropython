@@ -5,6 +5,7 @@ from uarray import array
 from PCAL6416A import *
 from micropython import const
 from shapes import Shapes
+
 # ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
 # from esp-idf:
 # define DR_REG_GPIO_BASE           0x3ff44000
@@ -37,6 +38,7 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (1, 1, 2, 0),
     (1, 2, 2, 2),
 )
+
 
 class InkplateGS2(framebuf.FrameBuffer):
     _wave = None
@@ -79,8 +81,9 @@ class InkplateGS2(framebuf.FrameBuffer):
         ix -= 1
         w1tc0[0] = off
         w1tc0[W1TC1 - W1TC0] = EPD_SPH
-        w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]
-                       ] | EPD_CL  # set data bits and clock
+        w1ts0[0] = (
+            b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL
+        )  # set data bits and clock
         # w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
         w1tc0[0] = off  # clear data bits as well ready for next byte
         w1ts0[W1TS1 - W1TS0] = EPD_SPH
@@ -105,7 +108,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(1, 15)
         ip.clean(2, 1)
         ip.clean(0, 15)
-        ip.clean(2,1)
+        ip.clean(2, 1)
 
         # the display gets written N times
         t1 = time.ticks_ms()
@@ -136,9 +139,9 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.power_off()
 
     @micropython.viper
-    def clear(fb:ptr8):
-        for ix in range(1024*758//4):
-           fb[ix] = 0xFF
+    def clear(fb: ptr8):
+        for ix in range(1024 * 758 // 4):
+            fb[ix] = 0xFF
 
 
 Shapes.__mix_me_in(InkplateGS2)

@@ -5,6 +5,7 @@ from uarray import array
 from PCAL6416A import *
 from micropython import const
 from shapes import Shapes
+
 # ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
 # from esp-idf:
 # define DR_REG_GPIO_BASE           0x3ff44000

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [refactor]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build check (placeholder)
+        run: echo "No C module/firmware to build yet — real check lands with Phase 1."
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install -r requirements-dev.txt
+      - name: ruff format --check (Python)
+        run: ruff format --check .
+      - name: clang-format check (placeholder)
+        run: echo "No C sources yet — real check lands with Phase 1."
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit test runner (placeholder)
+        run: echo "No host-compiled C tests yet — real check lands with Phase 1."

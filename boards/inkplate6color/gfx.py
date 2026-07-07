@@ -22,6 +22,8 @@ __version__ = "0.0.0+auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_GFX.git"
 
 import gfx_standard_font_01 as MontserratBlack
+
+
 class GFX:
     """Create an instance of the GFX drawing class.
 
@@ -84,7 +86,9 @@ class GFX:
             else:
                 self.font = font
                 if not isinstance(self.font, dict):
-                    raise ValueError("Font definitions must be contained in a dictionary object.")
+                    raise ValueError(
+                        "Font definitions must be contained in a dictionary object."
+                    )
                 del self.set_text_background
 
         else:
@@ -307,8 +311,12 @@ class GFX:
             ddF_y = -2 * radius
             x = 0
             y = radius
-            self.vline(x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # left
-            self.vline(x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # right
+            self.vline(
+                x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs
+            )  # left
+            self.vline(
+                x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs
+            )  # right
             self.hline(
                 x0, y0 + height - radius + 1, width - 2 * radius + 1, *args, **kwargs
             )  # bottom
@@ -327,8 +335,12 @@ class GFX:
                 self._pixel(x0 - y, y0 - x, *args, **kwargs)  # 180 to 135
                 self._pixel(x0 - x, y0 - y, *args, **kwargs)  # 90 to 135
                 # top right
-                self._pixel(x0 + x + width - 2 * radius, y0 - y, *args, **kwargs)  # 90 to 45
-                self._pixel(x0 + y + width - 2 * radius, y0 - x, *args, **kwargs)  # 0 to 45
+                self._pixel(
+                    x0 + x + width - 2 * radius, y0 - y, *args, **kwargs
+                )  # 90 to 45
+                self._pixel(
+                    x0 + y + width - 2 * radius, y0 - x, *args, **kwargs
+                )  # 0 to 45
                 # bottom right
                 self._pixel(
                     x0 + y + width - 2 * radius,
@@ -343,8 +355,12 @@ class GFX:
                     **kwargs,
                 )  # 270 to 315
                 # bottom left
-                self._pixel(x0 - x, y0 + y + height - 2 * radius, *args, **kwargs)  # 270 to 255
-                self._pixel(x0 - y, y0 + x + height - 2 * radius, *args, **kwargs)  # 180 to 225
+                self._pixel(
+                    x0 - x, y0 + y + height - 2 * radius, *args, **kwargs
+                )  # 270 to 255
+                self._pixel(
+                    x0 - y, y0 + x + height - 2 * radius, *args, **kwargs
+                )  # 180 to 225
 
     def fill_round_rect(self, x0, y0, width, height, radius, *args, **kwargs):
         """Filled circle drawing function.  Will draw a filled circle with
@@ -356,7 +372,9 @@ class GFX:
         # ensure that the radius will only ever half of the shortest side or less
         radius = int(min(radius, width / 2, height / 2))
 
-        self.fill_rect(x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs)
+        self.fill_rect(
+            x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs
+        )
 
         if radius:
             f = 1 - radius
@@ -395,18 +413,16 @@ class GFX:
                     *args,
                     **kwargs,
                 )  # 1 to .75
-                
-                
+
     def _print_text(self, framebuf, x0, y0, string, size, *args, **kwargs):
         """Optimized text rendering for 1bpp and 2bpp framebuffers with text wrapping"""
         # Display parameters (adjust to your display)
         DISPLAY_WIDTH = self.width
         DISPLAY_HEIGHT = self.height
-        
-        
-        wrap_text = kwargs.get('text_wrap', False)
-        BYTES_PER_ROW = getattr(self, 'phys_row_bytes', DISPLAY_WIDTH // 2)
-        rotation = getattr(self, 'rotation', 0)
+
+        wrap_text = kwargs.get("text_wrap", False)
+        BYTES_PER_ROW = getattr(self, "phys_row_bytes", DISPLAY_WIDTH // 2)
+        rotation = getattr(self, "rotation", 0)
 
         # Color handling
         color = args[0] if args else 1  # Default to white
@@ -422,25 +438,33 @@ class GFX:
                 char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
                 line_height = max(line_height, ch_h * size)
 
-                if wrap_text==True:
+                if wrap_text == True:
                     # Check if this would go beyond display width
                     if x + ch_w * size > DISPLAY_WIDTH:
                         x = 0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = ch_h * size  # Reset line height for new line
 
-
                 GFX._draw_char_4bpp(
-                        framebuf, x, y, char_data, ch_w, ch_h,
-                        size, color, BYTES_PER_ROW,
-                        DISPLAY_WIDTH, DISPLAY_HEIGHT, rotation
-                    )
+                    framebuf,
+                    x,
+                    y,
+                    char_data,
+                    ch_w,
+                    ch_h,
+                    size,
+                    color,
+                    BYTES_PER_ROW,
+                    DISPLAY_WIDTH,
+                    DISPLAY_HEIGHT,
+                    rotation,
+                )
                 x += ch_w * size
             except (ValueError, TypeError):
                 # Fall back to character-by-character
                 for char in chunk:
                     # Handle newline character
-                    if char == '\n':
+                    if char == "\n":
                         x = x0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = 0  # Reset line height for new line
@@ -454,27 +478,45 @@ class GFX:
                     line_height = max(line_height, ch_h * size)
 
                     # Check if this character would go beyond display width
-                    if wrap_text==True:
+                    if wrap_text == True:
                         if x + ch_w * size > DISPLAY_WIDTH:
                             x = 0  # Reset to initial x position
                             y += line_height  # Move to next line
                             line_height = ch_h * size  # Reset line height for new line
 
-
                     GFX._draw_char_4bpp(
-                            framebuf, x, y, char_data, ch_w, ch_h,
-                            size, color, BYTES_PER_ROW,
-                            DISPLAY_WIDTH, DISPLAY_HEIGHT, rotation
-                        )
+                        framebuf,
+                        x,
+                        y,
+                        char_data,
+                        ch_w,
+                        ch_h,
+                        size,
+                        color,
+                        BYTES_PER_ROW,
+                        DISPLAY_WIDTH,
+                        DISPLAY_HEIGHT,
+                        rotation,
+                    )
                     x += ch_w * size
-        return [x,y], line_height
+        return [x, y], line_height
 
     @micropython.viper
-    def _draw_char_4bpp(framebuf: ptr8, x0: int, y0: int, char_data: ptr8,
-                        width: int, height: int, size: int,
-                        color: int, bytes_per_row: int,
-                        display_width: int, display_height: int, rotation: int):
-        “””
+    def _draw_char_4bpp(
+        framebuf: ptr8,
+        x0: int,
+        y0: int,
+        char_data: ptr8,
+        width: int,
+        height: int,
+        size: int,
+        color: int,
+        bytes_per_row: int,
+        display_width: int,
+        display_height: int,
+        rotation: int,
+    ):
+        """
         4bpp character draw with rotation-aware transform.
         Applies the same coordinate mapping as writePixel for each rotation:
           rot 0: dx = display_width-1-x,  dy = display_height-1-y
@@ -483,10 +525,10 @@ class GFX:
           rot 3: dx = y,                  dy = display_width-1-x
         bytes_per_row is the physical framebuffer row width (D_COLS // 2).
         Nibble order: even physical x -> high nibble.
-        “””
-        shift_mask = ptr8(b'\x80\x40\x20\x10\x08\x04\x02\x01')
+        """
+        shift_mask = ptr8(b"\x80\x40\x20\x10\x08\x04\x02\x01")
         color = int(color) & 0x0F
-        CLR_LOW  = 0xF0  # clears low  nibble (preserves high)
+        CLR_LOW = 0xF0  # clears low  nibble (preserves high)
         CLR_HIGH = 0x0F  # clears high nibble (preserves low)
 
         for row in range(height):
@@ -500,7 +542,6 @@ class GFX:
             for col in range(width):
                 byte_idx = col >> 3
                 if int(char_data[row_offset + byte_idx]) & int(shift_mask[col & 7]):
-
                     x_base = x0 + col * size
                     if (x_base + size) <= 0 or x_base >= display_width:
                         continue
@@ -539,13 +580,11 @@ class GFX:
                             else:
                                 framebuf[fb_idx] = (fb & CLR_LOW) | color
 
-
-
     @micropython.viper
     def rotate_framebuffer(fb: ptr8):
         """Rotate 4bpp framebuffer 180° in place (width/height in pixels)"""
-        width:int = 600
-        height:int = 448
+        width: int = 600
+        height: int = 448
         bytes_per_row = width >> 1  # 2 pixels per byte
         total_bytes = bytes_per_row * height
         half_bytes = total_bytes >> 1  # only need to swap first half with second half
@@ -570,9 +609,6 @@ class GFX:
             mid = half_bytes
             b = int(fb[mid])
             fb[mid] = ((b & 0x0F) << 4) | ((b & 0xF0) >> 4)
-
-
-
 
     def set_text_background(self, *args, **kwargs):
         """A function to change the background color of text, input any and all color params.

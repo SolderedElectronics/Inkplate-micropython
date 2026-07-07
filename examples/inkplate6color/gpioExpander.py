@@ -41,10 +41,9 @@ expander_P1_7 = display.gpioExpanderPin(15, modeOUTPUT)
 
 # Take the previously declared pin 1_5 and blink it
 # To see the blinking, attatch a 300Ohm resistor and LED between that pin and GND
-while (1):
+while 1:
     expander_P1_5.digitalWrite(1)
     time.sleep(0.5)
     expander_P1_5.digitalWrite(0)
     time.sleep(0.5)
     # Infinite loop, this goes on forever
-

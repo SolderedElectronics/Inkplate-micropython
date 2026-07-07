@@ -10,6 +10,7 @@ from machine import Pin as mPin
 from gfx import GFX
 
 import machine
+
 machine.freq(240000000)
 
 # Connections between ESP32 and color Epaper
@@ -35,7 +36,6 @@ busy_timeout_ms = 30000
 
 
 class Inkplate:
-
     # Colors
     WHITE = 0b00000000
     BLACK = 0b00000001
@@ -43,15 +43,15 @@ class Inkplate:
 
     _width = E_INK_WIDTH
     _height = E_INK_HEIGHT
-    
-    textColor=BLACK
+
+    textColor = BLACK
 
     rotation = 0
     textSize = 1
 
     _panelState = False
-    
-    cursor = [0,0]
+
+    cursor = [0, 0]
 
     @classmethod
     def begin(self):
@@ -60,7 +60,7 @@ class Inkplate:
         self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         self.textColor = 1
-        self.textWrapping=1
+        self.textWrapping = 1
 
         self.GFX = GFX(
             E_INK_HEIGHT,
@@ -82,8 +82,8 @@ class Inkplate:
 
         # 3 is the default rotation for Inkplate 2
         self.setRotation(3)
-        
-        self.textSize=1
+
+        self.textSize = 1
 
         return True
 
@@ -93,12 +93,10 @@ class Inkplate:
 
     @classmethod
     def setPanelDeepSleepState(self, state):
-
         # False wakes the panel up
         # True puts it to sleep
         if not state:
-            self.spi.init(baudrate=20000000, firstbit=SPI.MSB,
-                          polarity=0, phase=0)
+            self.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
             self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
             self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
             self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
@@ -109,7 +107,10 @@ class Inkplate:
             # Reinit the panel
             self.sendCommand(b"\x04")
             _timeout = time.ticks_ms()
-            while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
+            while (
+                not self.EPAPER_BUSY_PIN.value()
+                and (time.ticks_ms() - _timeout) < busy_timeout_ms
+            ):
                 pass
 
             self.sendCommand(b"\x00")
@@ -118,7 +119,7 @@ class Inkplate:
             self.sendCommand(b"\x61")
             self.sendData(b"\x68")
             self.sendData(b"\x00")
-            self.sendData(b"\xD4")
+            self.sendData(b"\xd4")
             self.sendCommand(b"\x50")
             self.sendData(b"\x77")
 
@@ -127,17 +128,19 @@ class Inkplate:
             return True
 
         else:
-
             # Put the panel to sleep
             self.sendCommand(b"\x50")
             self.sendData(b"\xf7")
             self.sendCommand(b"\x02")
             # Wait for ePaper
             _timeout = time.ticks_ms()
-            while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
+            while (
+                not self.EPAPER_BUSY_PIN.value()
+                and (time.ticks_ms() - _timeout) < busy_timeout_ms
+            ):
                 pass
             self.sendCommand(b"\07")
-            self.sendData(b"\xA5")
+            self.sendData(b"\xa5")
 
             time.sleep_ms(1)
             # Turn off SPI
@@ -182,7 +185,6 @@ class Inkplate:
 
     @classmethod
     def display(self):
-
         # Wake the display
         self.setPanelDeepSleepState(False)
 
@@ -203,7 +205,10 @@ class Inkplate:
         time.sleep_ms(5)
 
         _timeout = time.ticks_ms()
-        while not self.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
+        while (
+            not self.EPAPER_BUSY_PIN.value()
+            and (time.ticks_ms() - _timeout) < busy_timeout_ms
+        ):
             pass
 
         # Put the display back to sleep
@@ -239,7 +244,6 @@ class Inkplate:
     @classmethod
     def drawPixel(self, x, y, c):
         self.writePixel(x, y, c)
-
 
     @classmethod
     @micropython.native
@@ -277,10 +281,6 @@ class Inkplate:
         else:
             # Red pixel: clear bit in RED buffer
             self._framebuf_RED[_position] &= ~mask
-    
-
-
-
 
     @classmethod
     def writeFillRect(self, x, y, w, h, c):
@@ -309,17 +309,14 @@ class Inkplate:
     @classmethod
     def drawFastVLine(self, x, y, h, c):
         self.writeFastVLine(x, y, h, c)
-        
 
     @classmethod
     def drawFastHLine(self, x, y, w, c):
         self.writeFastHLine(x, y, w, c)
-        
 
     @classmethod
     def fillRect(self, x, y, w, h, c):
         self.writeFillRect(x, y, w, h, c)
-        
 
     @classmethod
     def fillScreen(self, c):
@@ -328,7 +325,6 @@ class Inkplate:
     @classmethod
     def drawLine(self, x0, y0, x1, y1, c):
         self.writeLine(x0, y0, x1, y1, c)
-        
 
     @classmethod
     def drawRect(self, x, y, w, h, c):
@@ -357,7 +353,7 @@ class Inkplate:
     @classmethod
     def fillRoundRect(self, x, y, q, h, r, c):
         self.GFX.fill_round_rect(x, y, q, h, r, c)
-        
+
     @classmethod
     def setTextColor(self, c):
         self.textColor = c
@@ -369,31 +365,58 @@ class Inkplate:
     @classmethod
     def setFont(self, f):
         self.GFX.font_family = f
-        self.GFX.font=self.GFX.font_family._font
+        self.GFX.font = self.GFX.font_family._font
 
     def setCursor(self, x, y):
-        self.cursor=[x,y]
-    
-    def setTextWrapping(self, state:bool):
-        self.textWrapping=state
+        self.cursor = [x, y]
+
+    def setTextWrapping(self, state: bool):
+        self.textWrapping = state
 
     def printText(self, x, y, s, c=1):
-        self.GFX._print_text(self._framebuf_BW,x, y, s, self.textSize,c, text_wrap=self.textWrapping, bpp=1)
-            
+        self.GFX._print_text(
+            self._framebuf_BW,
+            x,
+            y,
+            s,
+            self.textSize,
+            c,
+            text_wrap=self.textWrapping,
+            bpp=1,
+        )
+
     def println(self, text):
-        self.cursor,line_height = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
-        self.cursor[1]+=line_height
-        self.cursor[0]=0
-        
+        self.cursor, line_height = self.GFX._print_text(
+            self._framebuf_BW,
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.textSize,
+            self.textColor,
+            text_wrap=self.textWrapping,
+            bpp=1,
+        )
+        self.cursor[1] += line_height
+        self.cursor[0] = 0
+
     def print(self, text):
-        self.cursor,_ = self.GFX._print_text(self._framebuf_BW,self.cursor[0], self.cursor[1], text, self.textSize, self.textColor, text_wrap=self.textWrapping, bpp=1)
-        
-    def wrap_text(self,text, max_chars):
+        self.cursor, _ = self.GFX._print_text(
+            self._framebuf_BW,
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.textSize,
+            self.textColor,
+            text_wrap=self.textWrapping,
+            bpp=1,
+        )
+
+    def wrap_text(self, text, max_chars):
         lines = []
-        for paragraph in text.split('\n'):
+        for paragraph in text.split("\n"):
             while len(paragraph) > max_chars:
                 # Find last space within limit
-                wrap_at = paragraph.rfind(' ', 0, max_chars)
+                wrap_at = paragraph.rfind(" ", 0, max_chars)
                 if wrap_at == -1:
                     wrap_at = max_chars
                 lines.append(paragraph[:wrap_at])
@@ -401,24 +424,23 @@ class Inkplate:
             if paragraph:
                 lines.append(paragraph)
         return lines
-    
+
     def drawTextBox(self, x0, y0, x1, y1, text, line_height=20, text_size=None):
-        
         if text_size != None:
             self.setTextSize(text_size)
-        max_width=x1-x0
+        max_width = x1 - x0
         char_width = 6 * self.textSize  # rough estimate
         max_chars = max_width // char_width
         lines = self.wrap_text(text, max_chars)
-        max_height=y1
-        y=y0
+        max_height = y1
+        y = y0
         for line in lines:
-            if y > y1 - 2*line_height:
-                s=list(line)
-                s[-1]='.'
-                s[-2]='.'
-                s[-3]='.'
-                s="".join(s)
+            if y > y1 - 2 * line_height:
+                s = list(line)
+                s[-1] = "."
+                s[-2] = "."
+                s[-3] = "."
+                s = "".join(s)
                 self.printText(x0, y, s)
                 break
             self.printText(x0, y, line)
@@ -428,7 +450,7 @@ class Inkplate:
     def drawBitmap(self, x, y, data, w, h, c=BLACK):
         byteWidth = (w + 7) // 8
         byte = 0
-        
+
         for j in range(h):
             for i in range(w):
                 if i & 7:
@@ -437,7 +459,6 @@ class Inkplate:
                     byte = data[j * byteWidth + i // 8]
                 if byte & 0x80:
                     self.writePixel(x + i, y + j, c)
-        
 
     @classmethod
     def drawColorBitmap(self, x, y, w, h, buf):
@@ -446,12 +467,18 @@ class Inkplate:
             for j in range(scaled_w):
                 self.writePixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
                 if 4 * j + x + 1 < w:
-                    self.writePixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
+                    self.writePixel(
+                        4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4
+                    )
                 if 4 * j + x + 2 < w:
-                    self.writePixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
+                    self.writePixel(
+                        4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2
+                    )
                 if 4 * j + x + 3 < w:
-                    self.writePixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))
-    
+                    self.writePixel(
+                        4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03)
+                    )
+
     def drawImage(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """
         Draw an image from either web URL or local file system
@@ -463,68 +490,61 @@ class Inkplate:
             invert: Invert colors
         """
         # Check if path is a web URL
-        if path.startswith(('http://', 'https://')):
+        if path.startswith(("http://", "https://")):
             # Determine image type from URL
-            if path.lower().endswith('.bmp'):
+            if path.lower().endswith(".bmp"):
                 self.drawBMPFromWeb(path, x0, y0, invert, dither)
-            elif path.lower().endswith('.jpg') or path.lower().endswith('.jpeg'):
+            elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
                 self.drawJPGFromWeb(path, x0, y0, invert, dither, kernel_type)
-            elif path.lower().endswith('.png'):
+            elif path.lower().endswith(".png"):
                 self.drawPNGFromWeb(path, x0, y0, invert, dither, kernel_type)
             else:
-                raise ValueError("Unsupported web image format. Must be .bmp, .jpg, or .png")
+                raise ValueError(
+                    "Unsupported web image format. Must be .bmp, .jpg, or .png"
+                )
         else:
-            
             raise ValueError("Draw Image error: URL could not be parsed.")
-        
-    
-    
-    def drawJPGFromWeb(self, url, x0=0, y0=0, invert=False, dither:bool=False, kernel_type:int=0):
+
+    def drawJPGFromWeb(
+        self, url, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
+    ):
         import jpeg
         import gc
         import urequests
         import ssl
-        
+
         try:
             # 1. Initialize decoder
             decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
-            
+
             # 2. Download the image (with timeout and basic error handling)
             response = urequests.get(url, timeout=20)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
-            
+
             jpeg_data = response.content
             response.close()
-            
+
             try:
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
             except Exception as e:
                 print(e)
                 decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
                 width, height = decoder.get_img_info(jpeg_data)[0:2]
-            
+
             # 4. Decode image
             decoded = decoder.decode(jpeg_data)
-            
 
-            self.rgb565_to_2bpp(decoded,width,height, dither)
-            
-            
-            
-            
-            
+            self.rgb565_to_2bpp(decoded, width, height, dither)
+
         except Exception as e:
             print("Error in drawJPGFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
             raise
 
-
-    
-
-    def rgb565_to_2bpp(self, imagedata, width:int, height:int, dither:bool=True):
-        row_bytes:int = -(-width // 4)
+    def rgb565_to_2bpp(self, imagedata, width: int, height: int, dither: bool = True):
+        row_bytes: int = -(-width // 4)
         outbuf = bytearray(row_bytes * height)
 
         if dither:
@@ -534,7 +554,9 @@ class Inkplate:
             error_buffer = [0]  # dummy
 
         @micropython.viper
-        def process_pixel(im: ptr8, out: ptr8, err: ptr32, w: int, h: int, do_dither: int):
+        def process_pixel(
+            im: ptr8, out: ptr8, err: ptr32, w: int, h: int, do_dither: int
+        ):
             for y in range(h):
                 for x in range(w):
                     idx = (y * w + x) * 2
@@ -570,22 +592,22 @@ class Inkplate:
 
                         if x + 1 < w:
                             e = (y * w + (x + 1)) * 3
-                            err[e]     += err_r * 7 // 16
+                            err[e] += err_r * 7 // 16
                             err[e + 1] += err_g * 7 // 16
                             err[e + 2] += err_b * 7 // 16
                         if y + 1 < h:
                             if x > 0:
                                 e = ((y + 1) * w + (x - 1)) * 3
-                                err[e]     += err_r * 3 // 16
+                                err[e] += err_r * 3 // 16
                                 err[e + 1] += err_g * 3 // 16
                                 err[e + 2] += err_b * 3 // 16
                             e = ((y + 1) * w + x) * 3
-                            err[e]     += err_r * 5 // 16
+                            err[e] += err_r * 5 // 16
                             err[e + 1] += err_g * 5 // 16
                             err[e + 2] += err_b * 5 // 16
                             if x + 1 < w:
                                 e = ((y + 1) * w + (x + 1)) * 3
-                                err[e]     += err_r * 1 // 16
+                                err[e] += err_r * 1 // 16
                                 err[e + 1] += err_g * 1 // 16
                                 err[e + 2] += err_b * 1 // 16
 
@@ -596,17 +618,17 @@ class Inkplate:
 
         # cast Python list to ptr32 for Viper signed access
         import array
+
         if dither:
-            err_arr = array.array('i', error_buffer)
+            err_arr = array.array("i", error_buffer)
         else:
-            err_arr = array.array('i', [0])
+            err_arr = array.array("i", [0])
 
         process_pixel(imagedata, outbuf, err_arr, width, height, 1 if dither else 0)
         Inkplate.drawColorImage_viper(0, 0, width, height, outbuf)
 
-
     @micropython.viper
-    def drawColorImage_viper(x:int, y:int, w:int, h:int, buf_obj):
+    def drawColorImage_viper(x: int, y: int, w: int, h: int, buf_obj):
         scaled_w = (w + 3) // 4
         buf = ptr8(buf_obj)
         for i in range(h):
@@ -615,29 +637,30 @@ class Inkplate:
                 shift = (3 - (j & 3)) * 2
                 pix = (buf[byte_idx] >> shift) & 0x03
                 Inkplate.writePixel(j + x, i + y, pix)
-                
-    
-    def drawPNGFromWeb(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+
+    def drawPNGFromWeb(
+        self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0
+    ):
         import gc
         import urequests
         import ssl
-        
+
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 print(f"HTTP Error {response.status_code}")
-            
+
             png_data = response.content
             response.close()
-            
+
             Inkplate.decode_png_to_framebuffer(png_data, x0, y0, invert, dither)
             gc.collect()
-        
+
         except Exception as e:
             print("Error in drawPNGFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
-    
+
     @staticmethod
     @micropython.native
     def decode_png_to_framebuffer(png_data, x0, y0, invert=False, dither=False):
@@ -655,20 +678,20 @@ class Inkplate:
             idat_list = []
             plte = None
             while pos + 8 <= len(png_bytes):
-                clen = int.from_bytes(png_bytes[pos:pos+4], 'big')
-                ctype = png_bytes[pos+4:pos+8]
+                clen = int.from_bytes(png_bytes[pos : pos + 4], "big")
+                ctype = png_bytes[pos + 4 : pos + 8]
                 cstart = pos + 8
                 cend = cstart + clen
-                if ctype == b'IHDR':
+                if ctype == b"IHDR":
                     ihdr = png_bytes[cstart:cend]
-                elif ctype == b'PLTE':
+                elif ctype == b"PLTE":
                     plte = png_bytes[cstart:cend]
-                elif ctype == b'IDAT':
+                elif ctype == b"IDAT":
                     idat_list.append(png_bytes[cstart:cend])
-                elif ctype == b'IEND':
+                elif ctype == b"IEND":
                     break
                 pos = cend + 4
-            return ihdr, b''.join(idat_list), plte
+            return ihdr, b"".join(idat_list), plte
 
         def bytes_per_pixel(bit_depth, color_type):
             if bit_depth != 8:
@@ -682,7 +705,9 @@ class Inkplate:
             if color_type == 6:
                 return 4
             if color_type == 3:
-                raise ValueError("Indexed-color PNG not supported without PLTE palette handling")
+                raise ValueError(
+                    "Indexed-color PNG not supported without PLTE palette handling"
+                )
             raise ValueError("Unsupported color type: %d" % color_type)
 
         if len(png_data) < 8 or png_data[:8] != b"\x89PNG\r\n\x1a\n":
@@ -694,19 +719,21 @@ class Inkplate:
         if not idat:
             raise ValueError("No IDAT chunks")
 
-        width  = int.from_bytes(ihdr[0:4], 'big')
-        height = int.from_bytes(ihdr[4:8], 'big')
-        bit_depth  = ihdr[8]
+        width = int.from_bytes(ihdr[0:4], "big")
+        height = int.from_bytes(ihdr[4:8], "big")
+        bit_depth = ihdr[8]
         color_type = ihdr[9]
-        interlace  = ihdr[12]
+        interlace = ihdr[12]
 
         if interlace != 0:
             raise ValueError("Interlaced PNG not supported in this path")
 
         bpp = bytes_per_pixel(bit_depth, color_type)
 
-        draw_width  = width  if (x0 + width)  <= _SCREEN_WIDTH_  else _SCREEN_WIDTH_  - x0
-        draw_height = height if (y0 + height) <= _SCREEN_HEIGHT_ else _SCREEN_HEIGHT_ - y0
+        draw_width = width if (x0 + width) <= _SCREEN_WIDTH_ else _SCREEN_WIDTH_ - x0
+        draw_height = (
+            height if (y0 + height) <= _SCREEN_HEIGHT_ else _SCREEN_HEIGHT_ - y0
+        )
         if draw_width <= 0 or draw_height <= 0:
             return
 
@@ -718,8 +745,8 @@ class Inkplate:
 
         if dither:
             err_w = draw_width
-            err_cur = array.array('h', [0] * err_w)
-            err_nxt = array.array('h', [0] * err_w)
+            err_cur = array.array("h", [0] * err_w)
+            err_nxt = array.array("h", [0] * err_w)
 
         inv_mask = 1 if invert else 0
 
@@ -749,11 +776,14 @@ class Inkplate:
                     c = prev_row[i - bpp_] if i >= bpp_ else 0
                     p = a + b - c
                     pa = p - a
-                    if pa < 0: pa = -pa
+                    if pa < 0:
+                        pa = -pa
                     pb = p - b
-                    if pb < 0: pb = -pb
+                    if pb < 0:
+                        pb = -pb
                     pc = p - c
-                    if pc < 0: pc = -pc
+                    if pc < 0:
+                        pc = -pc
                     if pa <= pb and pa <= pc:
                         pred = a
                     elif pb <= pc:
@@ -777,15 +807,24 @@ class Inkplate:
             base = 0
             for x in range(draw_width):
                 if color_type == 0:
-                    r = g = b = cur[base]; a = 255
+                    r = g = b = cur[base]
+                    a = 255
                 elif color_type == 2:
-                    r = cur[base]; g = cur[base + 1]; b = cur[base + 2]; a = 255
+                    r = cur[base]
+                    g = cur[base + 1]
+                    b = cur[base + 2]
+                    a = 255
                 elif color_type == 4:
-                    r = g = b = cur[base]; a = cur[base + 1]
+                    r = g = b = cur[base]
+                    a = cur[base + 1]
                 elif color_type == 6:
-                    r = cur[base]; g = cur[base + 1]; b = cur[base + 2]; a = cur[base + 3]
+                    r = cur[base]
+                    g = cur[base + 1]
+                    b = cur[base + 2]
+                    a = cur[base + 3]
                 else:
-                    r = g = b = 0; a = 255
+                    r = g = b = 0
+                    a = 255
 
                 base += bpp
 
@@ -810,11 +849,13 @@ class Inkplate:
 
                     if dither:
                         gray = gray + err_cur[x]
-                        if gray < 0: gray = 0
-                        elif gray > 255: gray = 255
-        
-                    val = 0 if gray > 127 else 1   # 1 = white, 0 = black
-                    val_before_inv=val
+                        if gray < 0:
+                            gray = 0
+                        elif gray > 255:
+                            gray = 255
+
+                    val = 0 if gray > 127 else 1  # 1 = white, 0 = black
+                    val_before_inv = val
                     if invert:
                         val ^= 1
 
@@ -839,11 +880,10 @@ class Inkplate:
                     err_nxt[i] = 0
 
             cur, prev = prev, cur
-            
-            
+
     def drawBMPFromWeb(self, url, x0=0, y0=0, invert=False, dither=False):
         """Display a BMP image downloaded from the web
-        
+
         Args:
             bmp_data (bytes): Raw BMP file data
             x0 (int): X position to start drawing
@@ -854,22 +894,20 @@ class Inkplate:
         import gc
         import urequests
         import ssl
-    
+
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 print(f"HTTP Error {response.status_code}")
-            
+
             bmp_data = response.content
             response.close()
             Inkplate.decode_bmp(bmp_data, x0, y0, invert, dither)
         except Exception as e:
             print("Error in drawBMPFromWeb:", e)
-            if 'response' in locals():
+            if "response" in locals():
                 response.close()
 
-            
-        
     @staticmethod
     @micropython.native
     def decode_bmp(bmp_data, x0, y0, invert, dither):
@@ -879,31 +917,31 @@ class Inkplate:
         __SCREEN_HEIGHT_ = const(104)
 
         # BMP header parsing (support only uncompressed 24-bit or 32-bit BMP)
-        if bmp_data[0:2] != b'BM':
+        if bmp_data[0:2] != b"BM":
             raise ValueError("Not a BMP file")
-        file_size = int.from_bytes(bmp_data[2:6], 'little')
-        pixel_offset = int.from_bytes(bmp_data[10:14], 'little')
-        dib_header_size = int.from_bytes(bmp_data[14:18], 'little')
-        width  = int.from_bytes(bmp_data[18:22], 'little', True)
-        height = int.from_bytes(bmp_data[22:26], 'little', True)
-        planes = int.from_bytes(bmp_data[26:28], 'little')
-        bpp = int.from_bytes(bmp_data[28:30], 'little')
-        compression = int.from_bytes(bmp_data[30:34], 'little')
+        file_size = int.from_bytes(bmp_data[2:6], "little")
+        pixel_offset = int.from_bytes(bmp_data[10:14], "little")
+        dib_header_size = int.from_bytes(bmp_data[14:18], "little")
+        width = int.from_bytes(bmp_data[18:22], "little", True)
+        height = int.from_bytes(bmp_data[22:26], "little", True)
+        planes = int.from_bytes(bmp_data[26:28], "little")
+        bpp = int.from_bytes(bmp_data[28:30], "little")
+        compression = int.from_bytes(bmp_data[30:34], "little")
 
         if compression != 0 or planes != 1 or bpp not in (24, 32):
             raise ValueError("Unsupported BMP format")
 
         # BMP rows are padded to 4 bytes
         row_bytes = ((width * bpp + 31) // 32) * 4
-        draw_width  = min(width, __SCREEN_WIDTH_ - x0)
+        draw_width = min(width, __SCREEN_WIDTH_ - x0)
         draw_height = min(abs(height), __SCREEN_HEIGHT_ - y0)
         if draw_width <= 0 or draw_height <= 0:
             return
 
         # prepare dithering buffers
         if dither:
-            err_cur = array.array('h', [0] * draw_width)
-            err_nxt = array.array('h', [0] * draw_width)
+            err_cur = array.array("h", [0] * draw_width)
+            err_nxt = array.array("h", [0] * draw_width)
 
         inv_mask = 1 if invert else 0
         flipped = height > 0  # BMP stores bottom-up if height > 0
@@ -941,8 +979,10 @@ class Inkplate:
                     gray = (r * 77 + g * 151 + b * 28) >> 8
                     if dither:
                         gray = gray + err_cur[x]
-                        if gray < 0: gray = 0
-                        elif gray > 255: gray = 255
+                        if gray < 0:
+                            gray = 0
+                        elif gray > 255:
+                            gray = 255
 
                     val = 0 if gray > 127 else 1
                     val_before_inv = val
@@ -969,15 +1009,7 @@ class Inkplate:
                     err_nxt[i] = 0
 
 
-if __name__ == '__main__':
-    print("WARNING: You are running the Inkplate module itself, import this module into your example and use it that way")
-
-
-
-
-
-
-
-                        
-    
-    
+if __name__ == "__main__":
+    print(
+        "WARNING: You are running the Inkplate module itself, import this module into your example and use it that way"
+    )

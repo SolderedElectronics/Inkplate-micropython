@@ -17,7 +17,6 @@ display = Inkplate(Inkplate.INKPLATE_2BIT)
 
 # Main function
 if __name__ == "__main__":
-
     # Start runtime timer
     start_time = time.ticks_ms()
 

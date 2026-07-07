@@ -44,8 +44,14 @@ class InkplateMono(framebuf.FrameBuffer):
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
         ip = InkplateMono
         ip._gen_luts()
-        ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk,
-                    ip.lut_blk, ip.lut_blk, ip.lut_bw]
+        ip._wave = [
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_bw,
+        ]
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
@@ -157,9 +163,9 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_off()
 
     @micropython.viper
-    def clear(fb:ptr8):
+    def clear(fb: ptr8):
         for ix in range(1280 * 720 // 8):
-           fb[ix] = 0
+            fb[ix] = 0
 
 
 Shapes.__mix_me_in(InkplateMono)

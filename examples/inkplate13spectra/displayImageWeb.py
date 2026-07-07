@@ -12,6 +12,7 @@ from inkplate13SPECTRA import Inkplate
 SSID = "YOUR_SSID_HERE"
 PASSWORD = "YOUR_PASSWORD_HERE"
 
+
 # Connects to a WiFi network using given SSID and PASSWORD.
 #
 # Returns:
@@ -76,13 +77,12 @@ if not do_connect():
 # Example usage:
 inkplate.drawImage(
     "https://i.imgur.com/ESkX8xU.jpeg",  # URL to image
-    0, 0,                                # X, Y position
-    invert=False,                       # Do not invert colors
-    dither=True,                        # Enable dithering
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG  # Dithering algorithm
+    0,
+    0,  # X, Y position
+    invert=False,  # Do not invert colors
+    dither=True,  # Enable dithering
+    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,  # Dithering algorithm
 )
 
 # Show the image from the internal buffer
 inkplate.display()
-
-

@@ -32,7 +32,6 @@ inkplate.display()
 # This example will draw shapes around the upper left corner, and then rotate the screen
 # This creates a symmetrical-looking pattern of various shapes
 for r in range(4):
-
     # Sets the screen rotation
     inkplate.setRotation(r)
 
@@ -68,4 +67,3 @@ inkplate.drawBitmap(534, 340, soldered_logo, 211, 44)
 
 # Show on the display, this time with a full update
 inkplate.display()
-

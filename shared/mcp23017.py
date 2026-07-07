@@ -1,4 +1,4 @@
-# MicroPython driver the MCP23017 GPIO expander 
+# MicroPython driver the MCP23017 GPIO expander
 # Contributed by: https://github.com/tve
 # Copyright © 2020 by Thorsten von Eicken
 from machine import Pin as mPin

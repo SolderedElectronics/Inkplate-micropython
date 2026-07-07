@@ -15,17 +15,15 @@ inkplate.begin()
 
 # This is how to set the RTC's time
 # Arguments are hour, minute, seconds
-inkplate.rtcSetTime(9,39,10)
+inkplate.rtcSetTime(9, 39, 10)
 # And this is the date
 # Arguments are weekday, day in month, month and year
-inkplate.rtcSetDate(5,9,2,2024)
+inkplate.rtcSetDate(5, 9, 2, 2024)
 
 # Infinite loop
 while True:
-
     # Show the set time
     print(inkplate.rtcGetData())
 
     # Let's wait 10 seconds
     time.sleep(10)
-

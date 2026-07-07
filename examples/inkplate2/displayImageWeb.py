@@ -11,6 +11,7 @@ from inkplate2 import Inkplate
 SSID = "YOUR_SSID_HERE"
 PASSWORD = "YOUR_PASSWORD_HERE"
 
+
 # Connects to a WiFi network using given SSID and PASSWORD.
 #
 # Returns:
@@ -69,17 +70,18 @@ if not do_connect():
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-drawLenght=time.ticks_ms()
+drawLenght = time.ticks_ms()
 inkplate.drawImage(
     "https://i.imgur.com/VSRtgBr.jpeg",  # URL to image
-    0, 0,                                # X, Y position
-    dither = True						 # Enable dithering
+    0,
+    0,  # X, Y position
+    dither=True,  # Enable dithering
 )
-drawLenght=time.ticks_ms()-drawLenght
+drawLenght = time.ticks_ms() - drawLenght
 print("time it took to draw to buffer: {} ms ".format(drawLenght))
 
 # Show the image from the internal buffer
-drawLenght=time.ticks_ms()
+drawLenght = time.ticks_ms()
 inkplate.display()
-drawLenght=time.ticks_ms()-drawLenght
+drawLenght = time.ticks_ms() - drawLenght
 print("time it took to display: {} ms ".format(drawLenght))

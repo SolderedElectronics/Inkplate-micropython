@@ -6,3 +6,4 @@ lib
 i2c_scanner.py
 .DS_Store
 __pycache__
+.venv

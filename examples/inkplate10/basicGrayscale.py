@@ -45,4 +45,3 @@ inkplate.display()
 # Stop timer and print total runtime
 elapsed_ms = time.ticks_diff(time.ticks_ms(), start_time)
 print("Total runtime: {} ms".format(elapsed_ms))
-

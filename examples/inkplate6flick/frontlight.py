@@ -10,7 +10,7 @@ import time
 # Create Inkplate object in 1-bit (black and white) mode
 display = Inkplate(Inkplate.INKPLATE_1BIT)
 
-    
+
 # Initialize the display, needs to be called only once
 display.begin()
 
@@ -35,12 +35,11 @@ display.setFrontlight(0)
 # First, increase the brightness gradually
 for i in range(0, 64):
     display.setFrontlight(i)
-    time.sleep(0.5) # Wait for 500ms
+    time.sleep(0.5)  # Wait for 500ms
 # Then, decrease
 for v in range(0, 64):
-    display.setFrontlight(60-v)
-    time.sleep(0.5) # Wait for 500ms
+    display.setFrontlight(60 - v)
+    time.sleep(0.5)  # Wait for 500ms
 
 # Turn it off
 display.frontlight(False)
-

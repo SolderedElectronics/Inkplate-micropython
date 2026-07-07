@@ -7,7 +7,6 @@
 # Methods in Shapes call self.pixel, self.line, self.hline, and self.vline, so these must be
 # provided by the class that Shapes is mixed into.
 class Shapes:
-
     # __mix_me_in adds the methods of this class to another class.  Typical usage is to put
     # something like Shapes.__mix_me_in(MyClass) after the class definition.
     @classmethod
@@ -56,8 +55,8 @@ class Shapes:
         y = 0
         err = 2 - 2 * r
         while x <= 0:
-            self.vline(x0 - x, y0 - y, 2*y+1, color)
-            self.vline(x0 + x, y0 - y, 2*y+1, color)
+            self.vline(x0 - x, y0 - y, 2 * y + 1, color)
+            self.vline(x0 + x, y0 - y, 2 * y + 1, color)
             e2 = err
             if e2 <= y:
                 y += 1
@@ -184,7 +183,9 @@ class Shapes:
             y = radius
             self.vline(x0 - radius, y0, height - 2 * radius + 1, color)  # left
             self.vline(x0 + width - radius, y0, height - 2 * radius + 1, color)  # right
-            self.hline(x0, y0 + height - radius + 1, width - 2 * radius + 1, color)  # bottom
+            self.hline(
+                x0, y0 + height - radius + 1, width - 2 * radius + 1, color
+            )  # bottom
             self.hline(x0, y0 - radius, width - 2 * radius + 1, color)  # top
             while x < y:
                 if f >= 0:
@@ -241,12 +242,22 @@ class Shapes:
                 f += ddF_x
                 # part notation starts with 0 on left and 1 on right, and direction is noted
                 # top left
-                self.vline(x0 - y, y0 - x, 2 * x + 1 + height - 2 * radius, color)  # 0 to .25
-                self.vline(x0 - x, y0 - y, 2 * y + 1 + height - 2 * radius, color)  # .5 to .25
+                self.vline(
+                    x0 - y, y0 - x, 2 * x + 1 + height - 2 * radius, color
+                )  # 0 to .25
+                self.vline(
+                    x0 - x, y0 - y, 2 * y + 1 + height - 2 * radius, color
+                )  # .5 to .25
                 # top right
                 self.vline(
-                    x0 + x + width - 2 * radius, y0 - y, 2 * y + 1 + height - 2 * radius, color
+                    x0 + x + width - 2 * radius,
+                    y0 - y,
+                    2 * y + 1 + height - 2 * radius,
+                    color,
                 )  # .5 to .75
                 self.vline(
-                    x0 + y + width - 2 * radius, y0 - x, 2 * x + 1 + height - 2 * radius, color
+                    x0 + y + width - 2 * radius,
+                    y0 - x,
+                    2 * x + 1 + height - 2 * radius,
+                    color,
                 )  # 1 to .75

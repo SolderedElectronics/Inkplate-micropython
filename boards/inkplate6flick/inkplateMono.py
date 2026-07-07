@@ -5,6 +5,7 @@ from uarray import array
 from PCAL6416A import *
 from micropython import const
 from shapes import Shapes
+
 # ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
 # from esp-idf:
 # define DR_REG_GPIO_BASE           0x3ff44000
@@ -27,14 +28,21 @@ EPD_SPH = const(0x00000002)  # in W1Tx1
 D_ROWS = const(758)
 D_COLS = const(1024)
 
+
 class InkplateMono(framebuf.FrameBuffer):
     def __init__(self):
         self._framebuf = bytearray(D_ROWS * D_COLS // 8)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
         ip = InkplateMono
         ip._gen_luts()
-        ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk,
-                    ip.lut_blk, ip.lut_blk, ip.lut_bw]
+        ip._wave = [
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_bw,
+        ]
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
@@ -137,14 +145,14 @@ class InkplateMono(framebuf.FrameBuffer):
             "Mono: clean %dms (%dms ea), draw %dms (%dms ea), total %dms"
             % (tc, tc // (4 + 22 + 24), td, td // len(self._wave), tt)
         )
-        ip.clean(3,1)
+        ip.clean(3, 1)
 
         ip.power_off()
 
     @micropython.viper
-    def clear(fb:ptr8):
-        for ix in range(1024*758//8):
-           fb[ix] = 0x00
+    def clear(fb: ptr8):
+        for ix in range(1024 * 758 // 8):
+            fb[ix] = 0x00
 
 
 Shapes.__mix_me_in(InkplateMono)

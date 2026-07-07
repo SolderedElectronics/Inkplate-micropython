@@ -17,9 +17,9 @@ inkplate.begin()
 # Initializes the SD card.
 #
 # Parameters:
-# - fastboot (bool, default=False): 
-#     If True, performs a soft reboot immediately after SD card initialization 
-#     (only on cold start or hard reset). This significantly improves SD card 
+# - fastboot (bool, default=False):
+#     If True, performs a soft reboot immediately after SD card initialization
+#     (only on cold start or hard reset). This significantly improves SD card
 #     read speeds—typically doubling performance.
 #
 # Note:
@@ -56,7 +56,14 @@ print(listdir("/sd"))
 # - JPG: ~52 seconds (or ~90s with dithering)
 #
 # Example usage:
-inkplate.drawImage("sd/coast.jpg", 0, 0, invert=False, dither=True, kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG )
+inkplate.drawImage(
+    "sd/coast.jpg",
+    0,
+    0,
+    invert=False,
+    dither=True,
+    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
+)
 
 # Show the image from the buffer
 inkplate.display()

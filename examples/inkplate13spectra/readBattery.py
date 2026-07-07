@@ -7,7 +7,7 @@ from inkplate13SPECTRA import Inkplate
 
 # Creates an Inkplate object
 inkplate = Inkplate()
-    
+
 # Initialize the display, needs to be called only once
 inkplate.begin()
 

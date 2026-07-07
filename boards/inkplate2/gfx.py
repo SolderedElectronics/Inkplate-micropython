@@ -22,6 +22,8 @@ __version__ = "0.0.0+auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_GFX.git"
 
 import gfx_standard_font_01 as MontserratBlack
+
+
 class GFX:
     """Create an instance of the GFX drawing class.
 
@@ -84,7 +86,9 @@ class GFX:
             else:
                 self.font = font
                 if not isinstance(self.font, dict):
-                    raise ValueError("Font definitions must be contained in a dictionary object.")
+                    raise ValueError(
+                        "Font definitions must be contained in a dictionary object."
+                    )
                 del self.set_text_background
 
         else:
@@ -307,8 +311,12 @@ class GFX:
             ddF_y = -2 * radius
             x = 0
             y = radius
-            self.vline(x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # left
-            self.vline(x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # right
+            self.vline(
+                x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs
+            )  # left
+            self.vline(
+                x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs
+            )  # right
             self.hline(
                 x0, y0 + height - radius + 1, width - 2 * radius + 1, *args, **kwargs
             )  # bottom
@@ -327,8 +335,12 @@ class GFX:
                 self._pixel(x0 - y, y0 - x, *args, **kwargs)  # 180 to 135
                 self._pixel(x0 - x, y0 - y, *args, **kwargs)  # 90 to 135
                 # top right
-                self._pixel(x0 + x + width - 2 * radius, y0 - y, *args, **kwargs)  # 90 to 45
-                self._pixel(x0 + y + width - 2 * radius, y0 - x, *args, **kwargs)  # 0 to 45
+                self._pixel(
+                    x0 + x + width - 2 * radius, y0 - y, *args, **kwargs
+                )  # 90 to 45
+                self._pixel(
+                    x0 + y + width - 2 * radius, y0 - x, *args, **kwargs
+                )  # 0 to 45
                 # bottom right
                 self._pixel(
                     x0 + y + width - 2 * radius,
@@ -343,8 +355,12 @@ class GFX:
                     **kwargs,
                 )  # 270 to 315
                 # bottom left
-                self._pixel(x0 - x, y0 + y + height - 2 * radius, *args, **kwargs)  # 270 to 255
-                self._pixel(x0 - y, y0 + x + height - 2 * radius, *args, **kwargs)  # 180 to 225
+                self._pixel(
+                    x0 - x, y0 + y + height - 2 * radius, *args, **kwargs
+                )  # 270 to 255
+                self._pixel(
+                    x0 - y, y0 + x + height - 2 * radius, *args, **kwargs
+                )  # 180 to 225
 
     def fill_round_rect(self, x0, y0, width, height, radius, *args, **kwargs):
         """Filled circle drawing function.  Will draw a filled circle with
@@ -356,7 +372,9 @@ class GFX:
         # ensure that the radius will only ever half of the shortest side or less
         radius = int(min(radius, width / 2, height / 2))
 
-        self.fill_rect(x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs)
+        self.fill_rect(
+            x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs
+        )
 
         if radius:
             f = 1 - radius
@@ -395,82 +413,108 @@ class GFX:
                     *args,
                     **kwargs,
                 )  # 1 to .75
-                
-                
+
     def _print_text(self, framebuf, x0, y0, string, size, *args, **kwargs):
         """Optimized text rendering for displays with separate BW and RED framebuffers"""
         # Display parameters (adjust to your display)
         DISPLAY_WIDTH = self.width
         DISPLAY_HEIGHT = self.height
-        
-        wrap_text = kwargs.get('text_wrap', False)
+
+        wrap_text = kwargs.get("text_wrap", False)
         BYTES_PER_ROW = DISPLAY_WIDTH // 8  # Always 1bpp per buffer
-        
+
         # Color handling (0=black, 1=white, 2=red)
         color = args[0] if args else 0  # Default to black
         color = min(max(color, 0), 2)  # Clamp to 0-2
-        
+
         x = int(x0)
         y = int(y0)
         line_height = 0  # Will be set when we draw the first character
-        
+
         for chunk in string.split("__"):
             try:
                 # Try to draw as special character first
                 char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
                 line_height = max(line_height, ch_h * size)
-                
+
                 if wrap_text:
                     # Check if this would go beyond display width
                     if x + ch_w * size > DISPLAY_WIDTH:
                         x = 0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = ch_h * size  # Reset line height for new line
-                
+
                 self._draw_char_dual_buf(
-                    framebuf, framebuf, 
-                    x, y, char_data, ch_w, ch_h,
-                    size, color, BYTES_PER_ROW,
-                    DISPLAY_WIDTH, DISPLAY_HEIGHT
+                    framebuf,
+                    framebuf,
+                    x,
+                    y,
+                    char_data,
+                    ch_w,
+                    ch_h,
+                    size,
+                    color,
+                    BYTES_PER_ROW,
+                    DISPLAY_WIDTH,
+                    DISPLAY_HEIGHT,
                 )
                 x += ch_w * size
             except (ValueError, TypeError):
                 # Fall back to character-by-character
                 for char in chunk:
                     # Handle newline character
-                    if char == '\n':
+                    if char == "\n":
                         x = x0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = 0  # Reset line height for new line
                         continue
-                        
+
                     try:
                         char_data, ch_h, ch_w = self.font_family.get_ch(char)
                     except (ValueError, TypeError):
                         char_data, ch_h, ch_w = self.font_family.get_ch("?")
-                    
+
                     line_height = max(line_height, ch_h * size)
-                    
+
                     # Check if this character would go beyond display width
                     if wrap_text:
                         if x + ch_w * size > DISPLAY_WIDTH:
                             x = 0  # Reset to initial x position
                             y += line_height  # Move to next line
                             line_height = ch_h * size  # Reset line height for new line
-                    
+
                     self._draw_char_dual_buf(
-                        framebuf, framebuf,
-                        x, y, char_data, ch_w, ch_h,
-                        size, color, BYTES_PER_ROW,
-                        DISPLAY_WIDTH, DISPLAY_HEIGHT
+                        framebuf,
+                        framebuf,
+                        x,
+                        y,
+                        char_data,
+                        ch_w,
+                        ch_h,
+                        size,
+                        color,
+                        BYTES_PER_ROW,
+                        DISPLAY_WIDTH,
+                        DISPLAY_HEIGHT,
                     )
                     x += ch_w * size
-        return [x,y], line_height
+        return [x, y], line_height
 
-    def _draw_char_dual_buf(self, framebuf_bw, framebuf_red,
-                        x0, y0, char_data, width, height, size,
-                        color, bytes_per_row,
-                        display_width, display_height):
+    def _draw_char_dual_buf(
+        self,
+        framebuf_bw,
+        framebuf_red,
+        x0,
+        y0,
+        char_data,
+        width,
+        height,
+        size,
+        color,
+        bytes_per_row,
+        display_width,
+        display_height,
+    ):
         """Simpler version that just calls _pixel for each scaled glyph pixel."""
         row_bytes = (width + 7) // 8
 
@@ -484,10 +528,9 @@ class GFX:
                     # Draw scaled pixel block
                     for sy in range(size):
                         for sx in range(size):
-                            self._pixel(x0 + col * size + sx,
-                                        y0 + row * size + sy,
-                                        color)
-
+                            self._pixel(
+                                x0 + col * size + sx, y0 + row * size + sy, color
+                            )
 
     def set_text_background(self, *args, **kwargs):
         """A function to change the background color of text, input any and all color params.

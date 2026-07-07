@@ -9,7 +9,7 @@ from inkplate6FLICK import Inkplate
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 2-bit grayscale, see basicGrayscale.py
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
-    
+
 # Initialize the display, needs to be called only once
 inkplate.begin()
 

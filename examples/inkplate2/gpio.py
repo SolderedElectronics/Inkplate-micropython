@@ -9,17 +9,17 @@ import time
 from inkplate2 import Inkplate
 from machine import Pin
 
-# Create Inkplate object 
+# Create Inkplate object
 inkplate = Inkplate()
 
 # Declare the IO4 pin as an output (connect the LED to this pin with a resistor)
-ledPin=Pin(4,Pin.OUT)
+ledPin = Pin(4, Pin.OUT)
 
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
 
-while (1):
+while 1:
     ledPin.value(1)
     time.sleep(0.5)
     ledPin.value(0)

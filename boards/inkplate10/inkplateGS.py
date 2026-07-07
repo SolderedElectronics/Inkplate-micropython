@@ -54,6 +54,7 @@ RTC_RAM_by = 0x03
 RTC_DAY_ADDR = 0x07
 RTC_SECOND_ADDR = 0x04
 
+
 class InkplateGS2(framebuf.FrameBuffer):
     _wave = None
 
@@ -95,8 +96,9 @@ class InkplateGS2(framebuf.FrameBuffer):
         ix -= 1
         w1tc0[0] = off
         w1tc0[W1TC1 - W1TC0] = EPD_SPH
-        w1ts0[0] = b2g[lut[data >> 4] << 4 | lut[data & 0xF]
-                       ] | EPD_CL  # set data bits and clock
+        w1ts0[0] = (
+            b2g[lut[data >> 4] << 4 | lut[data & 0xF]] | EPD_CL
+        )  # set data bits and clock
         # w1tc0[0] = EPD_CL  # clear clock, leaving data bits (unreliable if data also cleared)
         w1tc0[0] = off  # clear data bits as well ready for next byte
         w1ts0[W1TS1 - W1TS0] = EPD_SPH
@@ -154,10 +156,9 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.power_off()
 
     @micropython.viper
-    def clear(fb:ptr8):
-        for ix in range(1200*825//4):
-           fb[ix] = 0xFF
+    def clear(fb: ptr8):
+        for ix in range(1200 * 825 // 4):
+            fb[ix] = 0xFF
 
 
 Shapes.__mix_me_in(InkplateGS2)
-

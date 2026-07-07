@@ -17,7 +17,7 @@ soldered_logo = bytearray(
 # For 2-bit grayscale, see basicGrayscale.py
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
-    
+
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
@@ -32,7 +32,6 @@ inkplate.display()
 # This example will draw shapes around the upper left corner, and then rotate the screen
 # This creates a symmetrical-looking pattern of various shapes
 for r in range(4):
-
     # Sets the screen rotation
     inkplate.setRotation(r)
 

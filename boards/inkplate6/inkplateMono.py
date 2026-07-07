@@ -1,6 +1,6 @@
 # FILE: inkplateMono.py
 # AUTHOR: Soldered
-# BRIEF: A MicroPython class for a 1-bit BW display mode 
+# BRIEF: A MicroPython class for a 1-bit BW display mode
 # LAST UPDATED: 2025-05-26
 import time
 import framebuf
@@ -11,7 +11,6 @@ from inkplate6 import _Inkplate
 # Raw display constants for Inkplate 6
 D_ROWS = const(600)
 D_COLS = const(800)
-
 
 
 # Waveforms for 2 bits per pixel grey-scale.
@@ -61,14 +60,21 @@ RTC_RAM_by = 0x03
 RTC_DAY_ADDR = 0x07
 RTC_SECOND_ADDR = 0x04
 
+
 class InkplateMono(framebuf.FrameBuffer):
     def __init__(self):
         self._framebuf = bytearray(D_ROWS * D_COLS // 8)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
         ip = InkplateMono
         ip._gen_luts()
-        ip._wave = [ip.lut_blk, ip.lut_blk, ip.lut_blk,
-                    ip.lut_blk, ip.lut_blk, ip.lut_bw]
+        ip._wave = [
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_blk,
+            ip.lut_bw,
+        ]
 
     # gen_luts generates the look-up tables to convert a nibble (4 bits) of pixels to the
     # 32-bits that need to be pushed into the gpio port.
@@ -178,9 +184,9 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_off()
 
     @micropython.viper
-    def clear(fb:ptr8):
-        for ix in range(800*600//8):
-           fb[ix] = 0x00
+    def clear(fb: ptr8):
+        for ix in range(800 * 600 // 8):
+            fb[ix] = 0x00
 
 
 Shapes.__mix_me_in(InkplateMono)

@@ -9,8 +9,8 @@ from inkplate5v2 import _Inkplate
 # ===== Constants that change between the Inkplate 5 and 10
 
 # Raw display constants for Inkplate 5
-D_ROWS:int = const(720)
-D_COLS:int = const(1280)
+D_ROWS: int = const(720)
+D_COLS: int = const(1280)
 
 # Waveforms for 2 bits per pixel grey-scale.
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
@@ -38,19 +38,18 @@ TPS65186_addr = const(0x48)  # I2C address
 # define DR_REG_GPIO_BASE           0x3ff44000
 # define GPIO_OUT_W1TS_REG          (DR_REG_GPIO_BASE + 0x0008)
 # define GPIO_OUT_W1TC_REG          (DR_REG_GPIO_BASE + 0x000c)
-ESP32_GPIO:int = const(0x3FF44000)  # ESP32 GPIO base
+ESP32_GPIO: int = const(0x3FF44000)  # ESP32 GPIO base
 # register offsets from ESP32_GPIO
-W1TS0:int = const(2)  # offset for "write one to set" register for gpios 0..31
-W1TC0:int = const(3)  # offset for "write one to clear" register for gpios 0..31
-W1TS1:int = const(5)  # offset for "write one to set" register for gpios 32..39
-W1TC1:int = const(6)  # offset for "write one to clear" register for gpios 32..39
+W1TS0: int = const(2)  # offset for "write one to set" register for gpios 0..31
+W1TC0: int = const(3)  # offset for "write one to clear" register for gpios 0..31
+W1TS1: int = const(5)  # offset for "write one to set" register for gpios 32..39
+W1TC1: int = const(6)  # offset for "write one to clear" register for gpios 32..39
 # bit masks in W1TS/W1TC registers
-EPD_DATA:int = const(0x0E8C0030)  # EPD_D0..EPD_D7
-EPD_CL:int = const(0x00000001)  # in W1Tx0
-EPD_LE:int = const(0x00000004)  # in W1Tx0
-EPD_CKV:int = const(0x00000001)  # in W1Tx1
-EPD_SPH:int = const(0x00000002)  # in W1Tx1
-
+EPD_DATA: int = const(0x0E8C0030)  # EPD_D0..EPD_D7
+EPD_CL: int = const(0x00000001)  # in W1Tx0
+EPD_LE: int = const(0x00000004)  # in W1Tx0
+EPD_CKV: int = const(0x00000001)  # in W1Tx1
+EPD_SPH: int = const(0x00000002)  # in W1Tx1
 
 
 class InkplateGS2(framebuf.FrameBuffer):
@@ -89,17 +88,17 @@ class InkplateGS2(framebuf.FrameBuffer):
         w1ts0 = ptr32(0x3FF44008)  # ESP32_GPIO + 0x08
         w1tc0 = ptr32(0x3FF4400C)  # ESP32_GPIO + 0x0C
 
-        off = 0x0E8C0031            # EPD_DATA | EPD_CL
-        ix = row * 320 + 319        # row * ROW_LEN + (ROW_LEN - 1)
+        off = 0x0E8C0031  # EPD_DATA | EPD_CL
+        ix = row * 320 + 319  # row * ROW_LEN + (ROW_LEN - 1)
 
         # ---- send first byte ----
         data = fb[ix]
         ix -= 1
         w1tc0[0] = off
-        w1tc0[3] = 0x00000002       # W1TC1-W1TC0=3, mask = EPD_SPH
+        w1tc0[3] = 0x00000002  # W1TC1-W1TC0=3, mask = EPD_SPH
         w1ts0[0] = b2g[(lut[data >> 4] << 4) | lut[data & 0xF]] | 0x00000001
         w1tc0[0] = off
-        w1ts0[3] = 0x00000002       # W1TS1-W1TS0=3, mask = EPD_SPH
+        w1ts0[3] = 0x00000002  # W1TS1-W1TS0=3, mask = EPD_SPH
 
         # ---- send remaining 319 bytes ----
         for c in range(319):
@@ -107,9 +106,9 @@ class InkplateGS2(framebuf.FrameBuffer):
             ix -= 1
             w1ts0[0] = b2g[(lut[data >> 4] << 4) | lut[data & 0xF]] | 0x00000001
             w1tc0[0] = off
-    
+
     @micropython.viper
-    def display(fb:ptr8):
+    def display(fb: ptr8):
         ip = _Inkplate
         ip.power_on()
 
@@ -149,11 +148,10 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(3, 1)
         ip.power_off()
 
-
     @micropython.viper
-    def clear(fb:ptr8):
-        for ix in range(1280*720//4):
-           fb[ix] = 0xFF
+    def clear(fb: ptr8):
+        for ix in range(1280 * 720 // 4):
+            fb[ix] = 0xFF
 
 
 Shapes.__mix_me_in(InkplateGS2)

@@ -10,7 +10,7 @@ from inkplate6COLOR import Inkplate
 # Create Inkplate object
 display = Inkplate()
 
-    
+
 # Initialize the display, needs to be called only once
 display.begin()
 
@@ -18,7 +18,6 @@ display.begin()
 # This example will draw shapes around the upper left corner, and then rotate the screen
 # This creates a symmetrical-looking pattern of various shapes
 for r in range(4):
-
     # Sets the screen rotation
     display.setRotation(r)
 
@@ -41,4 +40,3 @@ display.setRotation(0)
 
 # Show on the display
 display.display()
-

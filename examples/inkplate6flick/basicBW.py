@@ -34,7 +34,6 @@ display.display()
 # This example will draw shapes around the upper left corner, and then rotate the screen
 # This creates a symmetrical-looking pattern of various shapes
 for r in range(4):
-
     # Sets the screen rotation
     display.setRotation(r)
 
@@ -69,4 +68,3 @@ display.setRotation(0)
 display.drawBitmap(406, 357, soldered_logo, 211, 44)
 # Show on the display
 display.display()
-
