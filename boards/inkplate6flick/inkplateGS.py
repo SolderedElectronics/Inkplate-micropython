@@ -2,7 +2,7 @@ from inkplate6FLICK import _Inkplate
 import time
 import framebuf
 from uarray import array
-from PCAL6416A import *
+from pcal6416a import *
 from micropython import const
 from shapes import Shapes
 

@@ -8,7 +8,7 @@
 
 # Include needed libraries
 import time
-from PCAL6416A import *
+from pcal6416a import *
 from inkplate6COLOR import Inkplate
 
 # Create Inkplate object

@@ -4,7 +4,7 @@ import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard
 from micropython import const
-from PCAL6416A import *
+from pcal6416a import *
 from shapes import Shapes
 from machine import Pin as mPin
 from gfx import GFX

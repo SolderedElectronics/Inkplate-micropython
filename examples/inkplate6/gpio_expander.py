@@ -6,7 +6,7 @@
 
 # Include needed libraries
 import time
-from PCAL6416A import *
+from pcal6416a import *
 from inkplate6 import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only

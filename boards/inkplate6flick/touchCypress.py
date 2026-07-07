@@ -1,6 +1,6 @@
 import time
 from machine import Pin, I2C
-from PCAL6416A import *
+from pcal6416a import *
 
 # Constants
 CPYRESS_TOUCH_I2C_ADDR = 0x24

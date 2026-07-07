@@ -13,8 +13,8 @@
         "github:SolderedElectronics/Inkplate-micropython/shared/gfx_standard_font_01.py"
       ],
       [
-        "PCAL6416A.py",
-        "github:SolderedElectronics/Inkplate-micropython/shared/PCAL6416A.py"
+        "pcal6416a.py",
+        "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
       ],
       [
         "shapes.py",

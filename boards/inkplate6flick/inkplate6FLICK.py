@@ -8,7 +8,7 @@ import os
 import micropython
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
-from PCAL6416A import *
+from pcal6416a import *
 from micropython import const
 from shapes import Shapes
 from touchCypress import *

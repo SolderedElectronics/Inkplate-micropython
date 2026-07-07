@@ -7,7 +7,7 @@ import framebuf
 import os
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
-from PCAL6416A import *
+from pcal6416a import *
 from micropython import const
 from shapes import Shapes
 import gc

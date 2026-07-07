@@ -4,7 +4,7 @@
 import time
 import micropython
 import framebuf
-from PCAL6416A import *
+from pcal6416a import *
 from micropython import const
 from shapes import Shapes
 from uarray import array

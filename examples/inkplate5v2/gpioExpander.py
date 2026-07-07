@@ -5,7 +5,7 @@
 # LAST UPDATED: 2025-08-22
 # Include needed libraries
 import time
-from PCAL6416A import *
+from pcal6416a import *
 from inkplate5v2 import Inkplate
 
 # Create Inkplate object
