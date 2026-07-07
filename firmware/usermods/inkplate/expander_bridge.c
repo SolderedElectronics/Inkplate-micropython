@@ -1,16 +1,15 @@
 #include "expander_bridge.h"
 #include "py/runtime.h"
 
-static mp_obj_t expander_write_cb = MP_OBJ_NULL;
-
 void expander_bridge_set_callback(mp_obj_t cb)
 {
-    expander_write_cb = cb;
+    MP_STATE_VM(inkplate_expander_write_cb) = cb;
 }
 
 void expander_bridge_write(uint8_t addr, uint8_t pin, uint8_t value)
 {
-    if (expander_write_cb == MP_OBJ_NULL) {
+    mp_obj_t cb = MP_STATE_VM(inkplate_expander_write_cb);
+    if (cb == MP_OBJ_NULL) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("expander callback not set"));
     }
 
@@ -19,5 +18,7 @@ void expander_bridge_write(uint8_t addr, uint8_t pin, uint8_t value)
         mp_obj_new_int(pin),
         mp_obj_new_int(value),
     };
-    mp_call_function_n_kw(expander_write_cb, 3, 0, args);
+    mp_call_function_n_kw(cb, 3, 0, args);
 }
+
+MP_REGISTER_ROOT_POINTER(mp_obj_t inkplate_expander_write_cb);

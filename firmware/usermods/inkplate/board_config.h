@@ -5,6 +5,13 @@
 
 #include <stdint.h>
 
+// Combines 8 GPIO numbers into the W1TS/W1TC bitmask covering all of them -- use this to
+// derive a board's data_mask from its data_pins instead of hand-translating to hex, so the
+// two fields can't silently drift apart.
+#define INKPLATE_DATA_MASK8(p0, p1, p2, p3, p4, p5, p6, p7)                                      \
+    ((1u << (p0)) | (1u << (p1)) | (1u << (p2)) | (1u << (p3)) | (1u << (p4)) | (1u << (p5)) |   \
+     (1u << (p6)) | (1u << (p7)))
+
 // Waveform table: [level_from][level_to] -> phase codes, MAX_WAVE_PHASES codes per entry.
 // Populated with the 2-bit (4-level) waveform until 3-bit tables are confirmed per board (Phase 5).
 #define MAX_WAVE_LEVELS 8

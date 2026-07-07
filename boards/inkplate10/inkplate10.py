@@ -5,6 +5,7 @@ import time
 import micropython
 import framebuf
 import os
+import inkplate
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
@@ -44,23 +45,11 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
 
 TPS65186_addr = const(0x48)  # I2C address
 
-# ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
-# from esp-idf:
-# define DR_REG_GPIO_BASE           0x3ff44000
-# define GPIO_OUT_W1TS_REG          (DR_REG_GPIO_BASE + 0x0008)
-# define GPIO_OUT_W1TC_REG          (DR_REG_GPIO_BASE + 0x000c)
-ESP32_GPIO = const(0x3FF44000)  # ESP32 GPIO base
-# register offsets from ESP32_GPIO
-W1TS0 = const(2)  # offset for "write one to set" register for gpios 0..31
-W1TC0 = const(3)  # offset for "write one to clear" register for gpios 0..31
-W1TS1 = const(5)  # offset for "write one to set" register for gpios 32..39
-W1TC1 = const(6)  # offset for "write one to clear" register for gpios 32..39
-# bit masks in W1TS/W1TC registers
+# Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
+# pulse sequencing itself now lives in C (firmware/usermods/inkplate/epd_bitbang.c),
+# selected via inkplate.select_board() below.
 EPD_DATA = const(0x0E8C0030)  # EPD_D0..EPD_D7
 EPD_CL = const(0x00000001)  # in W1Tx0
-EPD_LE = const(0x00000004)  # in W1Tx0
-EPD_CKV = const(0x00000001)  # in W1Tx1
-EPD_SPH = const(0x00000002)  # in W1Tx1
 
 # Inkplate provides access to the pins of the Inkplate 10 as well as to low-level display
 # functions.
@@ -77,14 +66,20 @@ class _Inkplate:
         cls._i2c = i2c
         cls._PCAL6416A_1 = PCAL6416A(i2c)
         cls._PCAL6416A_2 = PCAL6416A(i2c, 0x21)
-        # Display control lines
-        cls.EPD_CL = Pin(0, Pin.OUT, value=0)
-        cls.EPD_LE = Pin(2, Pin.OUT, value=0)
-        cls.EPD_CKV = Pin(32, Pin.OUT, value=0)
-        cls.EPD_SPH = Pin(33, Pin.OUT, value=1)
+        # Display control lines -- pin mode/initial level only; toggling happens in C.
+        Pin(0, Pin.OUT, value=0)  # EPD_CL
+        Pin(2, Pin.OUT, value=0)  # EPD_LE
+        Pin(32, Pin.OUT, value=0)  # EPD_CKV
+        Pin(33, Pin.OUT, value=1)  # EPD_SPH
+        inkplate.select_board("inkplate10")
+        inkplate.set_expander_write_cb(cls._expander_write_cb)
 
         cls.EPD_OE = gpioPin(cls._PCAL6416A_1, 0, modeOUTPUT)
         cls.EPD_GMODE = gpioPin(cls._PCAL6416A_1, 1, modeOUTPUT)
+        # EPD_SPV itself is never read again -- toggling happens in C via pin_spv in
+        # board_config.c, which must stay pin 2 on this same expander (0x20) to match.
+        # This call's job is the pinMode(OUTPUT) side effect (see PCAL6416A.gpioPin),
+        # not the object it returns.
         cls.EPD_SPV = gpioPin(cls._PCAL6416A_1, 2, modeOUTPUT)
 
         # Display data lines - we only use the Pin class to init the pins
@@ -128,6 +123,18 @@ class _Inkplate:
 
         if len(_Inkplate.byte2gpio) == 0:
             _Inkplate.gen_byte2gpio()
+
+    # _expander_write_cb is invoked from C (epd_bitbang.c, via expander_bridge.c) to
+    # toggle a PCAL6416A-controlled line (currently only SPV) -- routes by I2C address
+    # to whichever expander instance owns that address.
+    @classmethod
+    def _expander_write_cb(cls, addr, pin, value):
+        if addr == cls._PCAL6416A_1.addr:
+            cls._PCAL6416A_1.digitalWrite(pin, value)
+        elif addr == cls._PCAL6416A_2.addr:
+            cls._PCAL6416A_2.digitalWrite(pin, value)
+        else:
+            raise ValueError("no expander at addr {:#x}".format(addr))
 
     @classmethod
     def begin(self):
@@ -229,42 +236,21 @@ class _Inkplate:
 
     # ===== Methods that are independent of pixel bit depth
 
-    # vscan_start begins a vertical scan by toggling CKV and SPV
-    # sleep_us calls are commented out 'cause MP is slow enough...
+    # vscan_start/vscan_write/vscan_end/fill_screen are implemented in C
+    # (firmware/usermods/inkplate/epd_bitbang.c) as of Phase 2 -- see
+    # docs/REFACTOR-PLAN.md step 7. Same names/signatures as before, so
+    # inkplateMono.py/inkplateGS.py/inkplatePartial.py need no changes.
     @classmethod
     def vscan_start(cls):
-        def ckv_pulse():
-            cls.EPD_CKV(0)
-            cls.EPD_CKV(1)
-
-        # start a vertical scan pulse
-        cls.EPD_CKV(1)  # time.sleep_us(7)
-        cls.EPD_SPV.digitalWrite(0)  # time.sleep_us(10)
-        ckv_pulse()  # time.sleep_us(8)
-        cls.EPD_SPV.digitalWrite(1)  # time.sleep_us(10)
-        # pulse through 3 scan lines that end up being invisible
-        ckv_pulse()  # time.sleep_us(18)
-        ckv_pulse()  # time.sleep_us(18)
-        ckv_pulse()
+        inkplate.vscan_start()
 
     @classmethod
     def vscan_end(cls):
-        cls.EPD_SPH(0)
-        cls.EPD_LE(1)
-        cls.EPD_LE(0)
+        inkplate.vscan_end()
 
-    # vscan_write latches the row into the display pixels and moves to the next row
-    @micropython.viper
     @staticmethod
     def vscan_write():
-        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
-        w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
-        w1ts0[0] = EPD_LE  # pulse to latch row --
-        w1ts0[0] = EPD_LE  # delay a tiny bit
-        w1tc0[0] = EPD_LE
-        w1tc0[0] = EPD_LE  # delay a tiny bit
-        w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
+        inkplate.vscan_write()
 
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
@@ -283,43 +269,9 @@ class _Inkplate:
             union |= cls.byte2gpio[i]
         assert union == EPD_DATA
 
-    # fill_screen writes the same value to all bytes of the screen, it is used for cleaning
-    @micropython.viper
     @staticmethod
     def fill_screen(data: int):
-        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
-        # set the data output gpios
-        w1tc0[0] = EPD_DATA | EPD_CL
-        w1ts0[0] = data
-        vscan_write = _Inkplate.vscan_write
-        epd_cl = EPD_CL
-
-        # send all rows
-        for r in range(D_ROWS):
-            # send first byte of row with start-row signal
-            w1tc0[W1TC1 - W1TC0] = EPD_SPH
-            w1ts0[0] = epd_cl
-            w1tc0[0] = epd_cl
-            w1ts0[W1TS1 - W1TS0] = EPD_SPH
-
-            # send remaining bytes (we overshoot by one, which is OK)
-            i = int(D_COLS >> 3)
-            while i > 0:
-                w1ts0[0] = epd_cl
-                w1tc0[0] = epd_cl
-                w1ts0[0] = epd_cl
-                w1tc0[0] = epd_cl
-                i -= 1
-
-            # latch row and increment to next
-            # inlined vscan_write()
-            w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
-            w1ts0[0] = EPD_LE  # pulse to latch row --
-            w1ts0[0] = EPD_LE  # delay a tiny bit
-            w1tc0[0] = EPD_LE
-            w1tc0[0] = EPD_LE  # delay a tiny bit
-            w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
+        inkplate.fill_screen(data)
 
     # clean fills the screen with one of the four possible pixel patterns
     @classmethod

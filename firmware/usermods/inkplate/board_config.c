@@ -25,7 +25,7 @@ const board_config_t board_config_inkplate10 = {
     .height = 825,
 
     .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = 0x0E8C0030,
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
 
     .pin_cl = 0,
     .pin_le = 2,

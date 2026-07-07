@@ -36,7 +36,7 @@ Firmware build (MicroPython + ESP-IDF) is the user's own responsibility — not 
 
 ## Phase 2 — De-risk: bit-bang control lines in C (no DMA yet)
 
-7. Port `vscan_start/write/end` and `fill_screen` (currently viper) to C, using the known-good bit-bang method — no I2S yet. Config-driven from Phase 1's struct. **Verify (HIL)**: mono example renders identically to Phase 0 baseline, now executing through C. Isolates "C can drive the panel at all" from "does I2S DMA work" before combining both unknowns.
+7. **[DONE]** Port `vscan_start/write/end` and `fill_screen` (currently viper) to C, using the known-good bit-bang method — no I2S yet. Config-driven from Phase 1's struct. **Verify (HIL)**: mono example renders identically to Phase 0 baseline, now executing through C. Isolates "C can drive the panel at all" from "does I2S DMA work" before combining both unknowns. **Verified**: `firmware/usermods/inkplate/epd_bitbang.{h,c}` implements `epd_vscan_start/write/end`/`epd_fill_screen`, bound into the module (`inkplate.vscan_start()` etc.) and called from `boards/inkplate10/inkplate10.py`. Real bug found+fixed on real hardware: C port dropped the `delayMicroseconds(0)` calls the Arduino reference has around CKV transitions in `vscan_start`/`vscan_write` (relied on instead by the old non-viper Python for its call-overhead margin) — panel showed nothing until `esp_rom_delay_us(0)` was restored at those points, confirmed against `~/Documents/GitHub/Inkplate-Arduino-library`. `basicBW.py` mono `display()` runs correctly through the C path on real Inkplate10: 1785ms total (1343ms clean + 442ms draw), partial updates 454ms/frame (110us/row) — both confirmed visually correct on the panel.
 
 ## Phase 3 — I2S parallel transport
 
