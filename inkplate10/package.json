@@ -1,0 +1,38 @@
+{
+  "urls": [
+    [
+      "inkplate10.py",
+      "github:SolderedElectronics/Inkplate-micropython/inkplate10/inkplate10/inkplate10.py"
+    ],
+    [
+      "inkplateGS.py",
+      "github:SolderedElectronics/Inkplate-micropython/inkplate10/inkplate10/inkplateGS.py"
+    ],
+    [
+      "inkplateMono.py",
+      "github:SolderedElectronics/Inkplate-micropython/inkplate10/inkplate10/inkplateMono.py"
+    ],
+    [
+      "inkplatePartial.py",
+      "github:SolderedElectronics/Inkplate-micropython/inkplate10/inkplate10/inkplatePartial.py"
+    ],
+    [
+      "gfx.py",
+      "github:SolderedElectronics/Inkplate-micropython/dependencies/gfx.py"
+    ],
+    [
+      "gfx_standard_font_01.py",
+      "github:SolderedElectronics/Inkplate-micropython/dependencies/gfx_standard_font_01.py"
+    ],
+    [
+      "PCAL6416A.py",
+      "github:SolderedElectronics/Inkplate-micropython/dependencies/PCAL6416A.py"
+    ],
+    [
+      "shapes.py",
+      "github:SolderedElectronics/Inkplate-micropython/dependencies/shapes.py"
+    ]
+  ],
+  "deps": [],
+  "version": "1.0"
+}

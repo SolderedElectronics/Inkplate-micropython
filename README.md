@@ -36,7 +36,7 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
 
    For example, if you want to install drivers for the Inkplate6, it will be the following command:
    ```
-      mpremote mip install github:SolderedElectronics/Inkplate-micropython/Inkplate6
+      mpremote mip install github:SolderedElectronics/Inkplate-micropython/inkplate6
    ```
 
 

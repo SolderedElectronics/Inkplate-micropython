@@ -1,0 +1,118 @@
+@ -0,0 +1,108 @@
+# Inkplate-micropython: C/I2S/3-bit Grayscale Refactor
+
+## Context
+
+Repo is currently pure Python, distributed via `mip install` on top of two prebuilt firmware `.bin` files whose build source doesn't exist anywhere accessible — confirmed via exhaustive search (zero `.c`/`.h` files, no CMake/Makefile/manifest.py, no CI, no tests). All "performance-critical" code today is `@micropython.viper`-decorated Python doing raw ESP32 GPIO register bit-banging to drive the e-paper parallel bus, duplicated near-identically across 4 board packages (Inkplate6, 10, 5v2, 6FLICK — ~1700-2000 lines each, ~90% identical). Grayscale is 2-bit/4-level; full 3-bit/8-level waveform tables from the Arduino reference driver already sit in code as unused comments.
+
+Goal: move the hot path into C, drive the panel via ESP32 I2S+DMA instead of bit-banged GPIO (classic ESP32 I2S0 supports parallel LCD-style output — same technique as the open-source `vroland/epdiy` project, useful prior art), upgrade grayscale to 3-bit/8-level, and consolidate the 4 duplicated board packages into one C driver + thin per-board Python config. User will build the MicroPython+ESP-IDF firmware from scratch (no existing build source to reuse) and has real hardware for most/all variants to verify each step. Work must be small, independently-testable tasks — no big-bang rewrites.
+
+Confirmed in-repo facts anchoring this plan (spot-checked directly, not just from exploration agents):
+- `inkplate10.py:40-42` — full Arduino `WAVEFORM3BIT[8][8]` table already transcribed as a comment, unused.
+- `inkplate10.py:186-187` — `_tps65186_read` is missing `return`, silently discards the read value (`cls._temperature` always becomes `None`). Duplicated in sibling board files. Real bug, fix during consolidation.
+- Pin/control-line layout (`EPD_DATA=0x0E8C0030`, CL=GPIO0, LE=GPIO2, CKV=GPIO32, SPH=GPIO33, OE/GMODE/SPV via PCAL6416A I2C expander) is identical across Inkplate6/10/5v2/6FLICK — only resolution and waveform timing differ. This is why a single config-driven C driver is realistic, not speculative.
+- SPI-controller-chip panels (Inkplate6COLOR, Inkplate2, Inkplate13SPECTRA — the last on ESP32-S3) are architecturally unrelated to the bit-banged bus; I2S migration doesn't apply to them. Separate track.
+- `Dependencies/mcp23017.py` is dead code (no board imports it).
+- `touchCypress.py` (Inkplate6FLICK) has self-documented placeholder/incomplete logic in `tsGetXY`/`tsGetResolution`.
+- Inkplate4TEMPERA and Inkplate6PLUS are in-scope per user, both confirmed classic-ESP32 parallel-bus boards (same family as Inkplate6/10/5v2/6FLICK), not yet present in this repo — user will supply pin map/waveform data; slotted into Phase 6 alongside the other parallel-bus boards.
+
+## Sequencing strategy
+
+Firmware build (MicroPython + ESP-IDF) is the user's own responsibility — not a plan focus here, only touched where the C-porting work needs a hook into it (`USER_C_MODULES` scaffold, board variant/partition sizing). Priority is the C port itself. Bring up ONE board (**Inkplate10** — best-commented reference, largest/most demanding panel, hardware available) through the full new stack first, with de-risking stepping stones, before generalizing to the other 5 parallel-bus boards (Inkplate6, 5v2, 6FLICK, 6PLUS, 4TEMPERA — all classic ESP32) via config only. Build the board-config abstraction early (not deferred) since the pin/control layout is already confirmed near-identical across boards — designing it now avoids Inkplate10-specific assumptions leaking into "shared" code later. SPI-controller panels (Inkplate6COLOR, Inkplate2, Inkplate13SPECTRA) are also in scope for the C refactor, not just an optional assessment — see Phase 8. Every task has a concrete build/unit-test/hardware-in-the-loop (HIL) verification. Tasks needing hardware values not currently known (per-board 3-bit waveform timing, Cypress touch protocol, SPI panel command sets, 4TEMPERA/6PLUS specs) are flagged **[NEEDS INPUT]** — user will supply these (from the Arduino reference driver, datasheets, or hardware specs) per-task, don't guess.
+
+---
+
+## Phase 0 — Git workflow + baseline
+
+1. **Git workflow**: regular commits directly to the existing `refactor` branch, no PR/branch-per-task ceremony. Follow commit conventions specified in CLAUDE.md. Add a GitHub Actions workflow running on every push: (a) build check — compile the C module/firmware once the toolchain exists, (b) format check — `clang-format` for C, `black`/`ruff` for the Python config layer, (c) unit test runner — the host-compiled C tests introduced in later phases (board-config, waveform LUT, framebuffer packing). No hardware in CI. **Verify**: workflow runs green on a trivial commit, red on a deliberately broken one.
+2. **Capture baseline on real Inkplate10**: run existing mono + GS2 examples on current firmware, record timing (code already logs render times) + reference photos. This is the regression oracle for every later step.
+3. **Restructure repo layout for the C port**: add a dedicated C source directory (e.g. `firmware/usercmodule/inkplate/` — placement driven by wherever the self-built firmware's `USER_C_MODULES` hook expects component code). Keep existing per-board directories (`Inkplate6/`, `Inkplate10/`, `Inkplate5v2/`, `Inkplate6FLICK/`, etc.) as the home for the thin Python config/shim layer once C lands — don't relocate them, just change what's inside. Keep `Dependencies/` for the shared Python (gfx/shapes/PCAL6416A) that survives consolidation. Rename/reshape anything else only if it's actively in the way (e.g. `mcp23017.py` gets deleted here, not just flagged). **Verify**: new directory scaffolding exists; current `mip install`/`package.json` paths for existing users still resolve unchanged during the transition (nothing breaks for people on the old pure-Python packages while this is in progress).
+4. Once user has a self-built MicroPython+ESP-IDF firmware available: confirm PSRAM is enabled/detected (GS buffers are ~250KB+, must live in PSRAM) and add a `USER_C_MODULES` scaffold with one trivial function (e.g. `inkplate.version()`). **Verify (HIL)**: importable from REPL, returns expected value — proves C build/link/registration before any driver logic exists. This is the only firmware-build-adjacent task in this plan; everything else assumes the firmware toolchain is a given.
+
+## Phase 1 — Board-config abstraction (data only, no transport)
+
+5. Define a C `board_config` struct: resolution, data-bus pin list, control pins (CL/LE/CKV/SPH), PCAL6416A pin assignments (OE/GMODE/SPV), PMIC I2C address, waveform table pointer, feature flags (touch/frontlight). Populate the Inkplate10 instance from confirmed constants above. **Verify**: host-compiled C unit test instantiates config, asserts fields match known Inkplate10 values.
+6. Decide + implement how C reaches the PCAL6416A-controlled lines (OE/GMODE/SPV — not in the hot per-row loop, so keep `PCAL6416A.py` in Python, expose a clean C-callable interface, revisit only if timing demands otherwise). **Verify (HIL)**: toggle each line via the new interface, confirm with multimeter/logic analyzer or observed PMIC behavior.
+
+## Phase 2 — De-risk: bit-bang control lines in C (no DMA yet)
+
+7. Port `vscan_start/write/end` and `fill_screen` (currently viper) to C, using the known-good bit-bang method — no I2S yet. Config-driven from Phase 1's struct. **Verify (HIL)**: mono example renders identically to Phase 0 baseline, now executing through C. Isolates "C can drive the panel at all" from "does I2S DMA work" before combining both unknowns.
+
+## Phase 3 — I2S parallel transport
+
+User will supply the I2S configuration in C directly (classic ESP32 I2S0 LCD/parallel-mode DMA setup) — no research/design-doc task needed here, just integration.
+
+8. Integrate user-supplied I2S config into a minimal spike: hardcoded-for-Inkplate10 single-row DMA transfer, framed by manual SPH/LE/CKV pulses. Explicitly throwaway. **Verify (HIL + logic analyzer if available)**: D0-D7/CL/LE/CKV show expected waveform for one row. Confirm whether GPIO matrix routing (per the supplied config) makes the current `byte2gpio` scatter/gather remap unnecessary.
+9. Generalize the spike into a real `inkplate_i2s` component: init/deinit, PSRAM DMA buffers, `push_row`/`push_frame` primitives, double-buffered (compute next row while current transfers), parameterized by the Phase 1 board config. **Verify (HIL)**: full-screen clear via I2S matches Phase 2's bit-bang clear (same visual result), timing recorded as new baseline.
+
+## Phase 4 — Waveform engine + mono display (walking skeleton)
+
+10. Port `_gen_wave`/`genlut` LUT generation to C, generalized over bit-depth (so 1-bit/2-bit/3-bit all flow through one code path — this is what makes the later 3-bit switch a data change, not a rewrite). **Verify**: host-compiled unit test — generated LUTs match hand-computed values for a synthetic table, and legacy 2-bit path reproduces current Python `_wave` output byte-for-byte.
+11. Full mono (1bpp) display pipeline on I2S transport + waveform engine, Inkplate10. **Verify (HIL)**: text/shapes render clean and ghost-free — **first true end-to-end milestone**: our C module + I2S DMA path, working.
+12. Port `clean()` (pre-refresh flush patterns) to the I2S path. **Verify (HIL)**: matches baseline flush behavior, no new ghosting.
+
+## Phase 5 — Grayscale: 2-bit parity, then 3-bit upgrade
+
+13. Port `InkplateGS2` (existing `WAVE_2B` table, current 4-level behavior) onto the I2S+engine path — no new gray levels yet, parity check only. **Verify (HIL)**: matches Phase 0 baseline 4-level output, faster.
+14. Switch framebuffer to 3-bit/8-level. `framebuf` has no native 3bpp mode — decide packing (likely reuse `GS4_HMSB` 4bpp storage using 8 of 16 levels, simplest reuse of existing `framebuf` primitives vs. custom 3bpp pack). Update `writePixel` and image-loader color mapping accordingly. **Verify**: unit test — pixel set/read round-trips correctly for all 8 levels; buffer allocates on-target without OOM (check PSRAM budget for 4bpp full-frame buffer, ~495KB at Inkplate10 resolution).
+15. **[NEEDS INPUT]** User to confirm/supply exact 3-bit waveform phase tables + timing for Inkplate10 (the in-repo comment gives codes; confirm phase ordering/repeat counts, check for temperature-dependent timing). Wire the 8-level table into the engine. **Verify (HIL)**: 8-level gray ramp test image shows 8 distinct, monotonic bands with acceptable ghosting.
+
+## Phase 6 — Generalize to remaining parallel-bus boards (config only)
+
+16. Inkplate6 (800x600): add config + **[NEEDS INPUT]** its 3-bit waveform table (user to supply). **Verify (HIL)**: mono + 8-level GS + basic examples on real hardware.
+17. Inkplate5v2 (1280x720): same treatment. **Verify (HIL)**: same checks.
+18. Inkplate6FLICK (1024x758): display path only via config; explicitly defer touch/frontlight to Phase 10. **Verify (HIL)**: mono + GS display works.
+19. Inkplate6PLUS: same treatment (classic ESP32, parallel-bus, confirmed by user) — add config + **[NEEDS INPUT]** pin map/resolution/waveform table (not yet in this repo, user to supply). **Verify (HIL)**: mono + 8-level GS + basic examples on real hardware.
+20. Inkplate4TEMPERA: same treatment (classic ESP32, parallel-bus, confirmed by user) — add config + **[NEEDS INPUT]** pin map/resolution/waveform table (not yet in this repo, user to supply). **Verify (HIL)**: mono + 8-level GS + basic examples on real hardware.
+21. Collapse duplicated Python (`gfx.py`, `shapes.py`, RTC, power) into shared `Dependencies/` versions across all 6 parallel-bus boards; delete per-board copies. Fix the `_tps65186_read` missing-`return` bug once, in the shared layer. Fix the standing `power_off` TODO (`# TODO: also tri-state gpio pins to avoid current leakage during deep-sleep`, duplicated across board files) — real power-draw bug on a battery-powered device, cheap to fix once, here. Delete dead `Dependencies/mcp23017.py`. **Verify (HIL)**: all boards still render post-dedup; `_tps65186_read` returns real temperature; measure deep-sleep current draw before/after the tri-state fix to confirm the leakage is actually gone.
+
+## Phase 7 — Partial update
+
+22. Port `InkplatePartial` diffing/shift-out to C (mono only, matching current capability) on Inkplate10 + Inkplate6. **Verify (HIL)**: only changed region refreshes, correct threshold-triggered full refresh.
+23. Extend to 5v2 + 6FLICK. Evaluate (don't necessarily implement) partial grayscale — harder due to multi-phase waveforms; document the decision either way.
+
+## Phase 8 — SPI-controller-panel family: C port (Inkplate6COLOR, Inkplate2, Inkplate13SPECTRA)
+
+Confirmed in-scope for the C refactor, not deferred as optional. Architecturally separate from the I2S/parallel-bus work (these panels have an onboard timing-controller ASIC driven over SPI with CS/DC/RST/BUSY) — can proceed in parallel with Phases 2-7 once Phase 1's config-struct pattern exists to mirror.
+
+24. Define a per-panel SPI config struct (mirrors Phase 1's parallel-bus struct): SPI pins (CS/DC/RST/BUSY/SCK/MOSI), panel resolution, command set pointer. Note Inkplate13SPECTRA is ESP32-S3, not classic ESP32 — needs its own firmware target, separate from the Inkplate10-family build. **Verify**: host-compiled unit test on struct fields per panel.
+25. **[NEEDS INPUT]** User to confirm each panel's exact SPI command sequence (init, refresh, sleep) (currently inline Python `sendCommand`/`sendData` per board file — a starting reference, confirm against Arduino driver if it differs). Port the command-send loop to C, config-driven. **Verify (HIL)**: existing examples (`basicColor.py`, `basicBWR.py`) render identically to current output on real hardware, one panel at a time (start with Inkplate2 — simplest/smallest).
+26. Repeat command-port for Inkplate6COLOR, then Inkplate13SPECTRA (ESP32-S3 build). Image decode/dithering for these panels is handled in Phase 9, not here. **Verify (HIL)**: each panel's examples render correctly post-port.
+
+## Phase 9 — Image decode + dithering (shared across all boards)
+
+Not a from-scratch C port of the current Python decode loops — embed existing, already-optimized C decoder libraries instead. Only the dithering/quantization step (RGB → this project's specific bit-depth/color output) is newly written C, since that logic is Inkplate-specific and can't come from a generic library. Applies to both board families (parallel-bus mono/3-bit-GS and SPI color panels) — one shared implementation, not duplicated per board as it is today.
+
+27. Enable ESP-IDF's bundled software JPEG decoder (`tjpgd`, via the `esp_jpeg`/`esp32-camera` component) at firmware build time — no external library needed, no porting, just component config. Wire it into a thin C call producing decoded RGB output per row/tile. **Verify**: host-compiled unit test decodes a known-good sample JPEG to the expected pixel buffer.
+28. **[NEEDS INPUT]** No IDF-bundled PNG decoder exists — user to supply a PNG decoder library to embed as a firmware component, same treatment as JPEG (no porting, just wire in). **Verify**: host-compiled unit test decodes a known-good sample PNG to the expected pixel buffer.
+29. Write a BMP decoder directly in C (format is simple enough that no external library is needed). **Verify**: host-compiled unit test decodes a known-good sample BMP correctly.
+30. Port the existing dithering/quantization logic to C as one shared engine — this already exists and works today, just duplicated per board (`writeImage`/`process_pixel` in `inkplate10.py`, `inkplate2.py`, `inkplate6COLOR.py`, etc, all `@micropython.viper`, all implementing the same Floyd-Steinberg/Jarvis-Judice-Ninke/Stucki/Burkes kernels independently). The engine needs two output modes, not one: (a) fast scalar path for evenly-spaced grayscale palettes (mono, 3-bit GS) — quantize luminance, diffuse scalar error; (b) general palette path for color/BWR panels (Inkplate2, 6COLOR, 13SPECTRA) — nearest-color search against the panel's actual N-entry RGB palette (brute-force distance, N is small), diffuse the full RGB error vector. **[NEEDS INPUT]** exact per-panel palette RGB values (the real measured ink colors) from the Arduino reference driver — don't guess, wrong values show as a color cast. **Verify (HIL)**: image-loading examples on one board per family (grayscale + color) produce visually equivalent-or-better dithered output than current baseline, measurably faster.
+31. Wire the Python-facing API (`drawBMPFromSd/Web`, `drawJPGFromSd/Web`, `drawPNGFromSd/Web`) across all boards to call into this C pipeline; delete the old viper/native Python decode+dither code once verified per board. **Verify (HIL)**: image loading works end-to-end (SD and web) on every board, matching or beating Phase 0 baseline timing.
+
+## Phase 10 — Remaining peripherals, touch
+
+32. Finish Inkplate6FLICK Cypress touch placeholders (`tsGetXY`/`tsGetResolution`). **[NEEDS INPUT]** user to supply Cypress touch controller register map/reference. **Verify (HIL)**: touch example reports correct coordinates.
+33. Consolidate frontlight control into shared layer behind a `has_frontlight` config flag. **Verify (HIL)**: brightness ramp example works.
+
+## Phase 11 — Test hardening (threaded throughout, not just at the end)
+
+34. Promote the host-compiled unit tests from Phases 1/4/5/8/9 into a native test target (board-config, waveform LUT, framebuffer packing, SPI config, image decode/dither). **Verify**: tests catch a deliberately introduced regression.
+35. Documented, repeatable manual HIL checklist per board (clear, mono text, grayscale ramp, photo, partial update, battery/temp read). Not automated, but standardized across releases.
+36. Update `README.md` (currently stale — doesn't list Inkplate5v2/6FLICK/13SPECTRA) once the new architecture stabilizes.
+
+---
+
+## Critical files (starting points)
+
+- `Inkplate10/Inkplate10/inkplate10.py` — canonical reference: pin/mask constants, `vscan_*`, `byte2gpio`, `fill_screen`, `Inkplate` API, image loaders. Source of truth for the C interface contract and board-config struct.
+- `Inkplate10/Inkplate10/inkplateGS.py` — 2-bit waveform/LUT generation (`_gen_wave`/`genlut`) — primary target for the N-bit engine and 2→3-bit switch.
+- `Inkplate10/Inkplate10/inkplateMono.py` — 1bpp waveform + row shift-out — the walking-skeleton target (Phase 4).
+- `Inkplate10/Inkplate10/inkplatePartial.py` — partial-update diff/skip logic (Phase 7).
+- `Dependencies/PCAL6416A.py` — shared I2C GPIO-expander driver, stays Python-side per Phase 1 decision.
+- Same 4-file pattern under `Inkplate6/Inkplate6/`, `Inkplate5v2/Inkplate5v2/`, `Inkplate6FLICK/Inkplate6FLICK/` for Phase 6.
+- `Inkplate6COLOR/Inkplate6COLOR/inkplate6COLOR.py`, `Inkplate2/Inkplate2/inkplate2.py`, `Inkplate13SPECTRA/Inkplate13SPECTRA/inkplate13SPECTRA.py` — inline SPI command sequences (Phase 8) and image decode/dithering (Phase 9).
+- `Inkplate6FLICK/Inkplate6FLICK/touchCypress.py` — placeholder touch logic (Phase 10).
+
+## Verification approach summary
+
+Every task falls into one of three checks: (a) build/CI check for scaffolding, (b) host-compiled C unit test for pure logic (LUT generation, config struct, framebuffer packing) — runnable without hardware, (c) hardware-in-the-loop check on real Inkplate hardware comparing against the Phase 0 baseline. No task is marked done on "should work" — timing and visual output get compared against baseline photos/logs at each hardware checkpoint.
