@@ -15,7 +15,8 @@ static mp_obj_t inkplate_set_expander_write_cb(mp_obj_t cb)
     expander_bridge_set_callback(cb);
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_set_expander_write_cb_obj, inkplate_set_expander_write_cb);
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_set_expander_write_cb_obj,
+                                 inkplate_set_expander_write_cb);
 
 // HIL test hook: toggles one expander pin through the bridge.
 // Use an unused/free expander pin for verification — OE/GMODE/SPV are wired to the
