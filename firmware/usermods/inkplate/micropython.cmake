@@ -5,6 +5,7 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/expander_bridge.c
     ${CMAKE_CURRENT_LIST_DIR}/board_config.c
     ${CMAKE_CURRENT_LIST_DIR}/epd_bitbang.c
+    ${CMAKE_CURRENT_LIST_DIR}/epd_i2s_spike.c
 )
 
 target_include_directories(usermod_inkplate INTERFACE

@@ -3,6 +3,7 @@
 #include "expander_bridge.h"
 #include "board_config.h"
 #include "epd_bitbang.h"
+#include "epd_i2s_spike.h"
 #include <string.h>
 
 static mp_obj_t inkplate_version(void)
@@ -86,6 +87,30 @@ static mp_obj_t inkplate_fill_screen(mp_obj_t data_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_fill_screen_obj, inkplate_fill_screen);
 
+static mp_obj_t inkplate_i2s_spike_init(void)
+{
+    epd_i2s_spike_init(require_board());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_i2s_spike_init_obj, inkplate_i2s_spike_init);
+
+static mp_obj_t inkplate_i2s_spike_row(void)
+{
+    const board_config_t *cfg = require_board();
+    epd_vscan_start(cfg);
+    epd_i2s_spike_send_row(cfg);
+    epd_vscan_end(cfg);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_i2s_spike_row_obj, inkplate_i2s_spike_row);
+
+static mp_obj_t inkplate_i2s_spike_frame(void)
+{
+    epd_i2s_spike_send_frame(require_board());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_i2s_spike_frame_obj, inkplate_i2s_spike_frame);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -96,6 +121,9 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_vscan_write), MP_ROM_PTR(&inkplate_vscan_write_obj)},
     {MP_ROM_QSTR(MP_QSTR_vscan_end), MP_ROM_PTR(&inkplate_vscan_end_obj)},
     {MP_ROM_QSTR(MP_QSTR_fill_screen), MP_ROM_PTR(&inkplate_fill_screen_obj)},
+    {MP_ROM_QSTR(MP_QSTR_i2s_spike_init), MP_ROM_PTR(&inkplate_i2s_spike_init_obj)},
+    {MP_ROM_QSTR(MP_QSTR_i2s_spike_row), MP_ROM_PTR(&inkplate_i2s_spike_row_obj)},
+    {MP_ROM_QSTR(MP_QSTR_i2s_spike_frame), MP_ROM_PTR(&inkplate_i2s_spike_frame_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 
