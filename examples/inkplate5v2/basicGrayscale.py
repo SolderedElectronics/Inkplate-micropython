@@ -6,6 +6,10 @@
 
 # Include needed libraries
 from inkplate5v2 import Inkplate
+import time
+
+# Start runtime timer
+start_time = time.ticks_ms()
 
 # Create Inkplate object in 2-bit grayscale mode
 display = Inkplate(Inkplate.INKPLATE_2BIT)
@@ -37,3 +41,7 @@ display.display()
 display.drawBitmap(374, 348, soldered_logo, 211, 44)
 
 display.display()
+
+# Stop timer and print total runtime
+elapsed_ms = time.ticks_diff(time.ticks_ms(), start_time)
+print("Total runtime: {} ms".format(elapsed_ms))

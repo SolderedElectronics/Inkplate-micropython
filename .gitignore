@@ -5,3 +5,4 @@ lib
 .vscode
 i2c_scanner.py
 .DS_Store
+__pycache__

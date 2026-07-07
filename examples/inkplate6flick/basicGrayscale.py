@@ -17,7 +17,10 @@ display = Inkplate(Inkplate.INKPLATE_2BIT)
 
 # Main function
 if __name__ == "__main__":
-    
+
+    # Start runtime timer
+    start_time = time.ticks_ms()
+
     # Initialize the display, needs to be called only once
     display.begin()
 
@@ -39,3 +42,7 @@ if __name__ == "__main__":
     display.drawBitmap(184, 357, soldered_logo, 211, 44)
 
     display.display()
+
+    # Stop timer and print total runtime
+    elapsed_ms = time.ticks_diff(time.ticks_ms(), start_time)
+    print("Total runtime: {} ms".format(elapsed_ms))
