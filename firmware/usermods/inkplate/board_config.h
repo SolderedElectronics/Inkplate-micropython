@@ -65,4 +65,14 @@ typedef struct {
 
 extern const board_config_t board_config_inkplate10;
 
+// board_config_row_bytes: bytes needed for one row of 2-bit-per-pixel wire codes --
+// driven only by panel width, since the wire format is always 2 bits/pixel regardless
+// of the source framebuffer's bit depth (1bpp mono expands into it, 2bpp GS maps 1:1).
+// epd_i2s.c and any future GS I2S path should derive row-buffer size from this instead
+// of hand-rolling width>>2/width>>3 per call site.
+static inline uint16_t board_config_row_bytes(const board_config_t *cfg)
+{
+    return cfg->width >> 2;
+}
+
 #endif // INKPLATE_BOARD_CONFIG_H

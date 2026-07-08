@@ -68,10 +68,32 @@ static void test_legacy_2bit_parity(void)
     printf("test_legacy_2bit_parity: passed\n");
 }
 
+static void test_mono_wave_parity(void)
+{
+    // Reference lut_blk/lut_bw from running boards/inkplate10/inkplateMono.py's original
+    // _gen_luts() formula verbatim in python3, not hand-derived, so this catches drift
+    // between the C port and the real (now-removed) Python LUT generation.
+    static const uint8_t expected_blk[16] = {255, 253, 247, 245, 223, 221, 215, 213,
+                                             127, 125, 119, 117, 95,  93,  87,  85};
+    static const uint8_t expected_bw[16] = {170, 169, 166, 165, 154, 153, 150, 149,
+                                            106, 105, 102, 101, 90,  89,  86,  85};
+
+    uint8_t wave[INKPLATE_MONO_WAVE_PHASES][16];
+    inkplate_gen_mono_wave(wave);
+
+    for (int phase = 0; phase < INKPLATE_MONO_WAVE_PHASES - 1; phase++) {
+        assert(memcmp(wave[phase], expected_blk, 16) == 0);
+    }
+    assert(memcmp(wave[INKPLATE_MONO_WAVE_PHASES - 1], expected_bw, 16) == 0);
+
+    printf("test_mono_wave_parity: passed\n");
+}
+
 int main(void)
 {
     test_synthetic_nibble_lut();
     test_legacy_2bit_parity();
+    test_mono_wave_parity();
     printf("test_waveform: all assertions passed\n");
     return 0;
 }

@@ -4,6 +4,8 @@
 #include "board_config.h"
 #include "epd_bitbang.h"
 #include "epd_i2s.h"
+#include "waveform.h"
+#include <stdbool.h>
 #include <string.h>
 
 static mp_obj_t inkplate_version(void)
@@ -115,6 +117,24 @@ static mp_obj_t inkplate_i2s_push_frame(mp_obj_t fill_byte_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_i2s_push_frame_obj, inkplate_i2s_push_frame);
 
+static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(framebuf_obj, &bufinfo, MP_BUFFER_READ);
+
+    static uint8_t mono_luts[INKPLATE_MONO_WAVE_PHASES][16];
+    static bool mono_luts_ready = false;
+    if (!mono_luts_ready) {
+        inkplate_gen_mono_wave(mono_luts);
+        mono_luts_ready = true;
+    }
+
+    epd_i2s_push_mono_frame(require_board(), (const uint8_t *)bufinfo.buf, mono_luts,
+                            INKPLATE_MONO_WAVE_PHASES);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_mono_display_obj, inkplate_mono_display);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -129,6 +149,7 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_i2s_deinit), MP_ROM_PTR(&inkplate_i2s_deinit_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2s_push_row), MP_ROM_PTR(&inkplate_i2s_push_row_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2s_push_frame), MP_ROM_PTR(&inkplate_i2s_push_frame_obj)},
+    {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 

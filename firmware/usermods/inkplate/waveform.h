@@ -28,4 +28,12 @@ void inkplate_gen_nibble_lut(const uint8_t *op, int bpp, uint8_t out[16]);
 void inkplate_gen_wave_2bit(const uint8_t *table, int row_stride, uint8_t phases,
                             uint8_t out[][16]);
 
+// Mono (1bpp) display waveform: 5 "push toward black" phases (white pixels skip, black
+// pixels discharge) then 1 "final black/white" phase. Board-independent -- unlike
+// gen_wave_2bit's per-board WAVE_2B table, this is fixed op-code math transcribed from
+// boards/inkplate10/inkplateMono.py's _gen_luts (lut_blk x5, lut_bw x1), confirmed the
+// same regardless of panel (docs/REFACTOR-PLAN.md step 11).
+#define INKPLATE_MONO_WAVE_PHASES 6
+void inkplate_gen_mono_wave(uint8_t out[INKPLATE_MONO_WAVE_PHASES][16]);
+
 #endif // INKPLATE_WAVEFORM_H

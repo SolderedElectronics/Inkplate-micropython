@@ -138,7 +138,7 @@ void epd_i2s_init(const board_config_t *cfg)
 
     I2S1.timing.val = 0;
 
-    s_state.row_len = cfg->width >> 3;
+    s_state.row_len = board_config_row_bytes(cfg);
     for (int i = 0; i < 2; i++) {
         s_state.buf[i] = heap_caps_malloc(s_state.row_len, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
 
@@ -256,4 +256,63 @@ void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte)
     }
 
     epd_vscan_end(cfg);
+}
+
+// Rebuilds one framebuf row into row_buf as 2-bit wire codes for the given phase's LUT.
+// Walks framebuf bytes from the end of the row, two at a time, and -- critically --
+// emits the EARLIER byte of each pair before the LATER one (dram2 before dram1, in the
+// naming of the Arduino Inkplate6 I2S reference driver's display1b(), which does the
+// same swap). This is NOT a plain last-to-first walk (that's what the bit-bang
+// _send_row used, correctly, since it writes one GPIO register per byte with no FIFO
+// involved). I2S1's fifo_conf.tx_fifo_mod = 1 ("0A0B_0C0D packing, dual mono single
+// data", see epd_i2s_init) reorders byte-pairs internally when reading the DMA buffer,
+// so the source pair must be pre-swapped to compensate -- confirmed against the real
+// Arduino driver after a plain reverse walk produced a visible column shift on real
+// hardware with non-uniform content (invisible with epd_i2s_push_frame's constant
+// fill_byte, since swapping two identical bytes is a no-op).
+static void build_mono_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
+                           const uint8_t lut[16], uint8_t *row_buf)
+{
+    uint16_t out = 0;
+    for (int16_t i = (int16_t)fb_row_bytes - 1; i > 0; i -= 2) {
+        uint8_t dram1 = framebuf_row[i];     // later byte
+        uint8_t dram2 = framebuf_row[i - 1]; // earlier byte
+        row_buf[out++] = lut[dram2 >> 4];
+        row_buf[out++] = lut[dram2 & 0x0F];
+        row_buf[out++] = lut[dram1 >> 4];
+        row_buf[out++] = lut[dram1 & 0x0F];
+    }
+}
+
+void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                             const uint8_t (*luts)[16], uint8_t num_phases)
+{
+    uint16_t fb_row_bytes = cfg->width >> 3;
+
+    for (uint8_t phase = 0; phase < num_phases; phase++) {
+        const uint8_t *lut = luts[phase];
+        epd_vscan_start(cfg);
+
+        uint8_t cur = 0;
+        int32_t row = (int32_t)cfg->height - 1;
+        build_mono_row(framebuf + row * fb_row_bytes, fb_row_bytes, lut, s_state.buf[cur]);
+        epd_i2s_start_row(cfg, cur);
+
+        while (row >= 0) {
+            uint8_t next = cur ^ 1;
+            if (row > 0) {
+                build_mono_row(framebuf + (row - 1) * fb_row_bytes, fb_row_bytes, lut,
+                               s_state.buf[next]);
+            }
+            epd_i2s_wait_row(cfg);
+            epd_vscan_write(cfg);
+            if (row > 0) {
+                epd_i2s_start_row(cfg, next);
+            }
+            cur = next;
+            row--;
+        }
+
+        epd_vscan_end(cfg);
+    }
 }

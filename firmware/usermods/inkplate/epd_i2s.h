@@ -21,8 +21,8 @@
 
 // One-time I2S1 peripheral setup + GPIO matrix wiring (data_pins[0..7] -> I2S1
 // DATA_OUT0..7, pin_cl -> I2S1 BCK_OUT) for the given board, plus the two internal-RAM
-// DMA row buffers (sized cfg->width>>3 bytes each). Call once before any push_row/
-// push_frame call for this board.
+// DMA row buffers (sized board_config_row_bytes(cfg) bytes each). Call once before any
+// push_row/push_frame call for this board.
 void epd_i2s_init(const board_config_t *cfg);
 
 // Reconnects data_pins[0..7]/pin_cl back to plain GPIO output (undoes the matrix
@@ -43,5 +43,16 @@ void epd_i2s_push_row(const board_config_t *cfg, uint8_t fill_byte);
 // epd_vscan_end(). Same fill_byte on every row (matches epd_fill_screen's contract) for
 // the Phase 3 HIL check against Phase 2's bit-bang fill_screen.
 void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte);
+
+// Full 1bpp display update: drives num_phases phases (see waveform.h's
+// inkplate_gen_mono_wave), each phase writing every row via I2S DMA, framed by
+// epd_vscan_start/epd_vscan_write/epd_vscan_end -- the DMA-driven equivalent of
+// InkplateMono.display()'s per-phase bit-banged loop, replacing _send_row(). framebuf
+// is the 1bpp MONO_HMSB source buffer (cfg->height rows of cfg->width>>3 bytes each,
+// MSB-first). Each row is rebuilt last-byte-first, high-nibble-first -- the same shift
+// order _send_row used -- so the physical pixel-to-shift-register mapping stays
+// identical to the already-hardware-verified bit-bang path.
+void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                             const uint8_t (*luts)[16], uint8_t num_phases);
 
 #endif // INKPLATE_EPD_I2S_H

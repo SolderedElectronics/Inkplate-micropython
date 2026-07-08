@@ -252,6 +252,18 @@ class _Inkplate:
     def vscan_write():
         inkplate.vscan_write()
 
+    @classmethod
+    def i2s_init(cls):
+        inkplate.i2s_init()
+
+    @classmethod
+    def i2s_deinit(cls):
+        inkplate.i2s_deinit()
+
+    @staticmethod
+    def mono_display(framebuf):
+        inkplate.mono_display(framebuf)
+
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
     byte2gpio = []
