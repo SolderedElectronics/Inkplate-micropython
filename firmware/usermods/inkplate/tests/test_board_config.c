@@ -32,8 +32,9 @@ int main(void)
 
     assert(cfg->waveform != NULL);
     assert(cfg->waveform->levels == 4);
-    const uint8_t expected_wave_row0[MAX_WAVE_PHASES] = {1, 1, 2, 0, 0, 0, 0, 0};
-    assert(memcmp(cfg->waveform->table[0], expected_wave_row0, MAX_WAVE_PHASES) == 0);
+    assert(cfg->waveform->phases == 8);
+    const uint8_t expected_wave_row0[MAX_WAVE_LEVELS] = {0, 1, 0, 0, 0, 0, 0, 0};
+    assert(memcmp(cfg->waveform->table[0], expected_wave_row0, MAX_WAVE_LEVELS) == 0);
 
     assert(cfg->has_touch == 0);
     assert(cfg->has_frontlight == 0);

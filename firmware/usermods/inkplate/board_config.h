@@ -12,16 +12,17 @@
     ((1u << (p0)) | (1u << (p1)) | (1u << (p2)) | (1u << (p3)) | (1u << (p4)) | (1u << (p5)) |   \
      (1u << (p6)) | (1u << (p7)))
 
-// Waveform table: [level_from][level_to] -> phase codes, MAX_WAVE_PHASES codes per entry.
+// Waveform table: one row per phase, one column per gray level (pixel value 0..levels-1).
+// Row order matches the sequence the display gets written N times, in order.
+// table[phase][level] -> code: 0=discharge,1=black,2=white,3=skip
 // Populated with the 2-bit (4-level) waveform until 3-bit tables are confirmed per board (Phase 5).
-#define MAX_WAVE_LEVELS 8
 #define MAX_WAVE_PHASES 8
+#define MAX_WAVE_LEVELS 8
 
 typedef struct {
-    uint8_t levels; // number of gray levels this table encodes (4 or 8)
-    uint8_t phases; // number of phases per entry actually used
-    uint8_t table[MAX_WAVE_LEVELS]
-                 [MAX_WAVE_PHASES]; // phase codes: 0=discharge,1=black,2=white,3=skip
+    uint8_t levels; // number of gray levels (pixel values) this table encodes (4 or 8)
+    uint8_t phases; // number of phases actually used (rows of table[])
+    uint8_t table[MAX_WAVE_PHASES][MAX_WAVE_LEVELS];
 } waveform_table_t;
 
 typedef struct {

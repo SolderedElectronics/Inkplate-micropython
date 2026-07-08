@@ -1,19 +1,19 @@
 #include "board_config.h"
 
-// WAVE_2B from boards/inkplate10/inkplate10.py, 4-level grayscale.
-// Order per entry: blk, dk-grey, light-grey, white. 7 entries used, rows 7 unused (padded).
+// WAVE_2B from boards/inkplate10/inkplateGS.py, 4-level grayscale.
+// Order per phase row: blk, dk-grey, light-grey, white (pixel values 0-3).
 static const waveform_table_t wave_2b_inkplate10 = {
     .levels = 4,
-    .phases = 4,
+    .phases = 8,
     .table =
         {
-            {1, 1, 2, 0},
-            {1, 1, 1, 0},
-            {0, 2, 1, 0},
-            {1, 2, 1, 0},
-            {0, 0, 2, 2},
-            {1, 1, 0, 0},
-            {0, 0, 0, 0},
+            {0, 1, 0, 0},
+            {0, 2, 0, 0},
+            {0, 2, 0, 2},
+            {0, 1, 2, 2},
+            {0, 2, 1, 2},
+            {0, 2, 1, 2},
+            {1, 1, 2, 2},
             {0, 0, 0, 0},
         },
 };
