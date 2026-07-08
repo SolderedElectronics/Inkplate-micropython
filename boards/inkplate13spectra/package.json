@@ -1,8 +1,8 @@
 {
     "urls": [
       [
-        "inkplate13SPECTRA.py",
-        "github:SolderedElectronics/Inkplate-micropython/boards/inkplate13spectra/inkplate13SPECTRA.py"
+        "inkplate13_spectra.py",
+        "github:SolderedElectronics/Inkplate-micropython/boards/inkplate13spectra/inkplate13_spectra.py"
       ],
       [
         "gfx.py",

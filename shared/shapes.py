@@ -177,24 +177,22 @@ class Shapes:
 
         if radius:
             f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
+            ddf_x = 1
+            ddf_y = -2 * radius
             x = 0
             y = radius
             self.vline(x0 - radius, y0, height - 2 * radius + 1, color)  # left
             self.vline(x0 + width - radius, y0, height - 2 * radius + 1, color)  # right
-            self.hline(
-                x0, y0 + height - radius + 1, width - 2 * radius + 1, color
-            )  # bottom
+            self.hline(x0, y0 + height - radius + 1, width - 2 * radius + 1, color)  # bottom
             self.hline(x0, y0 - radius, width - 2 * radius + 1, color)  # top
             while x < y:
                 if f >= 0:
                     y -= 1
-                    ddF_y += 2
-                    f += ddF_y
+                    ddf_y += 2
+                    f += ddf_y
                 x += 1
-                ddF_x += 2
-                f += ddF_x
+                ddf_x += 2
+                f += ddf_x
                 # angle notations are based on the unit circle and in diection of being drawn
 
                 # top left
@@ -228,26 +226,22 @@ class Shapes:
 
         if radius:
             f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
+            ddf_x = 1
+            ddf_y = -2 * radius
             x = 0
             y = radius
             while x < y:
                 if f >= 0:
                     y -= 1
-                    ddF_y += 2
-                    f += ddF_y
+                    ddf_y += 2
+                    f += ddf_y
                 x += 1
-                ddF_x += 2
-                f += ddF_x
+                ddf_x += 2
+                f += ddf_x
                 # part notation starts with 0 on left and 1 on right, and direction is noted
                 # top left
-                self.vline(
-                    x0 - y, y0 - x, 2 * x + 1 + height - 2 * radius, color
-                )  # 0 to .25
-                self.vline(
-                    x0 - x, y0 - y, 2 * y + 1 + height - 2 * radius, color
-                )  # .5 to .25
+                self.vline(x0 - y, y0 - x, 2 * x + 1 + height - 2 * radius, color)  # 0 to .25
+                self.vline(x0 - x, y0 - y, 2 * y + 1 + height - 2 * radius, color)  # .5 to .25
                 # top right
                 self.vline(
                     x0 + x + width - 2 * radius,

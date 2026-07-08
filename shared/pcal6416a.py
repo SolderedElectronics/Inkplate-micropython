@@ -1,7 +1,6 @@
 # MicroPython driver for the PCAL6416A GPIO expander
 # By Soldered Electronics
 # Based on the original contribution by https://github.com/tve
-from machine import Pin as mPin
 from micropython import const
 
 PCAL6416A_INPORT0 = const(0x00)
@@ -69,10 +68,10 @@ IO_PIN_B5 = const(13)
 IO_PIN_B6 = const(14)
 IO_PIN_B7 = const(15)
 
-modeINPUT = const(0)
-modeOUTPUT = const(1)
-modeINPUT_PULLUP = const(2)
-modeINPUT_PULLDOWN = const(3)
+mode_input = const(0)
+mode_output = const(1)
+mode_input_pullup = const(2)
+mode_input_pulldown = const(3)
 
 
 # PCAL6416A is a minimal driver for an 16-bit I2C I/O expander
@@ -122,20 +121,20 @@ class PCAL6416A:
     def writebuf(self, reg, v):
         self.i2c.writeto_mem(self.addr, reg, v)
 
-    def pinMode(self, pin, mode):
+    def pin_mode(self, pin, mode):
         if pin > 15:
             return
 
         port = pin // 8
         pin = pin % 8
 
-        if mode == modeINPUT:
+        if mode == mode_input:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= 1 << pin
             self.write(
                 PCAL6416A_CFGPORT0 + port,
                 self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port],
             )
-        elif mode == modeOUTPUT:
+        elif mode == mode_output:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] &= ~(1 << pin)
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] &= ~(1 << pin)
             self.write(
@@ -146,7 +145,7 @@ class PCAL6416A:
                 PCAL6416A_CFGPORT0 + port,
                 self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port],
             )
-        elif mode == modeINPUT_PULLUP:
+        elif mode == mode_input_pullup:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] |= 1 << pin
@@ -162,7 +161,7 @@ class PCAL6416A:
                 PCAL6416A_PUPDSEL_REG0 + port,
                 self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port],
             )
-        elif mode == modeINPUT_PULLDOWN:
+        elif mode == mode_input_pulldown:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] &= ~(1 << pin)
@@ -179,7 +178,7 @@ class PCAL6416A:
                 self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port],
             )
 
-    def digitalWrite(self, pin, state):
+    def digital_write(self, pin, state):
         if pin > 15:
             return
 
@@ -192,31 +191,27 @@ class PCAL6416A:
         else:
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] &= ~(1 << pin)
 
-        self.write(
-            PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port]
-        )
+        self.write(PCAL6416A_OUTPORT0 + port, self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port])
 
-    def digitalRead(self, pin):
+    def digital_read(self, pin):
         if pin > 15:
             return
 
         port = pin // 8
         pin %= 8
 
-        self.ioRegsInt[PCAL6416A_INPORT0_ARRAY + port] = self.read(
-            PCAL6416A_INPORT0_ARRAY + port
-        )
+        self.ioRegsInt[PCAL6416A_INPORT0_ARRAY + port] = self.read(PCAL6416A_INPORT0_ARRAY + port)
         return (self.ioRegsInt[PCAL6416A_INPORT0 + port] >> pin) & 1
 
 
-class gpioPin:
-    def __init__(self, PCAL6416A, pin, mode):
-        self.PCAL6416A = PCAL6416A
+class GpioPin:
+    def __init__(self, pcal6416a, pin, mode):
+        self.pcal6416a = pcal6416a
         self.pin = pin
-        self.PCAL6416A.pinMode(pin, mode)
+        self.pcal6416a.pin_mode(pin, mode)
 
-    def digitalWrite(self, value):
-        self.PCAL6416A.digitalWrite(self.pin, value)
+    def digital_write(self, value):
+        self.pcal6416a.digital_write(self.pin, value)
 
-    def digitalRead(self):
-        return self.PCAL6416A.digitalRead(self.pin)
+    def digital_read(self):
+        return self.pcal6416a.digital_read(self.pin)

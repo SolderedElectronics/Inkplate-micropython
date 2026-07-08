@@ -5,16 +5,16 @@
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplate6.py"
     ],
     [
-      "inkplateGS.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplateGS.py"
+      "inkplate_gs.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplate_gs.py"
     ],
     [
-      "inkplateMono.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplateMono.py"
+      "inkplate_mono.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplate_mono.py"
     ],
     [
-      "inkplatePartial.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplatePartial.py"
+      "inkplate_partial.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6/inkplate_partial.py"
     ],
     [
       "gfx.py",

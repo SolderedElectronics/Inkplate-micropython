@@ -50,10 +50,10 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
 There are several examples which will indicate all the functions you can use in your own script:
 * The basic examples show you drawing shapes, lines and text on the screen in different colors, also a bitmap image in a single color
 * The network examples show you how to use the network features like doing a GET request and downloading a file
-* The batteryAndTemperatureRead examples show you how to read the internal battery status and the temperature from the internal sensor
-* The displayImageSd example shows you how to draw a JPG/BMP/PNG image with or without dithering from an SD card
-* The displayImageWeb example shows you how to draw a JPG/BMP/PNG image with or without dithering from a URL
-* The gpioExpander example shows how to use the GPIO expander on new Inkplate models
+* The battery_and_temperature_read examples show you how to read the internal battery status and the temperature from the internal sensor
+* The display_image_sd example shows you how to draw a JPG/BMP/PNG image with or without dithering from an SD card
+* The display_image_web example shows you how to draw a JPG/BMP/PNG image with or without dithering from a URL
+* The gpio_expander example shows how to use the GPIO expander on new Inkplate models
 
 More information is provided in the examples themselves in the shape of comments.
 

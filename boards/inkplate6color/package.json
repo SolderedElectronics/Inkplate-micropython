@@ -1,8 +1,8 @@
 {
   "urls": [
     [
-      "inkplate6COLOR.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6color/inkplate6COLOR.py"
+      "inkplate6_color.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6color/inkplate6_color.py"
     ],
     [
       "gfx.py",

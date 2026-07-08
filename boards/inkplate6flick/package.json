@@ -1,24 +1,24 @@
 {
   "urls": [
     [
-      "inkplate6FLICK.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate6FLICK.py"
+      "inkplate6_flick.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate6_flick.py"
     ],
     [
-      "inkplateGS.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplateGS.py"
+      "inkplate_gs.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_gs.py"
     ],
     [
-      "inkplateMono.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplateMono.py"
+      "inkplate_mono.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_mono.py"
     ],
     [
-      "inkplatePartial.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplatePartial.py"
+      "inkplate_partial.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_partial.py"
     ],
     [
-      "touchCypress.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/touchCypress.py"
+      "touch_cypress.py",
+      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/touch_cypress.py"
     ],
     [
       "gfx.py",

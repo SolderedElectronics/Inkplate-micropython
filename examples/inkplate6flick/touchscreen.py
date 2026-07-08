@@ -5,7 +5,7 @@
 #        disappears and a new one is rendomly drawn again
 # LAST UPDATED: 2025-08-27
 # Include needed libraries
-from inkplate6FLICK import Inkplate
+from inkplate6_flick import Inkplate
 
 import random
 
@@ -15,13 +15,13 @@ display = Inkplate(Inkplate.INKPLATE_1BIT)
 display.begin()
 
 # Initialize the touchscreen
-display.tsInit(1)
+display.ts_init(1)
 
 rand_x = random.randint(0, 924)
 rand_y = random.randint(0, 658)
 
 # Draw a rectangle right in the middle of the screen and show it
-display.drawRect(rand_x, rand_y, 100, 100, 1)
+display.draw_rect(rand_x, rand_y, 100, 100, 1)
 display.display()
 
 
@@ -32,14 +32,14 @@ display.display()
 counter = 0
 while True:
     # If a touch on the square was detected
-    if display.touchInArea(rand_x, rand_y, 100, 100):
+    if display.touch_in_area(rand_x, rand_y, 100, 100):
         # Increment the counter and print a message
         counter += 1
         print("Touch detected! Touch #: " + str(counter))
         rand_x = random.randint(0, 924)
         rand_y = random.randint(0, 658)
-        display.clearDisplay()
+        display.clear_display()
         # Draw a rectangle on the screen and show it
-        display.drawRect(rand_x, rand_y, 100, 100, 1)
+        display.draw_rect(rand_x, rand_y, 100, 100, 1)
 
-        display.partialUpdate()
+        display.partial_update()

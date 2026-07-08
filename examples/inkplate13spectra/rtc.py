@@ -4,7 +4,7 @@
 # LAST UPDATED: 2026-02-09
 
 # Include all the required libraries
-from inkplate13SPECTRA import Inkplate
+from inkplate13_spectra import Inkplate
 import time
 
 # Create Inkplate object
@@ -15,15 +15,15 @@ inkplate.begin()
 
 # This is how to set the RTC's time
 # Arguments are hour, minute, seconds
-inkplate.rtcSetTime(9, 39, 10)
+inkplate.rtc_set_time(9, 39, 10)
 # And this is the date
 # Arguments are weekday, day in month, month and year
-inkplate.rtcSetDate(2, 9, 2, 2026)
+inkplate.rtc_set_date(2, 9, 2, 2026)
 
 # Infinite loop
 while True:
     # Show the set time
-    print(inkplate.rtcGetData())
+    print(inkplate.rtc_get_data())
 
     # Let's wait 10 seconds
     time.sleep(10)

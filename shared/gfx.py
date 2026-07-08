@@ -21,7 +21,7 @@ Implementation Notes
 __version__ = "0.0.0+auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_GFX.git"
 
-import gfx_standard_font_01 as MontserratBlack
+import gfx_standard_font_01 as montserrat_black
 
 
 class GFX:
@@ -84,16 +84,14 @@ class GFX:
             self.text = self._print_text
             # if no supplied font set to std
             if font is None:
-                self.font_family = MontserratBlack
+                self.font_family = montserrat_black
 
                 self.font = self.font_family._font
                 self.set_text_background()
             else:
                 self.font = font
                 if not isinstance(self.font, dict):
-                    raise ValueError(
-                        "Font definitions must be contained in a dictionary object."
-                    )
+                    raise ValueError("Font definitions must be contained in a dictionary object.")
                 del self.set_text_background
 
         else:
@@ -175,8 +173,8 @@ class GFX:
         """Circle drawing function.  Will draw a single pixel wide circle with
         center at x0, y0 and the specified radius."""
         f = 1 - radius
-        ddF_x = 1
-        ddF_y = -2 * radius
+        ddf_x = 1
+        ddf_y = -2 * radius
         x = 0
         y = radius
         self._pixel(x0, y0 + radius, *args, **kwargs)  # bottom
@@ -186,11 +184,11 @@ class GFX:
         while x < y:
             if f >= 0:
                 y -= 1
-                ddF_y += 2
-                f += ddF_y
+                ddf_y += 2
+                f += ddf_y
             x += 1
-            ddF_x += 2
-            f += ddF_x
+            ddf_x += 2
+            f += ddf_x
             # angle notations are based on the unit circle and in diection of being drawn
             self._pixel(x0 + x, y0 + y, *args, **kwargs)  # 270 to 315
             self._pixel(x0 - x, y0 + y, *args, **kwargs)  # 270 to 255
@@ -206,18 +204,18 @@ class GFX:
         center at x0, y0 and the specified radius."""
         self.vline(x0, y0 - radius, 2 * radius + 1, *args, **kwargs)
         f = 1 - radius
-        ddF_x = 1
-        ddF_y = -2 * radius
+        ddf_x = 1
+        ddf_y = -2 * radius
         x = 0
         y = radius
         while x < y:
             if f >= 0:
                 y -= 1
-                ddF_y += 2
-                f += ddF_y
+                ddf_y += 2
+                f += ddf_y
             x += 1
-            ddF_x += 2
-            f += ddF_x
+            ddf_x += 2
+            f += ddf_x
             self.vline(x0 + x, y0 - y, 2 * y + 1, *args, **kwargs)
             self.vline(x0 + y, y0 - x, 2 * x + 1, *args, **kwargs)
             self.vline(x0 - x, y0 - y, 2 * y + 1, *args, **kwargs)
@@ -312,16 +310,12 @@ class GFX:
 
         if radius:
             f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
+            ddf_x = 1
+            ddf_y = -2 * radius
             x = 0
             y = radius
-            self.vline(
-                x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs
-            )  # left
-            self.vline(
-                x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs
-            )  # right
+            self.vline(x0 - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # left
+            self.vline(x0 + width - radius, y0, height - 2 * radius + 1, *args, **kwargs)  # right
             self.hline(
                 x0, y0 + height - radius + 1, width - 2 * radius + 1, *args, **kwargs
             )  # bottom
@@ -329,23 +323,19 @@ class GFX:
             while x < y:
                 if f >= 0:
                     y -= 1
-                    ddF_y += 2
-                    f += ddF_y
+                    ddf_y += 2
+                    f += ddf_y
                 x += 1
-                ddF_x += 2
-                f += ddF_x
+                ddf_x += 2
+                f += ddf_x
                 # angle notations are based on the unit circle and in diection of being drawn
 
                 # top left
                 self._pixel(x0 - y, y0 - x, *args, **kwargs)  # 180 to 135
                 self._pixel(x0 - x, y0 - y, *args, **kwargs)  # 90 to 135
                 # top right
-                self._pixel(
-                    x0 + x + width - 2 * radius, y0 - y, *args, **kwargs
-                )  # 90 to 45
-                self._pixel(
-                    x0 + y + width - 2 * radius, y0 - x, *args, **kwargs
-                )  # 0 to 45
+                self._pixel(x0 + x + width - 2 * radius, y0 - y, *args, **kwargs)  # 90 to 45
+                self._pixel(x0 + y + width - 2 * radius, y0 - x, *args, **kwargs)  # 0 to 45
                 # bottom right
                 self._pixel(
                     x0 + y + width - 2 * radius,
@@ -360,12 +350,8 @@ class GFX:
                     **kwargs,
                 )  # 270 to 315
                 # bottom left
-                self._pixel(
-                    x0 - x, y0 + y + height - 2 * radius, *args, **kwargs
-                )  # 270 to 255
-                self._pixel(
-                    x0 - y, y0 + x + height - 2 * radius, *args, **kwargs
-                )  # 180 to 225
+                self._pixel(x0 - x, y0 + y + height - 2 * radius, *args, **kwargs)  # 270 to 255
+                self._pixel(x0 - y, y0 + x + height - 2 * radius, *args, **kwargs)  # 180 to 225
 
     def fill_round_rect(self, x0, y0, width, height, radius, *args, **kwargs):
         """Filled circle drawing function.  Will draw a filled circle with
@@ -377,24 +363,22 @@ class GFX:
         # ensure that the radius will only ever half of the shortest side or less
         radius = int(min(radius, width / 2, height / 2))
 
-        self.fill_rect(
-            x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs
-        )
+        self.fill_rect(x0, y0 - radius, width - 2 * radius + 2, height + 2, *args, **kwargs)
 
         if radius:
             f = 1 - radius
-            ddF_x = 1
-            ddF_y = -2 * radius
+            ddf_x = 1
+            ddf_y = -2 * radius
             x = 0
             y = radius
             while x < y:
                 if f >= 0:
                     y -= 1
-                    ddF_y += 2
-                    f += ddF_y
+                    ddf_y += 2
+                    f += ddf_y
                 x += 1
-                ddF_x += 2
-                f += ddF_x
+                ddf_x += 2
+                f += ddf_x
                 # part notation starts with 0 on left and 1 on right, and direction is noted
                 # top left
                 self.vline(
@@ -422,8 +406,8 @@ class GFX:
     def _print_text(self, framebuf, x0, y0, string, size, *args, **kwargs):
         """Optimized text rendering for 1bpp and 2bpp framebuffers with text wrapping"""
         # Logical (possibly rotated) clip bounds
-        DISPLAY_WIDTH = self.width
-        DISPLAY_HEIGHT = self.height
+        display_width = self.width
+        display_height = self.height
 
         # Default to 2bpp if not specified
         bpp = kwargs.get("bpp", 2)
@@ -434,7 +418,7 @@ class GFX:
         rotation = self.rotation
         phys_w = self.phys_width
         phys_h = self.phys_height
-        BYTES_PER_ROW = (phys_w * bpp) // 8
+        bytes_per_row = (phys_w * bpp) // 8
 
         # Color handling
         color = args[0] if args else (1 if bpp == 1 else 3)  # Default to white
@@ -453,9 +437,9 @@ class GFX:
                 char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
                 line_height = max(line_height, ch_h * size)
 
-                if wrap_text == True:
+                if wrap_text is True:
                     # Check if this would go beyond display width
-                    if x + ch_w * size > DISPLAY_WIDTH:
+                    if x + ch_w * size > display_width:
                         x = 0  # Reset to initial x position
                         y += line_height  # Move to next line
                         line_height = ch_h * size  # Reset line height for new line
@@ -470,9 +454,9 @@ class GFX:
                         ch_h,
                         size,
                         color,
-                        BYTES_PER_ROW,
-                        DISPLAY_WIDTH,
-                        DISPLAY_HEIGHT,
+                        bytes_per_row,
+                        display_width,
+                        display_height,
                         rotation,
                         phys_w,
                         phys_h,
@@ -487,9 +471,9 @@ class GFX:
                         ch_h,
                         size,
                         color,
-                        BYTES_PER_ROW,
-                        DISPLAY_WIDTH,
-                        DISPLAY_HEIGHT,
+                        bytes_per_row,
+                        display_width,
+                        display_height,
                         rotation,
                         phys_w,
                         phys_h,
@@ -513,8 +497,8 @@ class GFX:
                     line_height = max(line_height, ch_h * size)
 
                     # Check if this character would go beyond display width
-                    if wrap_text == True:
-                        if x + ch_w * size > DISPLAY_WIDTH:
+                    if wrap_text is True:
+                        if x + ch_w * size > display_width:
                             x = 0  # Reset to initial x position
                             y += line_height  # Move to next line
                             line_height = ch_h * size  # Reset line height for new line
@@ -529,9 +513,9 @@ class GFX:
                             ch_h,
                             size,
                             color,
-                            BYTES_PER_ROW,
-                            DISPLAY_WIDTH,
-                            DISPLAY_HEIGHT,
+                            bytes_per_row,
+                            display_width,
+                            display_height,
                             rotation,
                             phys_w,
                             phys_h,
@@ -546,9 +530,9 @@ class GFX:
                             ch_h,
                             size,
                             color,
-                            BYTES_PER_ROW,
-                            DISPLAY_WIDTH,
-                            DISPLAY_HEIGHT,
+                            bytes_per_row,
+                            display_width,
+                            display_height,
                             rotation,
                             phys_w,
                             phys_h,
@@ -556,6 +540,7 @@ class GFX:
                     x += ch_w * size
         return [x, y], line_height
 
+    @staticmethod
     @micropython.viper
     def _draw_char_1bpp(
         framebuf: ptr8,
@@ -629,6 +614,7 @@ class GFX:
                             else:
                                 framebuf[fb_idx] &= ~(1 << shift)
 
+    @staticmethod
     @micropython.viper
     def _draw_char_2bpp(
         framebuf: ptr8,

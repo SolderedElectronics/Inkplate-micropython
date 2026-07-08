@@ -2,11 +2,8 @@
 # By Soldered Electronics
 # Based on the original contribution by https://github.com/tve
 import time
-import os
-from machine import ADC, I2C, SPI, Pin
+from machine import I2C, SPI, Pin
 from micropython import const
-from shapes import Shapes
-from machine import Pin as mPin
 from gfx import GFX
 
 import machine
@@ -21,8 +18,8 @@ EPAPER_BUSY_PIN = const(32)
 EPAPER_CLK = const(18)
 EPAPER_DIN = const(23)
 
-pixelMaskLUT = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
-pixelMaskGLUT = [0xF, 0xF0]
+pixel_mask_lut = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
+pixel_mask_glut = [0xF, 0xF0]
 
 # ePaper resolution
 # For Inkplate2 height and width are swapped in relation to the default rotation
@@ -44,223 +41,218 @@ class Inkplate:
     _width = E_INK_WIDTH
     _height = E_INK_HEIGHT
 
-    textColor = BLACK
+    text_color = BLACK
 
     rotation = 0
-    textSize = 1
+    text_size = 1
 
-    _panelState = False
+    _panel_state = False
 
     cursor = [0, 0]
 
     @classmethod
-    def begin(self):
-        self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
-        self.spi = SPI(2, baudrate=800000)
-        self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        self.textColor = 1
-        self.textWrapping = 1
+    def begin(cls):
+        cls.wire = I2C(0, scl=Pin(22), sda=Pin(21))
+        cls.spi = SPI(2, baudrate=800000)
+        cls._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        cls._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        cls.text_color = 1
+        cls.textWrapping = 1
 
-        self.GFX = GFX(
+        cls.GFX = GFX(
             E_INK_HEIGHT,
             E_INK_WIDTH,
-            self.writePixel,
-            self.writeFastHLine,
-            self.writeFastVLine,
-            self.writeFillRect,
+            cls.write_pixel,
+            cls.write_fast_hline,
+            cls.write_fast_vline,
+            cls.write_fill_rect,
             None,
             None,
         )
 
         # Wake the panel and init it
-        if not (self.setPanelDeepSleepState(False)):
+        if not (cls.set_panel_deep_sleep_state(False)):
             return False
 
         # Put it back to sleep
-        self.setPanelDeepSleepState(True)
+        cls.set_panel_deep_sleep_state(True)
 
         # 3 is the default rotation for Inkplate 2
-        self.setRotation(3)
+        cls.set_rotation(3)
 
-        self.textSize = 1
+        cls.text_size = 1
 
         return True
 
     @classmethod
-    def getPanelDeepSleepState(self):
-        return self._panelState
+    def get_panel_deep_sleep_state(cls):
+        return cls._panel_state
 
     @classmethod
-    def setPanelDeepSleepState(self, state):
+    def set_panel_deep_sleep_state(cls, state):
         # False wakes the panel up
         # True puts it to sleep
         if not state:
-            self.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
-            self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-            self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
-            self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
-            self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
+            cls.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
+            cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
+            cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
+            cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
+            cls.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
             time.sleep_ms(10)
-            self.resetPanel()
+            cls.reset_panel()
 
             # Reinit the panel
-            self.sendCommand(b"\x04")
+            cls.send_command(b"\x04")
             _timeout = time.ticks_ms()
             while (
-                not self.EPAPER_BUSY_PIN.value()
-                and (time.ticks_ms() - _timeout) < busy_timeout_ms
+                not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms
             ):
                 pass
 
-            self.sendCommand(b"\x00")
-            self.sendData(b"\x0f")
-            self.sendData(b"\x89")
-            self.sendCommand(b"\x61")
-            self.sendData(b"\x68")
-            self.sendData(b"\x00")
-            self.sendData(b"\xd4")
-            self.sendCommand(b"\x50")
-            self.sendData(b"\x77")
+            cls.send_command(b"\x00")
+            cls.send_data(b"\x0f")
+            cls.send_data(b"\x89")
+            cls.send_command(b"\x61")
+            cls.send_data(b"\x68")
+            cls.send_data(b"\x00")
+            cls.send_data(b"\xd4")
+            cls.send_command(b"\x50")
+            cls.send_data(b"\x77")
 
-            self._panelState = True
+            cls._panel_state = True
 
             return True
 
         else:
             # Put the panel to sleep
-            self.sendCommand(b"\x50")
-            self.sendData(b"\xf7")
-            self.sendCommand(b"\x02")
+            cls.send_command(b"\x50")
+            cls.send_data(b"\xf7")
+            cls.send_command(b"\x02")
             # Wait for ePaper
             _timeout = time.ticks_ms()
             while (
-                not self.EPAPER_BUSY_PIN.value()
-                and (time.ticks_ms() - _timeout) < busy_timeout_ms
+                not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms
             ):
                 pass
-            self.sendCommand(b"\07")
-            self.sendData(b"\xa5")
+            cls.send_command(b"\07")
+            cls.send_data(b"\xa5")
 
             time.sleep_ms(1)
             # Turn off SPI
-            self.spi.deinit()
-            self.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-            self.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.IN)
-            self.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.IN)
-            self.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.IN)
+            cls.spi.deinit()
+            cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
+            cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.IN)
+            cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.IN)
+            cls.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.IN)
 
-            self._panelState = False
+            cls._panel_state = False
 
             return False
 
     @classmethod
-    def resetPanel(self):
-        self.EPAPER_RST_PIN.value(0)
+    def reset_panel(cls):
+        cls.EPAPER_RST_PIN.value(0)
         time.sleep_ms(10)
-        self.EPAPER_RST_PIN.value(1)
+        cls.EPAPER_RST_PIN.value(1)
         time.sleep_ms(10)
 
     @classmethod
-    def sendCommand(self, command):
-        self.EPAPER_DC_PIN.value(0)
-        self.EPAPER_CS_PIN.value(0)
-        self.spi.write(command)
+    def send_command(cls, command):
+        cls.EPAPER_DC_PIN.value(0)
+        cls.EPAPER_CS_PIN.value(0)
+        cls.spi.write(command)
 
-        self.EPAPER_CS_PIN.value(1)
+        cls.EPAPER_CS_PIN.value(1)
 
     @classmethod
-    def sendData(self, data):
-        self.EPAPER_CS_PIN.value(0)
-        self.EPAPER_DC_PIN.value(1)
-        self.spi.write(data)
+    def send_data(cls, data):
+        cls.EPAPER_CS_PIN.value(0)
+        cls.EPAPER_DC_PIN.value(1)
+        cls.spi.write(data)
 
-        self.EPAPER_CS_PIN.value(1)
+        cls.EPAPER_CS_PIN.value(1)
         time.sleep_ms(1)
 
     @classmethod
-    def clearDisplay(self):
-        self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+    def clear_display(cls):
+        cls._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        cls._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
 
     @classmethod
-    def display(self):
+    def display(cls):
         # Wake the display
-        self.setPanelDeepSleepState(False)
+        cls.set_panel_deep_sleep_state(False)
 
         # Write b/w pixels
-        self.sendCommand(b"\x10")
-        self.sendData(self._framebuf_BW)
+        cls.send_command(b"\x10")
+        cls.send_data(cls._framebuf_BW)
 
         # Write red pixels
-        self.sendCommand(b"\x13")
-        self.sendData(self._framebuf_RED)
+        cls.send_command(b"\x13")
+        cls.send_data(cls._framebuf_RED)
 
         # Stop transfer
-        self.sendCommand(b"\x11")
-        self.sendData(b"\x00")
+        cls.send_command(b"\x11")
+        cls.send_data(b"\x00")
 
         # Refresh
-        self.sendCommand(b"\x12")
+        cls.send_command(b"\x12")
         time.sleep_ms(5)
 
         _timeout = time.ticks_ms()
-        while (
-            not self.EPAPER_BUSY_PIN.value()
-            and (time.ticks_ms() - _timeout) < busy_timeout_ms
-        ):
+        while not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
             pass
 
         # Put the display back to sleep
-        self.setPanelDeepSleepState(True)
+        cls.set_panel_deep_sleep_state(True)
 
     @classmethod
-    def width(self):
-        return self._width
+    def width(cls):
+        return cls._width
 
     @classmethod
-    def height(self):
-        return self._height
+    def height(cls):
+        return cls._height
 
     # Arduino compatibility functions
     @classmethod
-    def setRotation(self, x):
-        self.rotation = x % 4
-        if self.rotation == 0 or self.rotation == 2:
-            self.GFX.width = E_INK_WIDTH
-            self.GFX.height = E_INK_HEIGHT
-            self._width = E_INK_WIDTH
-            self._height = E_INK_HEIGHT
-        elif self.rotation == 1 or self.rotation == 3:
-            self.GFX.width = E_INK_HEIGHT
-            self.GFX.height = E_INK_WIDTH
-            self._width = E_INK_HEIGHT
-            self._height = E_INK_WIDTH
+    def set_rotation(cls, x):
+        cls.rotation = x % 4
+        if cls.rotation == 0 or cls.rotation == 2:
+            cls.GFX.width = E_INK_WIDTH
+            cls.GFX.height = E_INK_HEIGHT
+            cls._width = E_INK_WIDTH
+            cls._height = E_INK_HEIGHT
+        elif cls.rotation == 1 or cls.rotation == 3:
+            cls.GFX.width = E_INK_HEIGHT
+            cls.GFX.height = E_INK_WIDTH
+            cls._width = E_INK_HEIGHT
+            cls._height = E_INK_WIDTH
 
     @classmethod
-    def getRotation(self):
-        return self.rotation
+    def get_rotation(cls):
+        return cls.rotation
 
     @classmethod
-    def drawPixel(self, x, y, c):
-        self.writePixel(x, y, c)
+    def draw_pixel(cls, x, y, c):
+        cls.write_pixel(x, y, c)
 
     @classmethod
     @micropython.native
-    def writePixel(self, x, y, c):
+    def write_pixel(cls, x, y, c):
         # Bounds check
-        if not (0 <= x < self.width() and 0 <= y < self.height()):
+        if not (0 <= x < cls.width() and 0 <= y < cls.height()):
             return
         if c > 2:
             return
 
         # Rotate coordinates
-        if self.rotation == 3:
-            x, y = y, self.width() - x - 1
-        elif self.rotation == 0:
-            x, y = self.width() - x - 1, self.height() - y - 1
-        elif self.rotation == 1:
-            x, y = self.height() - y - 1, x
+        if cls.rotation == 3:
+            x, y = y, cls.width() - x - 1
+        elif cls.rotation == 0:
+            x, y = cls.width() - x - 1, cls.height() - y - 1
+        elif cls.rotation == 1:
+            x, y = cls.height() - y - 1, x
 
         # Compute position in frame buffer
         _x_sub = x % 8
@@ -268,118 +260,118 @@ class Inkplate:
         _position = (E_INK_WIDTH // 8) * y + _x
 
         # Precompute LUT mask
-        mask = pixelMaskLUT[7 - _x_sub]
+        mask = pixel_mask_lut[7 - _x_sub]
 
         # Clear the bits in both buffers
-        self._framebuf_BW[_position] |= mask
-        self._framebuf_RED[_position] |= mask
+        cls._framebuf_BW[_position] |= mask
+        cls._framebuf_RED[_position] |= mask
 
         # Apply color
         if c < 2:
             # Black or white: clear bit in BW buffer accordingly
-            self._framebuf_BW[_position] &= ~(c << (7 - _x_sub))
+            cls._framebuf_BW[_position] &= ~(c << (7 - _x_sub))
         else:
             # Red pixel: clear bit in RED buffer
-            self._framebuf_RED[_position] &= ~mask
+            cls._framebuf_RED[_position] &= ~mask
 
     @classmethod
-    def writeFillRect(self, x, y, w, h, c):
+    def write_fill_rect(cls, x, y, w, h, c):
         for j in range(w):
             for i in range(h):
-                self.writePixel(x + j, y + i, c)
+                cls.write_pixel(x + j, y + i, c)
 
     @classmethod
-    def writeFastVLine(self, x, y, h, c):
+    def write_fast_vline(cls, x, y, h, c):
         for i in range(h):
-            self.writePixel(x, y + i, c)
+            cls.write_pixel(x, y + i, c)
 
     @classmethod
-    def writeFastHLine(self, x, y, w, c):
+    def write_fast_hline(cls, x, y, w, c):
         for i in range(w):
-            self.writePixel(x + i, y, c)
+            cls.write_pixel(x + i, y, c)
 
     @classmethod
-    def writeLine(self, x0, y0, x1, y1, c):
-        self.GFX.line(x0, y0, x1, y1, c)
+    def write_line(cls, x0, y0, x1, y1, c):
+        cls.GFX.line(x0, y0, x1, y1, c)
 
     @classmethod
-    def endWrite(self):
+    def end_write(cls):
         pass
 
     @classmethod
-    def drawFastVLine(self, x, y, h, c):
-        self.writeFastVLine(x, y, h, c)
+    def draw_fast_vline(cls, x, y, h, c):
+        cls.write_fast_vline(x, y, h, c)
 
     @classmethod
-    def drawFastHLine(self, x, y, w, c):
-        self.writeFastHLine(x, y, w, c)
+    def draw_fast_hline(cls, x, y, w, c):
+        cls.write_fast_hline(x, y, w, c)
 
     @classmethod
-    def fillRect(self, x, y, w, h, c):
-        self.writeFillRect(x, y, w, h, c)
+    def fill_rect(cls, x, y, w, h, c):
+        cls.write_fill_rect(x, y, w, h, c)
 
     @classmethod
-    def fillScreen(self, c):
-        self.fillRect(0, 0, self.width(), self.height(), c)
+    def fill_screen(cls, c):
+        cls.fill_rect(0, 0, cls.width(), cls.height(), c)
 
     @classmethod
-    def drawLine(self, x0, y0, x1, y1, c):
-        self.writeLine(x0, y0, x1, y1, c)
+    def draw_line(cls, x0, y0, x1, y1, c):
+        cls.write_line(x0, y0, x1, y1, c)
 
     @classmethod
-    def drawRect(self, x, y, w, h, c):
-        self.GFX.rect(x, y, w, h, c)
+    def draw_rect(cls, x, y, w, h, c):
+        cls.GFX.rect(x, y, w, h, c)
 
     @classmethod
-    def drawCircle(self, x, y, r, c):
-        self.GFX.circle(x, y, r, c)
+    def draw_circle(cls, x, y, r, c):
+        cls.GFX.circle(x, y, r, c)
 
     @classmethod
-    def fillCircle(self, x, y, r, c):
-        self.GFX.fill_circle(x, y, r, c)
+    def fill_circle(cls, x, y, r, c):
+        cls.GFX.fill_circle(x, y, r, c)
 
     @classmethod
-    def drawTriangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+    def draw_triangle(cls, x0, y0, x1, y1, x2, y2, c):
+        cls.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
 
     @classmethod
-    def fillTriangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+    def fill_triangle(cls, x0, y0, x1, y1, x2, y2, c):
+        cls.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
 
     @classmethod
-    def drawRoundRect(self, x, y, q, h, r, c):
-        self.GFX.round_rect(x, y, q, h, r, c)
+    def draw_round_rect(cls, x, y, q, h, r, c):
+        cls.GFX.round_rect(x, y, q, h, r, c)
 
     @classmethod
-    def fillRoundRect(self, x, y, q, h, r, c):
-        self.GFX.fill_round_rect(x, y, q, h, r, c)
+    def fill_round_rect(cls, x, y, q, h, r, c):
+        cls.GFX.fill_round_rect(x, y, q, h, r, c)
 
     @classmethod
-    def setTextColor(self, c):
-        self.textColor = c
+    def set_text_color(cls, c):
+        cls.text_color = c
 
     @classmethod
-    def setTextSize(self, s):
-        self.textSize = s
+    def set_text_size(cls, s):
+        cls.text_size = s
 
     @classmethod
-    def setFont(self, f):
-        self.GFX.font_family = f
-        self.GFX.font = self.GFX.font_family._font
+    def set_font(cls, f):
+        cls.GFX.font_family = f
+        cls.GFX.font = cls.GFX.font_family._font
 
-    def setCursor(self, x, y):
+    def set_cursor(self, x, y):
         self.cursor = [x, y]
 
-    def setTextWrapping(self, state: bool):
+    def set_text_wrapping(self, state: bool):
         self.textWrapping = state
 
-    def printText(self, x, y, s, c=1):
+    def print_text(self, x, y, s, c=1):
         self.GFX._print_text(
             self._framebuf_BW,
             x,
             y,
             s,
-            self.textSize,
+            self.text_size,
             c,
             text_wrap=self.textWrapping,
             bpp=1,
@@ -391,8 +383,8 @@ class Inkplate:
             self.cursor[0],
             self.cursor[1],
             text,
-            self.textSize,
-            self.textColor,
+            self.text_size,
+            self.text_color,
             text_wrap=self.textWrapping,
             bpp=1,
         )
@@ -405,8 +397,8 @@ class Inkplate:
             self.cursor[0],
             self.cursor[1],
             text,
-            self.textSize,
-            self.textColor,
+            self.text_size,
+            self.text_color,
             text_wrap=self.textWrapping,
             bpp=1,
         )
@@ -425,14 +417,13 @@ class Inkplate:
                 lines.append(paragraph)
         return lines
 
-    def drawTextBox(self, x0, y0, x1, y1, text, line_height=20, text_size=None):
-        if text_size != None:
-            self.setTextSize(text_size)
+    def draw_text_box(self, x0, y0, x1, y1, text, line_height=20, text_size=None):
+        if text_size is not None:
+            self.set_text_size(text_size)
         max_width = x1 - x0
-        char_width = 6 * self.textSize  # rough estimate
+        char_width = 6 * self.text_size  # rough estimate
         max_chars = max_width // char_width
         lines = self.wrap_text(text, max_chars)
-        max_height = y1
         y = y0
         for line in lines:
             if y > y1 - 2 * line_height:
@@ -441,14 +432,14 @@ class Inkplate:
                 s[-2] = "."
                 s[-3] = "."
                 s = "".join(s)
-                self.printText(x0, y, s)
+                self.print_text(x0, y, s)
                 break
-            self.printText(x0, y, line)
+            self.print_text(x0, y, line)
             y += line_height
 
     @classmethod
-    def drawBitmap(self, x, y, data, w, h, c=BLACK):
-        byteWidth = (w + 7) // 8
+    def draw_bitmap(cls, x, y, data, w, h, c=BLACK):
+        byte_width = (w + 7) // 8
         byte = 0
 
         for j in range(h):
@@ -456,30 +447,24 @@ class Inkplate:
                 if i & 7:
                     byte <<= 1
                 else:
-                    byte = data[j * byteWidth + i // 8]
+                    byte = data[j * byte_width + i // 8]
                 if byte & 0x80:
-                    self.writePixel(x + i, y + j, c)
+                    cls.write_pixel(x + i, y + j, c)
 
     @classmethod
-    def drawColorBitmap(self, x, y, w, h, buf):
+    def draw_color_bitmap(cls, x, y, w, h, buf):
         scaled_w = int(-(-(w / 4.0) // 1))
         for i in range(h):
             for j in range(scaled_w):
-                self.writePixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
+                cls.write_pixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
                 if 4 * j + x + 1 < w:
-                    self.writePixel(
-                        4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4
-                    )
+                    cls.write_pixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
                 if 4 * j + x + 2 < w:
-                    self.writePixel(
-                        4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2
-                    )
+                    cls.write_pixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
                 if 4 * j + x + 3 < w:
-                    self.writePixel(
-                        4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03)
-                    )
+                    cls.write_pixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))
 
-    def drawImage(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+    def draw_image(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """
         Draw an image from either web URL or local file system
         Args:
@@ -493,25 +478,21 @@ class Inkplate:
         if path.startswith(("http://", "https://")):
             # Determine image type from URL
             if path.lower().endswith(".bmp"):
-                self.drawBMPFromWeb(path, x0, y0, invert, dither)
+                self.draw_bmp_from_web(path, x0, y0, invert, dither)
             elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
-                self.drawJPGFromWeb(path, x0, y0, invert, dither, kernel_type)
+                self.draw_jpg_from_web(path, x0, y0, invert, dither, kernel_type)
             elif path.lower().endswith(".png"):
-                self.drawPNGFromWeb(path, x0, y0, invert, dither, kernel_type)
+                self.draw_png_from_web(path, x0, y0, invert, dither, kernel_type)
             else:
-                raise ValueError(
-                    "Unsupported web image format. Must be .bmp, .jpg, or .png"
-                )
+                raise ValueError("Unsupported web image format. Must be .bmp, .jpg, or .png")
         else:
             raise ValueError("Draw Image error: URL could not be parsed.")
 
-    def drawJPGFromWeb(
+    def draw_jpg_from_web(
         self, url, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
     ):
         import jpeg
-        import gc
         import urequests
-        import ssl
 
         try:
             # 1. Initialize decoder
@@ -538,7 +519,7 @@ class Inkplate:
             self.rgb565_to_2bpp(decoded, width, height, dither)
 
         except Exception as e:
-            print("Error in drawJPGFromWeb:", e)
+            print("Error in draw_jpg_from_web:", e)
             if "response" in locals():
                 response.close()
             raise
@@ -554,9 +535,7 @@ class Inkplate:
             error_buffer = [0]  # dummy
 
         @micropython.viper
-        def process_pixel(
-            im: ptr8, out: ptr8, err: ptr32, w: int, h: int, do_dither: int
-        ):
+        def process_pixel(im: ptr8, out: ptr8, err: ptr32, w: int, h: int, do_dither: int):
             for y in range(h):
                 for x in range(w):
                     idx = (y * w + x) * 2
@@ -625,10 +604,11 @@ class Inkplate:
             err_arr = array.array("i", [0])
 
         process_pixel(imagedata, outbuf, err_arr, width, height, 1 if dither else 0)
-        Inkplate.drawColorImage_viper(0, 0, width, height, outbuf)
+        Inkplate.draw_color_image_viper(0, 0, width, height, outbuf)
 
+    @staticmethod
     @micropython.viper
-    def drawColorImage_viper(x: int, y: int, w: int, h: int, buf_obj):
+    def draw_color_image_viper(x: int, y: int, w: int, h: int, buf_obj):
         scaled_w = (w + 3) // 4
         buf = ptr8(buf_obj)
         for i in range(h):
@@ -636,14 +616,11 @@ class Inkplate:
                 byte_idx = (i * scaled_w) + (j >> 2)
                 shift = (3 - (j & 3)) * 2
                 pix = (buf[byte_idx] >> shift) & 0x03
-                Inkplate.writePixel(j + x, i + y, pix)
+                Inkplate.write_pixel(j + x, i + y, pix)
 
-    def drawPNGFromWeb(
-        self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0
-    ):
+    def draw_png_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import gc
         import urequests
-        import ssl
 
         try:
             response = urequests.get(url, timeout=10)
@@ -657,7 +634,7 @@ class Inkplate:
             gc.collect()
 
         except Exception as e:
-            print("Error in drawPNGFromWeb:", e)
+            print("Error in draw_png_from_web:", e)
             if "response" in locals():
                 response.close()
 
@@ -668,8 +645,8 @@ class Inkplate:
         import io
         import array
 
-        _SCREEN_WIDTH_ = const(212)
-        _SCREEN_HEIGHT_ = const(104)
+        _screen_width_ = const(212)
+        _screen_height_ = const(104)
 
         @micropython.native
         def parse_chunks(png_bytes):
@@ -705,9 +682,7 @@ class Inkplate:
             if color_type == 6:
                 return 4
             if color_type == 3:
-                raise ValueError(
-                    "Indexed-color PNG not supported without PLTE palette handling"
-                )
+                raise ValueError("Indexed-color PNG not supported without PLTE palette handling")
             raise ValueError("Unsupported color type: %d" % color_type)
 
         if len(png_data) < 8 or png_data[:8] != b"\x89PNG\r\n\x1a\n":
@@ -730,10 +705,8 @@ class Inkplate:
 
         bpp = bytes_per_pixel(bit_depth, color_type)
 
-        draw_width = width if (x0 + width) <= _SCREEN_WIDTH_ else _SCREEN_WIDTH_ - x0
-        draw_height = (
-            height if (y0 + height) <= _SCREEN_HEIGHT_ else _SCREEN_HEIGHT_ - y0
-        )
+        draw_width = width if (x0 + width) <= _screen_width_ else _screen_width_ - x0
+        draw_height = height if (y0 + height) <= _screen_height_ else _screen_height_ - y0
         if draw_width <= 0 or draw_height <= 0:
             return
 
@@ -872,7 +845,7 @@ class Inkplate:
                             if x + 1 < draw_width:
                                 err_nxt[x + 1] += (delta * 1) // 16
 
-                Inkplate.writePixel(x0 + x, y0 + y, val)
+                Inkplate.write_pixel(x0 + x, y0 + y, val)
 
             if dither:
                 err_cur, err_nxt = err_nxt, err_cur
@@ -881,7 +854,7 @@ class Inkplate:
 
             cur, prev = prev, cur
 
-    def drawBMPFromWeb(self, url, x0=0, y0=0, invert=False, dither=False):
+    def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False):
         """Display a BMP image downloaded from the web
 
         Args:
@@ -891,9 +864,7 @@ class Inkplate:
             invert (bool): Whether to invert colors
             dither (bool): Whether to apply dithering
         """
-        import gc
         import urequests
-        import ssl
 
         try:
             response = urequests.get(url, timeout=10)
@@ -904,7 +875,7 @@ class Inkplate:
             response.close()
             Inkplate.decode_bmp(bmp_data, x0, y0, invert, dither)
         except Exception as e:
-            print("Error in drawBMPFromWeb:", e)
+            print("Error in draw_bmp_from_web:", e)
             if "response" in locals():
                 response.close()
 
@@ -913,15 +884,15 @@ class Inkplate:
     def decode_bmp(bmp_data, x0, y0, invert, dither):
         import array
 
-        __SCREEN_WIDTH_ = const(212)
-        __SCREEN_HEIGHT_ = const(104)
+        __screen_width_ = const(212)
+        __screen_height_ = const(104)
 
         # BMP header parsing (support only uncompressed 24-bit or 32-bit BMP)
         if bmp_data[0:2] != b"BM":
             raise ValueError("Not a BMP file")
-        file_size = int.from_bytes(bmp_data[2:6], "little")
+        int.from_bytes(bmp_data[2:6], "little")
         pixel_offset = int.from_bytes(bmp_data[10:14], "little")
-        dib_header_size = int.from_bytes(bmp_data[14:18], "little")
+        int.from_bytes(bmp_data[14:18], "little")
         width = int.from_bytes(bmp_data[18:22], "little", True)
         height = int.from_bytes(bmp_data[22:26], "little", True)
         planes = int.from_bytes(bmp_data[26:28], "little")
@@ -933,8 +904,8 @@ class Inkplate:
 
         # BMP rows are padded to 4 bytes
         row_bytes = ((width * bpp + 31) // 32) * 4
-        draw_width = min(width, __SCREEN_WIDTH_ - x0)
-        draw_height = min(abs(height), __SCREEN_HEIGHT_ - y0)
+        draw_width = min(width, __screen_width_ - x0)
+        draw_height = min(abs(height), __screen_height_ - y0)
         if draw_width <= 0 or draw_height <= 0:
             return
 
@@ -1001,7 +972,7 @@ class Inkplate:
                             if x + 1 < draw_width:
                                 err_nxt[x + 1] += (delta * 1) // 16
 
-                Inkplate.writePixel(x0 + x, y0 + y_img, val)
+                Inkplate.write_pixel(x0 + x, y0 + y_img, val)
 
             if dither:
                 err_cur, err_nxt = err_nxt, err_cur
@@ -1011,5 +982,6 @@ class Inkplate:
 
 if __name__ == "__main__":
     print(
-        "WARNING: You are running the Inkplate module itself, import this module into your example and use it that way"
+        "WARNING: You are running the Inkplate module itself, import this module "
+        "into your example and use it that way"
     )

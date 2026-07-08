@@ -13,15 +13,15 @@ from machine import Pin
 inkplate = Inkplate()
 
 # Declare the IO4 pin as an output (connect the LED to this pin with a resistor)
-ledPin = Pin(4, Pin.OUT)
+led_pin = Pin(4, Pin.OUT)
 
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
 
 while 1:
-    ledPin.value(1)
+    led_pin.value(1)
     time.sleep(0.5)
-    ledPin.value(0)
+    led_pin.value(0)
     time.sleep(0.5)
     # Infinite loop, this goes on forever
