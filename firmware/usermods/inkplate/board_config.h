@@ -15,8 +15,10 @@
 // Waveform table: one row per phase, one column per gray level (pixel value 0..levels-1).
 // Row order matches the sequence the display gets written N times, in order.
 // table[phase][level] -> code: 0=discharge,1=black,2=white,3=skip
-// Populated with the 2-bit (4-level) waveform until 3-bit tables are confirmed per board (Phase 5).
-#define MAX_WAVE_PHASES 8
+// Inkplate10 is populated with the real 3-bit/8-level table (Arduino reference driver's
+// default `waveform1`, transposed from its [color][phase] layout to this struct's
+// [phase][color] layout -- docs/REFACTOR-PLAN.md Phase 5 step 15).
+#define MAX_WAVE_PHASES 9
 #define MAX_WAVE_LEVELS 8
 
 typedef struct {

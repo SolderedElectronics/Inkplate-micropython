@@ -31,10 +31,16 @@ int main(void)
     assert(cfg->pmic_i2c_addr == 0x48);
 
     assert(cfg->waveform != NULL);
-    assert(cfg->waveform->levels == 4);
-    assert(cfg->waveform->phases == 8);
-    const uint8_t expected_wave_row0[MAX_WAVE_LEVELS] = {0, 1, 0, 0, 0, 0, 0, 0};
-    assert(memcmp(cfg->waveform->table[0], expected_wave_row0, MAX_WAVE_LEVELS) == 0);
+    assert(cfg->waveform->levels == 8);
+    assert(cfg->waveform->phases == 9);
+    // Phase 1 row, cross-checked against the real Arduino waveform1[color][phase=1] column
+    // (Inkplate10Driver.cpp): color0=0, color1=0, color2=0, color3=1, color4=0, color5=2,
+    // color6=0, color7=0.
+    const uint8_t expected_wave_row1[MAX_WAVE_LEVELS] = {0, 0, 0, 1, 0, 2, 0, 0};
+    assert(memcmp(cfg->waveform->table[1], expected_wave_row1, MAX_WAVE_LEVELS) == 0);
+    // Final phase (8) is the all-discharge/park row, same as phase 0.
+    const uint8_t expected_wave_row8[MAX_WAVE_LEVELS] = {0, 0, 0, 0, 0, 0, 0, 0};
+    assert(memcmp(cfg->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
 
     assert(cfg->has_touch == 0);
     assert(cfg->has_frontlight == 0);

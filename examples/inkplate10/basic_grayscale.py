@@ -25,20 +25,17 @@ inkplate.clear_display()
 # Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
-# Draw pallet of possible shades. Framebuffer storage is now 3-bit/8-level (0-7), but the
-# C engine still folds each pixel to 4 practical levels (raw >> 1) until the real 3-bit
-# waveform table lands -- values below are the old 0-3 levels doubled so the 4 bars stay
-# visually identical to before (docs/REFACTOR-PLAN.md Phase 5 step 14).
-inkplate.write_fill_rect(0, 0, 25, 825, 6)
-inkplate.write_fill_rect(25, 0, 25, 825, 4)
-inkplate.write_fill_rect(50, 0, 25, 825, 2)
-inkplate.write_fill_rect(75, 0, 25, 825, 0)
+# Draw a ramp of all 8 real gray levels (0=black .. 7=white) -- the C engine now drives the
+# real 3-bit/8-level waveform table natively (docs/REFACTOR-PLAN.md Phase 5 step 15).
+for level in range(8):
+    inkplate.write_fill_rect(level * 103, 0, 103, 825, level)
 
 # Show on the display
 inkplate.display()
 
-# Let's draw the Soldered logo and show it on the display
-inkplate.draw_bitmap(248, 391, soldered_logo, 211, 44)
+# Let's draw the Soldered logo and show it on the display -- placed in the blank area to
+# the right of the 8 gray bars (bars cover x=0..823), not on top of them.
+inkplate.draw_bitmap(906, 391, soldered_logo, 211, 44)
 inkplate.display()
 
 # Stop timer and print total runtime

@@ -1,11 +1,11 @@
 #include "epd_i2s.h"
 
 #include "epd_bitbang.h"
-#include "gs_pack.h"
 #include "driver/gpio.h"
-#include "driver/periph_ctrl.h"
 #include "esp_heap_caps.h"
+#include "esp_private/periph_ctrl.h"
 #include "esp_rom_gpio.h"
+#include "esp_rom_sys.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
 #include "soc/i2s_reg.h"
@@ -318,57 +318,66 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
     }
 }
 
-// build_gs_row's input is the legacy GS2_HMSB row shape: 2 bits/pixel packed 4-per-byte,
-// same as the wire format itself -- unlike mono, one input byte maps to exactly one output
-// byte (no 1:4 expansion). I2S1's fifo_conf.tx_fifo_mod=1 reordering was confirmed (by
-// cross-referencing the real Arduino Inkplate6 I2S driver's display1b()/display3b(),
-// Inkplate6Driver.cpp) to swap the first half against the second half of every
-// 4-output-byte chunk -- this is what build_mono_row's dram2-before-dram1 pattern reduces
-// to (its 4-output chunk is one input-byte-pair's 2+2 nibble codes). This input format has
-// no nibble split (1 input byte = 1 output byte), so the same chunk-of-4 half-swap applies
-// directly to input bytes instead: for descending block {i, i-1, i-2, i-3}, transmit codes
-// in order i-2, i-3, i, i-1. Requires fb_row_bytes % 4 == 0 (true for every board on
-// docs/REFACTOR-PLAN.md: 300/200/320/256).
-//
-// The Python framebuf itself no longer stores this shape directly (Phase 5 step 14 moved
-// it to GS4_HMSB, 8-level-ready) -- epd_i2s_push_gs_frame folds each real row through
-// gs_pack.h's inkplate_gs4_row_to_gs2 before calling this, so this HIL-verified
-// byte-order handling stays untouched until step 15 generalizes it for real 8-level output.
-static void build_gs_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
-                         const uint8_t lut[16], uint8_t *row_buf)
+// Combines 2 native GS4_HMSB bytes (4 raw-0..7 pixels) into 1 wire/output byte of four
+// 2-bit op-codes, using lut[16] from inkplate_gen_wave_3bit (lut[nibble] = op-code for
+// that raw pixel value, entries 8-15 unused). Bit layout matches the real Arduino driver's
+// calculateLUTs()/GLUT|GLUT2 combine (Inkplate10Driver.cpp), which assigns by pixel
+// *position* (even-x/left vs odd-x/right within a byte), not by nibble literally -- this
+// project's write_pixel_viper (inkplate10.py) packs the opposite nibble convention from
+// Arduino's DMemory4Bit (even-x -> low nibble here, vs. high nibble there), so the
+// low/high nibble reads below are swapped relative to a literal port of the Arduino
+// formula, to land the correct *pixel* in the position Arduino's bit-scatter expects.
+// byte1 (first/higher-address byte consumed) lands in the output's upper nibble (its
+// odd-x/right pixel in bits 7:6, even-x/left pixel in bits 5:4), byte2 (second/lower-
+// address byte) lands in the lower nibble (bits 3:2 / 1:0) the same way. The first,
+// unswapped version of this function produced a one-pixel shift at every gray-level
+// boundary in an 8-bar ramp on real hardware (invisible inside a solid-color bar, since
+// swapping two equal values is a no-op) -- this swap fixes that; pending re-verification
+// on the panel.
+static inline uint8_t gs3_combine(const uint8_t lut[16], uint8_t byte1, uint8_t byte2)
 {
-    uint16_t out = 0;
-    for (int32_t i = (int32_t)fb_row_bytes - 1; i >= 3; i -= 4) {
-        uint8_t b0 = framebuf_row[i]; // highest index in this 4-block
-        uint8_t b1 = framebuf_row[i - 1];
-        uint8_t b2 = framebuf_row[i - 2];
-        uint8_t b3 = framebuf_row[i - 3]; // lowest index in this 4-block
-        row_buf[out++] = (uint8_t)((lut[b2 >> 4] << 4) | lut[b2 & 0x0F]);
-        row_buf[out++] = (uint8_t)((lut[b3 >> 4] << 4) | lut[b3 & 0x0F]);
-        row_buf[out++] = (uint8_t)((lut[b0 >> 4] << 4) | lut[b0 & 0x0F]);
-        row_buf[out++] = (uint8_t)((lut[b1 >> 4] << 4) | lut[b1 & 0x0F]);
-    }
+    return (uint8_t)((lut[(byte1 >> 4) & 0x0F] << 6) | (lut[byte1 & 0x0F] << 4) |
+                     (lut[(byte2 >> 4) & 0x0F] << 2) | lut[byte2 & 0x0F]);
 }
 
-// Converts one GS4_HMSB framebuf row (gs4_row_bytes bytes, width>>1) into the legacy
-// GS2_HMSB row shape build_gs_row expects (fb_row_bytes bytes, width>>2), via gs_pack.h's
-// interim raw>>1 fold -- see build_gs_row's header comment.
-// Scratch row size: largest parallel-bus board is 5v2 at 1280px wide (1280>>2 = 320
-// bytes) -- 512 leaves headroom without needing a per-board dynamic allocation.
-#define GS2_SCRATCH_ROW_MAX 512
-
-static void build_gs_row_from_gs4(const uint8_t *gs4_row, uint16_t fb_row_bytes,
-                                  const uint8_t lut[16], uint8_t *row_buf)
+// Native 3-bit/8-level row builder (docs/REFACTOR-PLAN.md Phase 5 step 15), replacing the
+// interim GS4->GS2 fold (gs_pack.h, deleted). Reads the GS4_HMSB framebuf row directly, no
+// intermediate 4-level shape.
+//
+// Byte ordering: gs3_combine() reproduces the Arduino driver's electrically-correct
+// per-row op-code sequence (bit-banged, no FIFO involved on that hardware). Our transport
+// is I2S1 DMA with fifo_conf.tx_fifo_mod=1, which reorders every 4 consecutive *output*
+// bytes as [pos2,pos3,pos0,pos1] on the wire (confirmed empirically for build_mono_row and
+// the now-removed build_gs_row against real hardware) -- so the 4 "logical"
+// (Arduino-equivalent) combined bytes per chunk are written pre-swapped into row_buf here,
+// same rule, applied one level up (per-combined-byte instead of per-input-byte, since
+// gs3_combine already reduces 2 input bytes to 1 logical output byte, same shape
+// build_gs_row's input was in). Requires gs4_row_bytes % 8 == 0 (true for Inkplate10:
+// 1200>>1 = 600).
+//
+// UNVERIFIED on real hardware: every prior swap rule in this driver needed a HIL
+// correction the first time non-uniform content exercised it (see build_mono_row's and
+// the removed build_gs_row's history) -- this is a reasoned derivation, not yet confirmed
+// against a real gray ramp on the panel.
+static void build_gs3_row(const uint8_t *gs4_row, uint16_t gs4_row_bytes, const uint8_t lut[16],
+                          uint8_t *row_buf)
 {
-    uint8_t gs2_row[GS2_SCRATCH_ROW_MAX];
-    inkplate_gs4_row_to_gs2(gs4_row, fb_row_bytes, gs2_row);
-    build_gs_row(gs2_row, fb_row_bytes, lut, row_buf);
+    uint16_t out = 0;
+    for (int32_t i = (int32_t)gs4_row_bytes - 1; i >= 7; i -= 8) {
+        uint8_t l0 = gs3_combine(lut, gs4_row[i], gs4_row[i - 1]);
+        uint8_t l1 = gs3_combine(lut, gs4_row[i - 2], gs4_row[i - 3]);
+        uint8_t l2 = gs3_combine(lut, gs4_row[i - 4], gs4_row[i - 5]);
+        uint8_t l3 = gs3_combine(lut, gs4_row[i - 6], gs4_row[i - 7]);
+        row_buf[out++] = l2;
+        row_buf[out++] = l3;
+        row_buf[out++] = l0;
+        row_buf[out++] = l1;
+    }
 }
 
 void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
                            const uint8_t (*luts)[16], uint8_t num_phases)
 {
-    uint16_t fb_row_bytes = cfg->width >> 2;  // wire/output row bytes (build_gs_row's shape)
     uint16_t gs4_row_bytes = cfg->width >> 1; // GS4_HMSB framebuf row bytes (2 px/byte)
 
     for (uint8_t phase = 0; phase < num_phases; phase++) {
@@ -377,15 +386,14 @@ void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
 
         uint8_t cur = 0;
         int32_t row = (int32_t)cfg->height - 1;
-        build_gs_row_from_gs4(framebuf + row * gs4_row_bytes, fb_row_bytes, lut,
-                              s_state.buf[cur]);
+        build_gs3_row(framebuf + row * gs4_row_bytes, gs4_row_bytes, lut, s_state.buf[cur]);
         epd_i2s_start_row(cfg, cur);
 
         while (row >= 0) {
             uint8_t next = cur ^ 1;
             if (row > 0) {
-                build_gs_row_from_gs4(framebuf + (row - 1) * gs4_row_bytes, fb_row_bytes, lut,
-                                      s_state.buf[next]);
+                build_gs3_row(framebuf + (row - 1) * gs4_row_bytes, gs4_row_bytes, lut,
+                              s_state.buf[next]);
             }
             epd_i2s_wait_row(cfg);
             epd_vscan_write(cfg);
@@ -397,5 +405,7 @@ void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
         }
 
         epd_vscan_end(cfg);
+        // Matches the real Arduino display3b()'s inter-phase gap (Inkplate10Driver.cpp).
+        esp_rom_delay_us(230);
     }
 }

@@ -1,20 +1,26 @@
 #include "board_config.h"
 
-// WAVE_2B from boards/inkplate10/inkplateGS.py, 4-level grayscale.
-// Order per phase row: blk, dk-grey, light-grey, white (pixel values 0-3).
-static const waveform_table_t wave_2b_inkplate10 = {
-    .levels = 4,
-    .phases = 8,
+// Real 3-bit/8-level waveform for Inkplate10, transcribed from the Arduino reference
+// driver's compiled-in default (waveforms.h's WAVEFORM3BIT macro == waveform1[8][9] in
+// Inkplate10Driver.cpp -- the fallback used whenever no per-device EEPROM calibration is
+// present). Arduino declares this as waveform3Bit[color][phase] (8 colors x 9 phases);
+// transposed here to [phase][color] to match this struct's row-per-phase convention
+// (same convention board_config.c already used for the now-removed 2-bit WAVE_2B table).
+// Values are 2-bit drive op-codes (0=discharge,1=black,2=white,3=skip), NOT gray levels.
+static const waveform_table_t wave_3b_inkplate10 = {
+    .levels = 8,
+    .phases = 9,
     .table =
         {
-            {0, 1, 0, 0},
-            {0, 2, 0, 0},
-            {0, 2, 0, 2},
-            {0, 1, 2, 2},
-            {0, 2, 1, 2},
-            {0, 2, 1, 2},
-            {1, 1, 2, 2},
-            {0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 0, 1, 0, 2, 0, 0},
+            {0, 0, 2, 2, 2, 2, 0, 0},
+            {0, 2, 1, 2, 1, 2, 0, 2},
+            {0, 2, 1, 1, 2, 2, 0, 2},
+            {0, 2, 2, 2, 2, 2, 2, 2},
+            {0, 1, 2, 2, 2, 2, 1, 2},
+            {1, 1, 1, 1, 1, 1, 2, 2},
+            {0, 0, 0, 0, 0, 0, 0, 0},
         },
 };
 
@@ -38,7 +44,7 @@ const board_config_t board_config_inkplate10 = {
 
     .pmic_i2c_addr = 0x48,
 
-    .waveform = &wave_2b_inkplate10,
+    .waveform = &wave_3b_inkplate10,
 
     .has_touch = 0,
     .has_frontlight = 0,

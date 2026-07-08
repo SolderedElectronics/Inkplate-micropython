@@ -20,12 +20,16 @@
 // directly after combining with another nibble the same way.
 void inkplate_gen_nibble_lut(const uint8_t *op, int bpp, uint8_t out[16]);
 
-// gen_wave_2bit reproduces InkplateGS2._gen_wave: one 16-entry nibble LUT per phase row of a
-// 4-level (bpp=2) waveform table. `table` holds `phases` rows of `row_stride` codes each (only
-// the first 4 codes per row are used -- board_config_t's waveform_table_t rows are padded to
-// MAX_WAVE_LEVELS, this function doesn't need to know that, just the stride). out must point
-// to `phases` arrays of 16 bytes each (i.e. out[phases][16]).
-void inkplate_gen_wave_2bit(const uint8_t *table, int row_stride, uint8_t phases,
+// gen_wave_3bit: one 16-entry nibble LUT per phase row of an 8-level (bpp=4, one pixel per
+// nibble) waveform table -- the real Inkplate10 3-bit engine (docs/REFACTOR-PLAN.md Phase 5
+// step 15), superseding the interim 2-bit/4-level path. `table` holds `phases` rows of
+// `row_stride` codes each (only the first 8 codes per row are real gray levels --
+// board_config_t's waveform_table_t rows are padded to MAX_WAVE_LEVELS, this function
+// doesn't need to know that, just the stride). Entries 8-15 of each generated LUT are
+// unused padding (GS4_HMSB pixel values are always 0-7) -- inkplate_gen_nibble_lut(bpp=4)
+// still needs a full 16-entry op array per phase, since it maps a full nibble, not a
+// sub-nibble field. out must point to `phases` arrays of 16 bytes each (out[phases][16]).
+void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases,
                             uint8_t out[][16]);
 
 // Mono (1bpp) display waveform: 5 "push toward black" phases (white pixels skip, black

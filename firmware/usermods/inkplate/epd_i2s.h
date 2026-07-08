@@ -56,15 +56,15 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
                              const uint8_t (*luts)[16], uint8_t num_phases);
 
 // Full grayscale display update: drives num_phases phases (see waveform.h's
-// inkplate_gen_wave_2bit / cfg->waveform), each phase writing every row via I2S DMA,
-// framed by epd_vscan_start/epd_vscan_write/epd_vscan_end -- the DMA-driven equivalent of
-// InkplateGS2.display()'s per-phase bit-banged loop, replacing _send_row(). framebuf is
-// the GS4_HMSB source buffer (cfg->height rows of cfg->width>>1 bytes each, 2 pixels/byte,
-// raw levels 0-7 -- Phase 5 step 14's 8-level-ready storage). Each row is folded down to
-// the legacy 4-level GS2_HMSB shape (gs_pack.h, raw>>1) before the same last-byte-first
-// chunk-of-4 half-swap epd_i2s.c's build_gs_row already applies -- interim until step 15
-// wires the real 8-level waveform table in and this fold is replaced with direct 4bpp
-// handling.
+// inkplate_gen_wave_3bit / cfg->waveform), each phase writing every row via I2S DMA,
+// framed by epd_vscan_start/epd_vscan_write/epd_vscan_end, with a 230us gap after each
+// phase (matches the real Arduino display3b()'s inter-phase delay) -- the DMA-driven
+// equivalent of InkplateGS2.display()'s per-phase bit-banged loop, replacing _send_row().
+// framebuf is the GS4_HMSB source buffer (cfg->height rows of cfg->width>>1 bytes each, 2
+// pixels/byte, raw levels 0-7). Native 3-bit/8-level (Phase 5 step 15) -- reads GS4_HMSB
+// directly, no intermediate fold (see epd_i2s.c's build_gs3_row for the byte-order
+// derivation, which is UNVERIFIED on real hardware pending HIL check with non-uniform
+// content).
 void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
                            const uint8_t (*luts)[16], uint8_t num_phases);
 

@@ -145,7 +145,7 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
     static uint8_t gs_luts[MAX_WAVE_PHASES][16];
     static bool gs_luts_ready = false;
     if (!gs_luts_ready) {
-        inkplate_gen_wave_2bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS,
+        inkplate_gen_wave_3bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS,
                                cfg->waveform->phases, gs_luts);
         gs_luts_ready = true;
     }

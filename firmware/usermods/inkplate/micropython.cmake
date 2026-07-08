@@ -7,7 +7,6 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/epd_bitbang.c
     ${CMAKE_CURRENT_LIST_DIR}/epd_i2s.c
     ${CMAKE_CURRENT_LIST_DIR}/waveform.c
-    ${CMAKE_CURRENT_LIST_DIR}/gs_pack.c
 )
 
 target_include_directories(usermod_inkplate INTERFACE

@@ -41,31 +41,33 @@ static void test_synthetic_nibble_lut(void)
     printf("test_synthetic_nibble_lut: passed\n");
 }
 
-static void test_legacy_2bit_parity(void)
+static void test_3bit_wave_parity(void)
 {
-    // Reference _wave from `python3 -c` running the real genlut()/WAVE_2B in
-    // boards/inkplate10/inkplateGS.py verbatim.
-    static const uint8_t expected_wave[8][16] = {
-        {0, 1, 0, 0, 4, 5, 4, 4, 0, 1, 0, 0, 0, 1, 0, 0},
-        {0, 2, 0, 0, 8, 10, 8, 8, 0, 2, 0, 0, 0, 2, 0, 0},
-        {0, 2, 0, 2, 8, 10, 8, 10, 0, 2, 0, 2, 8, 10, 8, 10},
-        {0, 1, 2, 2, 4, 5, 6, 6, 8, 9, 10, 10, 8, 9, 10, 10},
-        {0, 2, 1, 2, 8, 10, 9, 10, 4, 6, 5, 6, 8, 10, 9, 10},
-        {0, 2, 1, 2, 8, 10, 9, 10, 4, 6, 5, 6, 8, 10, 9, 10},
-        {5, 5, 6, 6, 5, 5, 6, 6, 9, 9, 10, 10, 9, 9, 10, 10},
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    };
-
+    // Reference values cross-checked against the real Arduino reference driver's
+    // waveform1[color][phase] (Inkplate10Driver.cpp / waveforms.h WAVEFORM3BIT), transposed
+    // to [phase][color] via a python3 one-liner (not hand-derived) -- see board_config.c's
+    // wave_3b_inkplate10 for the same transpose. bpp=4 (one pixel per nibble) makes
+    // inkplate_gen_nibble_lut a direct pass-through: out[nibble] == op[nibble] for
+    // nibble 0-15, so the generated LUT's first 8 entries equal the table row verbatim and
+    // entries 8-15 are the zero-padding inkplate_gen_wave_3bit fills unused nibbles with.
     const board_config_t *cfg = &board_config_inkplate10;
-    assert(cfg->waveform->phases == 8);
+    assert(cfg->waveform->levels == 8);
+    assert(cfg->waveform->phases == 9);
 
-    uint8_t wave[8][16];
-    inkplate_gen_wave_2bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS, cfg->waveform->phases,
+    uint8_t wave[9][16];
+    inkplate_gen_wave_3bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS, cfg->waveform->phases,
                            wave);
 
-    assert(memcmp(wave, expected_wave, sizeof(wave)) == 0);
+    static const uint8_t expected_phase1[8] = {0, 0, 0, 1, 0, 2, 0, 0};
+    static const uint8_t expected_phase7[8] = {1, 1, 1, 1, 1, 1, 2, 2};
+    static const uint8_t expected_pad[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-    printf("test_legacy_2bit_parity: passed\n");
+    assert(memcmp(wave[1], expected_phase1, 8) == 0);
+    assert(memcmp(wave[1] + 8, expected_pad, 8) == 0);
+    assert(memcmp(wave[7], expected_phase7, 8) == 0);
+    assert(memcmp(wave[7] + 8, expected_pad, 8) == 0);
+
+    printf("test_3bit_wave_parity: passed\n");
 }
 
 static void test_mono_wave_parity(void)
@@ -92,7 +94,7 @@ static void test_mono_wave_parity(void)
 int main(void)
 {
     test_synthetic_nibble_lut();
-    test_legacy_2bit_parity();
+    test_3bit_wave_parity();
     test_mono_wave_parity();
     printf("test_waveform: all assertions passed\n");
     return 0;

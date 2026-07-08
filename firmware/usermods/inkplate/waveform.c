@@ -1,4 +1,5 @@
 #include "waveform.h"
+#include <string.h>
 
 void inkplate_gen_nibble_lut(const uint8_t *op, int bpp, uint8_t out[16])
 {
@@ -15,11 +16,15 @@ void inkplate_gen_nibble_lut(const uint8_t *op, int bpp, uint8_t out[16])
     }
 }
 
-void inkplate_gen_wave_2bit(const uint8_t *table, int row_stride, uint8_t phases,
+void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases,
                             uint8_t out[][16])
 {
     for (uint8_t phase = 0; phase < phases; phase++) {
-        inkplate_gen_nibble_lut(&table[phase * row_stride], 2, out[phase]);
+        // inkplate_gen_nibble_lut(bpp=4) indexes op[] with a full nibble (0-15), but only
+        // levels 0-7 are real gray levels -- pad the rest so the lookup stays in-bounds.
+        uint8_t op[16] = {0};
+        memcpy(op, &table[phase * row_stride], 8);
+        inkplate_gen_nibble_lut(op, 4, out[phase]);
     }
 }
 

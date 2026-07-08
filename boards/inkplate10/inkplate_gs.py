@@ -1,9 +1,7 @@
 """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
-Storage is 8-level-ready (docs/REFACTOR-PLAN.md Phase 5 step 14), but the C engine still
-folds each pixel to 4 practical levels (raw >> 1) until the real 3-bit waveform table is
-wired in (step 15, blocked on per-board timing data) -- see
-firmware/usermods/inkplate/gs_pack.h.
+The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real 3-bit/8-level
+waveform table natively (docs/REFACTOR-PLAN.md Phase 5 step 15) -- no intermediate fold.
 """
 
 import time
@@ -51,7 +49,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(1, 10)
 
         # the display gets written via I2S DMA + the C waveform engine
-        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 8 phases driven in C.
+        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C.
         t1 = time.ticks_ms()
         ip.gs_display(self._framebuf)
 
@@ -61,7 +59,9 @@ class InkplateGS2(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
+        # trailing park sequence, matches the real Arduino display3b()
         ip.clean(3, 1)
+        ip.vscan_start()
         ip.i2s_deinit()
         ip.power_off()
 
