@@ -285,14 +285,14 @@ class _Inkplate:
     def fill_screen(data: int):
         inkplate.fill_screen(data)
 
-    # clean fills the screen with one of the four possible pixel patterns
+    # clean fills the screen with one of the four possible pixel patterns via I2S DMA.
+    # Caller must have already called i2s_init() -- same precondition as
+    # epd_i2s_push_frame/push_row (firmware/usermods/inkplate/epd_i2s.h).
     @classmethod
     def clean(cls, patt, rep):
         c = [0xAA, 0x55, 0x00, 0xFF][patt]
-        data = _Inkplate.byte2gpio[c] & ~EPD_CL
         for i in range(rep):
-            cls.vscan_start()
-            cls.fill_screen(data)
+            inkplate.i2s_push_frame(c)
 
     @classmethod
     def rtc_dec_to_bcd(cls, val):
@@ -505,6 +505,7 @@ class Inkplate:
 
     def clean(self):
         self.einkOn()
+        _Inkplate.i2s_init()
         _Inkplate.clean(0, 1)
         _Inkplate.clean(1, 12)
         _Inkplate.clean(2, 1)
@@ -513,6 +514,7 @@ class Inkplate:
         _Inkplate.clean(1, 12)
         _Inkplate.clean(2, 1)
         _Inkplate.clean(0, 11)
+        _Inkplate.i2s_deinit()
         self.einkOff()
 
     def einkOn(self):

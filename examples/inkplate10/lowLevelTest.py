@@ -12,6 +12,7 @@ _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
 
 print("power on")
 _Inkplate.power_on()
+_Inkplate.i2s_init()
 
 print("discharge x20 -- reset panel to a neutral state")
 _Inkplate.clean(2, 20)
@@ -25,6 +26,7 @@ print("white x8 -- should turn the whole panel solid white")
 _Inkplate.clean(0, 8)
 time.sleep_ms(2000)
 
+_Inkplate.i2s_deinit()
 print("power off")
 _Inkplate.power_off()
 

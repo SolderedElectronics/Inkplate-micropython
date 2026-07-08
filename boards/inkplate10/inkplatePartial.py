@@ -116,8 +116,10 @@ class InkplatePartial:
             % (td, td // n, td * 1000 // n // (D_ROWS - y), y, y + h + 1)
         )
 
+        ip.i2s_init()
         ip.clean(2, 2)
         ip.clean(3, 1)
+        ip.i2s_deinit()
         ip.power_off()
 
     # gen_lut_mono generates a look-up tables to change the display from a nibble of old

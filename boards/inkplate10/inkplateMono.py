@@ -51,8 +51,9 @@ class InkplateMono(framebuf.FrameBuffer):
     def display(self):
         ip = _Inkplate
         ip.power_on()
+        ip.i2s_init()
 
-        # clean the display
+        # clean the display (now driven via I2S DMA -- docs/REFACTOR-PLAN.md step 12)
         t0 = time.ticks_ms()
         ip.clean(0, 1)
         ip.clean(1, 12)
@@ -66,9 +67,7 @@ class InkplateMono(framebuf.FrameBuffer):
         # the display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 6 phases driven in C.
         t1 = time.ticks_ms()
-        ip.i2s_init()
         ip.mono_display(self._framebuf)
-        ip.i2s_deinit()
 
         t2 = time.ticks_ms()
         tc = time.ticks_diff(t1, t0)
@@ -78,6 +77,7 @@ class InkplateMono(framebuf.FrameBuffer):
 
         ip.clean(2, 2)
         ip.clean(3, 1)
+        ip.i2s_deinit()
         ip.power_off()
 
     @micropython.viper

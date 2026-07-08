@@ -114,6 +114,7 @@ class InkplateGS2(framebuf.FrameBuffer):
     def display(self):
         ip = _Inkplate
         ip.power_on()
+        ip.i2s_init()
 
         # clean the display
         t0 = time.ticks_ms()
@@ -125,8 +126,12 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(0, 10)
         ip.clean(2, 1)
         ip.clean(1, 10)
+        ip.i2s_deinit()
 
-        # the display gets written N times
+        # the display gets written N times -- bit-bang draw loop below (GS2 not yet on
+        # the I2S path, docs/REFACTOR-PLAN.md step 13), so I2S must be deinited first --
+        # epd_i2s_init() reroutes data_pins/pin_cl to I2S1 via the GPIO matrix, which
+        # would otherwise swallow this loop's direct GPIO register writes.
         t1 = time.ticks_ms()
         n = 0
         ip.vscan_start()
@@ -152,7 +157,9 @@ class InkplateGS2(framebuf.FrameBuffer):
             "GS2: clean %dms (%dms ea), draw %dms (%dms ea), total %dms"
             % (tc, tc // (4 + 22 + 24), td, td // len(InkplateGS2._wave), tt)
         )
+        ip.i2s_init()
         ip.clean(3, 1)
+        ip.i2s_deinit()
         ip.power_off()
 
     @micropython.viper
