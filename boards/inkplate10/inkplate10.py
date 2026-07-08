@@ -9,6 +9,7 @@ from uarray import array
 from pcal6416a import *
 from micropython import const
 from gfx import GFX
+import gfx_standard_font_01 as montserrat_black
 import gc
 
 
@@ -421,16 +422,8 @@ class Inkplate:
 
         self.clear_display()
 
-        self.GFX = GFX(
-            D_COLS,
-            D_ROWS,
-            self.write_pixel,
-            self.write_fast_hline,
-            self.write_fast_vline,
-            self.write_fill_rect,
-            None,
-            None,
-        )
+        self.font_family = montserrat_black
+        self.font = self.font_family._font
 
     def init_sd_card(self, fast_boot=False):
         _Inkplate.SD_ENABLE.digital_write(0)
@@ -543,15 +536,10 @@ class Inkplate:
     # Arduino compatibility functions
     def set_rotation(self, x):
         self.rotation = x % 4
-        self.GFX.rotation = self.rotation
         if self.rotation == 0 or self.rotation == 2:
-            self.GFX.width = D_COLS
-            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
-            self.GFX.width = D_ROWS
-            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 
@@ -642,21 +630,37 @@ class Inkplate:
                     self.write_pixel(x + i, y + j, c)
         self.end_write()
 
+    # write_fill_rect/write_fast_hline/write_fast_vline predate shared/gfx.py's GFX class
+    # (GFX.fill_rect/hline/vline are bound to these, not the other way around) so they were
+    # out of scope for the initial gfx C port -- ported here as a direct follow-up since
+    # gfx_fill_rect/gfx_hline/gfx_vline already exist and are already tested: collapsing
+    # these from an O(w*h)/O(n) per-pixel Python loop into a single C call is the actual win
+    # (write_pixel itself is already a viper function, so it wasn't worth touching).
     def write_fill_rect(self, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                self.write_pixel(x + j, y + i, c)
+        inkplate.gfx_fill_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, h, c
+        )
 
     def write_fast_vline(self, x, y, h, c):
-        for i in range(h):
-            self.write_pixel(x, y + i, c)
+        inkplate.gfx_vline(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, h, c
+        )
 
     def write_fast_hline(self, x, y, w, c):
-        for i in range(w):
-            self.write_pixel(x + i, y, c)
+        inkplate.gfx_hline(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, c
+        )
+
+    # Active framebuf for the current display_mode -- shared by every gfx_* call below,
+    # since C owns the whole draw now (docs/REFACTOR-PLAN.md Phase 7 step 17) instead of
+    # a per-pixel Python callback.
+    def _framebuf(self):
+        return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf
 
     def write_line(self, x0, y0, x1, y1, c):
-        self.GFX.line(x0, y0, x1, y1, c)
+        inkplate.gfx_line(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x0, y0, x1, y1, c
+        )
 
     def end_write(self):
         pass
@@ -685,25 +689,61 @@ class Inkplate:
         self.end_write()
 
     def draw_rect(self, x, y, w, h, c):
-        self.GFX.rect(x, y, w, h, c)
+        inkplate.gfx_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, h, c
+        )
 
     def draw_circle(self, x, y, r, c):
-        self.GFX.circle(x, y, r, c)
+        inkplate.gfx_circle(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, r, c
+        )
 
     def fill_circle(self, x, y, r, c):
-        self.GFX.fill_circle(x, y, r, c)
+        inkplate.gfx_fill_circle(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, r, c
+        )
 
     def draw_triangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_triangle(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            c,
+        )
 
     def fill_triangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_fill_triangle(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            c,
+        )
 
     def draw_round_rect(self, x, y, q, h, r, c):
-        self.GFX.round_rect(x, y, q, h, r, c)
+        inkplate.gfx_round_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, q, h, r, c
+        )
 
     def fill_round_rect(self, x, y, q, h, r, c):
-        self.GFX.fill_round_rect(x, y, q, h, r, c)
+        inkplate.gfx_fill_round_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, q, h, r, c
+        )
 
     def set_display_mode(self, mode):
         self.display_mode = mode
@@ -715,8 +755,8 @@ class Inkplate:
         self.text_size = s
 
     def set_font(self, f):
-        self.GFX.font_family = f
-        self.GFX.font = self.GFX.font_family._font
+        self.font_family = f
+        self.font = self.font_family._font
 
     def set_text_color(self, c):
         self.textColor = c
@@ -730,79 +770,105 @@ class Inkplate:
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
-    def print_text(self, x, y, s):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.GFX._print_text(
-                self.ipg._framebuf,
-                x,
-                y,
-                s,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
+    # Ported from shared/gfx.py GFX._print_text, with the per-char blit routed through
+    # inkplate.gfx_draw_char instead of GFX._draw_char_1bpp/_draw_char_2bpp. Those two were
+    # dispatched by a caller-supplied `bpp` kwarg that had drifted out of sync with the real
+    # framebuf storage (text kept assuming 2bpp/0-3 after Phase 5 step 14 switched GS
+    # storage to 4bpp/0-7, silently corrupting text drawn in GS mode) -- this version
+    # dispatches on self.display_mode instead, like every other draw method here, so there
+    # is one packing decision instead of two that can disagree.
+    def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
+        display_width = self._width
+
+        if self.display_mode == 0:
+            color = 1 if color else 0
         else:
-            self.GFX._print_text(
-                self.ipm._framebuf,
-                x,
-                y,
-                s,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
+            color = min(max(color, 0), 7)
+
+        x = int(x0)
+        y = int(y0)
+        line_height = 0
+
+        def blit(cx, cy, char_data, ch_w, ch_h):
+            inkplate.gfx_draw_char(
+                framebuf,
+                D_COLS,
+                D_ROWS,
+                self.rotation,
+                self.display_mode,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                color,
             )
 
+        for chunk in string.split("__"):
+            try:
+                char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
+                line_height = max(line_height, ch_h * size)
+
+                if text_wrap is True and x + ch_w * size > display_width:
+                    x = 0
+                    y += line_height
+                    line_height = ch_h * size
+
+                blit(x, y, char_data, ch_w, ch_h)
+                x += ch_w * size
+            except (ValueError, TypeError):
+                for char in chunk:
+                    if char == "\n":
+                        x = x0
+                        y += line_height
+                        line_height = 0
+                        continue
+
+                    try:
+                        char_data, ch_h, ch_w = self.font_family.get_ch(char)
+                    except (ValueError, TypeError):
+                        char_data, ch_h, ch_w = self.font_family.get_ch("?")
+
+                    line_height = max(line_height, ch_h * size)
+
+                    if text_wrap is True and x + ch_w * size > display_width:
+                        x = 0
+                        y += line_height
+                        line_height = ch_h * size
+
+                    blit(x, y, char_data, ch_w, ch_h)
+                    x += ch_w * size
+        return [x, y], line_height
+
+    def print_text(self, x, y, s):
+        self._print_text(
+            self._framebuf(), x, y, s, self.text_size, self.textColor, text_wrap=self.textWrapping
+        )
+
     def println(self, text):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipg._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
-        else:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipm._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
-            )
+        self.cursor, line_height = self._print_text(
+            self._framebuf(),
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.text_size,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
         self.cursor[1] += line_height
         self.cursor[0] = 0
 
     def print(self, text):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipg._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
-        else:
-            self.cursor, _ = self.GFX._print_text(
-                self.ipm._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
-            )
+        self.cursor, _ = self._print_text(
+            self._framebuf(),
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.text_size,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
 
     def wrap_text(self, text, max_chars):
         lines = []

@@ -17,6 +17,7 @@ jobs:
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/waveform.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/epd_partial_lut.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_decode.c -o /dev/null
+          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/gfx.c -o /dev/null
 
   format:
     runs-on: ubuntu-latest
@@ -61,3 +62,8 @@ jobs:
             firmware/usermods/inkplate/bmp_decode.c \
             -o /tmp/test_bmp_decode
           /tmp/test_bmp_decode
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_gfx.c \
+            firmware/usermods/inkplate/gfx.c \
+            -o /tmp/test_gfx
+          /tmp/test_gfx

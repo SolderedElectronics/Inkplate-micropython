@@ -6,6 +6,7 @@
 #include "epd_i2s.h"
 #include "epd_partial_lut.h"
 #include "waveform.h"
+#include "gfx.h"
 #include <stdbool.h>
 #include <string.h>
 
@@ -177,6 +178,172 @@ static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_ob
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_partial_display_obj, inkplate_partial_display);
 
+// gfx_* bindings (docs/REFACTOR-PLAN.md Phase 7 step 17): each call is self-contained --
+// framebuf + phys dims + rotation + display_mode + shape params -- rather than threaded
+// through static state like active_board, since rotation/display_mode/which framebuf
+// genuinely vary call to call (unlike the board selection, which is a session constant).
+static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
+{
+    mp_get_buffer_raise(fb_obj, bufinfo, MP_BUFFER_WRITE);
+    return (uint8_t *)bufinfo->buf;
+}
+
+static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_hline(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+              mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+              mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_hline_obj, 9, 9, inkplate_gfx_hline);
+
+static mp_obj_t inkplate_gfx_vline(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_vline(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+              mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+              mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_vline_obj, 9, 9, inkplate_gfx_vline);
+
+static mp_obj_t inkplate_gfx_line(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_line(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+             mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+             mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
+             mp_obj_get_int(args[9]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_line_obj, 10, 10, inkplate_gfx_line);
+
+static mp_obj_t inkplate_gfx_rect(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+             mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+             mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
+             mp_obj_get_int(args[9]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_rect_obj, 10, 10, inkplate_gfx_rect);
+
+static mp_obj_t inkplate_gfx_fill_rect(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_fill_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                  mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                  mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                  mp_obj_get_int(args[8]), mp_obj_get_int(args[9]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_rect_obj, 10, 10,
+                                           inkplate_gfx_fill_rect);
+
+static mp_obj_t inkplate_gfx_circle(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_circle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+               mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+               mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_circle_obj, 9, 9, inkplate_gfx_circle);
+
+static mp_obj_t inkplate_gfx_fill_circle(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_fill_circle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                    mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                    mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                    mp_obj_get_int(args[8]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_circle_obj, 9, 9,
+                                           inkplate_gfx_fill_circle);
+
+static mp_obj_t inkplate_gfx_triangle(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_triangle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                 mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                 mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                 mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]),
+                 mp_obj_get_int(args[11]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_triangle_obj, 12, 12,
+                                           inkplate_gfx_triangle);
+
+static mp_obj_t inkplate_gfx_fill_triangle(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_fill_triangle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                      mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                      mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                      mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]),
+                      mp_obj_get_int(args[11]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_triangle_obj, 12, 12,
+                                           inkplate_gfx_fill_triangle);
+
+static mp_obj_t inkplate_gfx_round_rect(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_round_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                   mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                   mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                   mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_round_rect_obj, 11, 11,
+                                           inkplate_gfx_round_rect);
+
+static mp_obj_t inkplate_gfx_fill_round_rect(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_fill_round_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                        mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                        mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
+                        mp_obj_get_int(args[8]), mp_obj_get_int(args[9]),
+                        mp_obj_get_int(args[10]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_round_rect_obj, 11, 11,
+                                           inkplate_gfx_fill_round_rect);
+
+// args: framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, char_data(bytes-like),
+// char_w, char_h, size, color.
+static mp_obj_t inkplate_gfx_draw_char(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf, char_buf;
+    uint8_t *fb = gfx_writable_buf(args[0], &buf);
+    mp_get_buffer_raise(args[7], &char_buf, MP_BUFFER_READ);
+
+    gfx_draw_char(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]), mp_obj_get_int(args[3]),
+                  mp_obj_get_int(args[4]), mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                  (const uint8_t *)char_buf.buf, mp_obj_get_int(args[8]), mp_obj_get_int(args[9]),
+                  mp_obj_get_int(args[10]), mp_obj_get_int(args[11]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_char_obj, 12, 12,
+                                           inkplate_gfx_draw_char);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -194,6 +361,18 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_gs_display), MP_ROM_PTR(&inkplate_gs_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_partial_display), MP_ROM_PTR(&inkplate_partial_display_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_hline), MP_ROM_PTR(&inkplate_gfx_hline_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_vline), MP_ROM_PTR(&inkplate_gfx_vline_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_line), MP_ROM_PTR(&inkplate_gfx_line_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_rect), MP_ROM_PTR(&inkplate_gfx_rect_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_fill_rect), MP_ROM_PTR(&inkplate_gfx_fill_rect_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_circle), MP_ROM_PTR(&inkplate_gfx_circle_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_fill_circle), MP_ROM_PTR(&inkplate_gfx_fill_circle_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_triangle), MP_ROM_PTR(&inkplate_gfx_triangle_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_fill_triangle), MP_ROM_PTR(&inkplate_gfx_fill_triangle_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_round_rect), MP_ROM_PTR(&inkplate_gfx_round_rect_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_fill_round_rect), MP_ROM_PTR(&inkplate_gfx_fill_round_rect_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_draw_char), MP_ROM_PTR(&inkplate_gfx_draw_char_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 
