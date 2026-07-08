@@ -1,9 +1,11 @@
-# FILE: Inkplate10-low_level_test.py
-# BRIEF: Diagnostic-only test for the Phase 2 C port (docs/REFACTOR-PLAN.md step 7).
-#        Exercises ONLY power_on/clean/power_off (vscan_start + fill_screen) --
-#        bypasses InkplateMono/InkplateGS2/InkplatePartial and the per-row draw loop
-#        entirely, to isolate whether the lowest-level primitives can produce a
-#        correct, visible result at all.
+"""Diagnostic-only test for the low-level C display port.
+
+Exercises ONLY power_on/clean/power_off (vscan_start + fill_screen) --
+bypasses InkplateMono/InkplateGS2/InkplatePartial and the per-row draw
+loop entirely, to isolate whether the lowest-level primitives can
+produce a correct, visible result at all.
+"""
+
 from machine import I2C, Pin
 from inkplate10 import _Inkplate
 import time

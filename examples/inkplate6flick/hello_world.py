@@ -1,7 +1,4 @@
-# FILE: Inkplate6FLICK-hello_world.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to display text on the screen
-# LAST UPDATED: 2025-08-12
+"""Display text on the screen."""
 from inkplate6_flick import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)  # Create an instance of the display in 2-bit grayscale

@@ -1,3 +1,10 @@
+"""Manages partial display updates by diffing framebuffer copies.
+
+It starts by making a copy of the current framebuffer, then when asked to draw
+renders the differences between the copy and the new framebuffer state. The
+constructor needs a reference to the current/main display object
+(InkplateMono); only InkplateMono is supported at the moment.
+"""
 from inkplate6_flick import _Inkplate
 import time
 from uarray import array

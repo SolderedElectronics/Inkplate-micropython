@@ -1,7 +1,4 @@
-# FILE: Inkplate2-draw_colored_bitmap.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to draw a colored bitmap which is stored in flash memory
-# LAST UPDATED: 2025-08-12
+"""Draws a colored bitmap stored in flash memory to the Inkplate 2 display."""
 from inkplate2 import Inkplate
 
 # Import the bytearray containing the image from the demo_image.py file

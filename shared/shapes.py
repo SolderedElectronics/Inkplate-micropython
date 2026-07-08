@@ -1,11 +1,10 @@
-# Copyright © 2020 by Thorsten von Eicken.
+"""Mix-in class that adds shape-drawing methods to a framebuf-based class.
 
-# Shapes is intended to be a mix-in that adds methods to a class that is derived from the
-# MicroPython framebuf.FrameBuffer class. It adds methods to draw circles, rounded rectangles
-# etc. All the code is cobbled together from elsewhere, please refer to the embedded copyright
-# notices for the exact provenance.
-# Methods in Shapes call self.pixel, self.line, self.hline, and self.vline, so these must be
-# provided by the class that Shapes is mixed into.
+Adds methods to draw circles, rounded rectangles, and similar shapes to a class derived
+from the MicroPython framebuf.FrameBuffer class. Methods in Shapes call self.pixel,
+self.line, self.hline, and self.vline, so these must be provided by the class that
+Shapes is mixed into.
+"""
 class Shapes:
     # __mix_me_in adds the methods of this class to another class.  Typical usage is to put
     # something like Shapes.__mix_me_in(MyClass) after the class definition.

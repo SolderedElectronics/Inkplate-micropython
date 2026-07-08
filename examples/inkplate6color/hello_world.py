@@ -1,7 +1,4 @@
-# FILE: Inkplate6COLOR-hello_world.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to display a colorful text on the screen
-# LAST UPDATED: 2025-08-19
+"""Example showing how to display colorful text on the screen."""
 from inkplate6_color import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate()  # Create an instance of the display

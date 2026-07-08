@@ -1,9 +1,7 @@
-# FILE: Inkplate6COLOR-basic_color.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to draw shapes around the upper left corner,
-# and then rotate the screen
-#        This creates a symmetrical-looking pattern of various shapes
-# LAST UPDATED: 2025-08-19
+"""Example showing how to draw shapes around the upper left corner and then rotate the screen.
+
+This creates a symmetrical-looking pattern of various shapes.
+"""
 
 # Include all the required libraries
 from inkplate6_color import Inkplate

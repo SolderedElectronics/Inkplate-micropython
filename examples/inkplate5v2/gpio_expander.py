@@ -1,8 +1,4 @@
-# FILE: Inkplate5v2-gpio_expander.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to use the GPIO expander's pins
-#        to blink an LED
-# LAST UPDATED: 2025-08-22
+"""Use the GPIO expander's pins to blink an LED."""
 # Include needed libraries
 import time
 from pcal6416a import *

@@ -1,6 +1,4 @@
-# MicroPython driver for Inkplate 2
-# By Soldered Electronics
-# Based on the original contribution by https://github.com/tve
+"""MicroPython driver for the Inkplate 2 e-paper display."""
 import time
 from machine import I2C, SPI, Pin
 from micropython import const

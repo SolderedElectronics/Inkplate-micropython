@@ -1,6 +1,4 @@
-# MicroPython driver for Inkplate 6COLOR
-# Contributed by: https://github.com/tve
-# Copyright © 2020 by Thorsten von Eicken
+"""MicroPython driver for the Inkplate 6COLOR e-paper display."""
 import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard

@@ -1,7 +1,4 @@
-# FILE: inkplate6.py
-# AUTHOR: Soldered
-# BRIEF: A MicroPython module for the Inkplate 6 E-ink display
-# LAST UPDATED: 2025-05-26
+"""MicroPython driver for the Inkplate 6 e-paper display."""
 import time
 import micropython
 import os

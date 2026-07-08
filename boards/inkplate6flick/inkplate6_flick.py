@@ -1,6 +1,4 @@
-# MicroPython driver for Soldered Inkplate 6FLICK
-# By Soldered Electronics
-# Based on the original contribution by https://github.com/tve
+"""MicroPython driver for the Soldered Inkplate 6FLICK e-paper display."""
 import time
 import micropython
 import os

@@ -1,3 +1,4 @@
+"""MicroPython class for a 1-bit black-and-white display mode."""
 from inkplate6_flick import _Inkplate
 import time
 import framebuf

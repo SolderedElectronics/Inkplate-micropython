@@ -1,6 +1,4 @@
-# MicroPython driver for Inkplate 5V2
-# By Soldered Electronics
-# Based on the original contribution by https://github.com/tve
+"""MicroPython driver for the Inkplate 5V2 e-paper display."""
 import time
 import micropython
 import os

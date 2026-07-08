@@ -1,8 +1,4 @@
-# FILE: example_network.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to connect to WiFi
-#        and get data from the internet
-# LAST UPDATED: 2026-02-09
+"""Connect to WiFi and fetch data from the internet."""
 
 # Include needed libraries
 from inkplate13_spectra import Inkplate

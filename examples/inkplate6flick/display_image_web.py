@@ -1,7 +1,4 @@
-# FILE: Inkplate6-display_image_web.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to connect to WiFi and render an image from a URL
-# LAST UPDATED: 2025-07-30
+"""Connect to WiFi and render an image from a URL."""
 
 # Include needed libraries
 import network

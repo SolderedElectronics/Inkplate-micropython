@@ -1,8 +1,4 @@
-# FILE: Inkplate6COLOR-example_network.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to connect to WiFi
-#        and get data from the internet
-# LAST UPDATED: 2025-08-19
+"""Example showing how to connect to WiFi and get data from the internet."""
 
 # Include needed libraries
 from inkplate6_color import Inkplate

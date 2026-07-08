@@ -1,6 +1,4 @@
-# MicroPython driver for Inkplate 10
-# Contributed by: https://github.com/tve
-# Copyright © 2020 by Thorsten von Eicken
+"""MicroPython driver for the Inkplate 10 e-paper display."""
 import time
 import micropython
 import os

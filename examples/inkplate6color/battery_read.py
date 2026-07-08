@@ -1,7 +1,4 @@
-# FILE: Inkplate6COLOR-battery_read.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to read the battery voltage
-# LAST UPDATED: 2025-08-19
+"""Example showing how to read the battery voltage."""
 # Include needed libraries
 from inkplate6_color import Inkplate
 

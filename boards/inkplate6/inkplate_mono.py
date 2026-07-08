@@ -1,7 +1,4 @@
-# FILE: inkplate_mono.py
-# AUTHOR: Soldered
-# BRIEF: A MicroPython class for a 1-bit BW display mode
-# LAST UPDATED: 2025-05-26
+"""MicroPython class for a 1-bit black-and-white display mode."""
 import time
 import framebuf
 from shapes import Shapes

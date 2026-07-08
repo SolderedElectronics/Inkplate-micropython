@@ -1,7 +1,4 @@
-# FILE: read_battery.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to read the battery voltage
-# LAST UPDATED: 2026-02-09
+"""Read the battery voltage."""
 # Include needed libraries
 from inkplate13_spectra import Inkplate
 

@@ -1,7 +1,10 @@
-# InkplatePartial managed partial updates. It starts by making a copy of the current framebuffer
-# and then when asked to draw it renders the differences between the copy and the new framebuffer
-# state. The constructor needs a reference to the current/main display object (InkplateMono).
-# Only InkplateMono is supported at the moment.
+"""Manages partial display updates by diffing framebuffer copies.
+
+It starts by making a copy of the current framebuffer, then when asked to draw
+renders the differences between the copy and the new framebuffer state. The
+constructor needs a reference to the current/main display object
+(InkplateMono); only InkplateMono is supported at the moment.
+"""
 import time
 import micropython
 from pcal6416a import *

@@ -1,8 +1,4 @@
-# FILE: Inkplate2-gpio.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to use the GPIO pins
-#        to blink an LED
-# LAST UPDATED: 2025-08-12
+"""Uses a GPIO pin to blink an LED."""
 
 # Include needed libraries
 import time

@@ -1,8 +1,5 @@
-# FILE: Inkplate10-battery_and_temperature_read.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to read the battery voltage
-#        as well as its temperature and display it on the screen
-# LAST UPDATED: 2025-08-12
+"""Read the battery voltage and temperature and display them on the screen."""
+
 # Include needed libraries
 from inkplate10 import Inkplate
 

@@ -1,3 +1,5 @@
+"""Bitmap pixel data for the colored-bitmap drawing example."""
+
 demo_image = bytearray(
     [
         0x54,

@@ -1,11 +1,4 @@
-# FILE: Inkplate6FLICK-basic_bw.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to draw basic black and white shapes
-#        Also, it will draw a bitmap of the Soldered logo in the middle
-# LAST UPDATED: 2025-08-27
-
-# This example will show you how to draw basic black and white shapes
-# Also, it will draw a bitmap of the Soldered logo in the middle
+"""Draw basic black and white shapes, plus a bitmap of the Soldered logo in the middle."""
 
 # Include all the required libraries
 from inkplate6_flick import Inkplate

@@ -1,9 +1,8 @@
-# FILE: Inkplate6FLICK-touchscreen.py
-# AUTHOR: Josip ŠSoldered
-# BRIEF: An example showing how to use the touchscreen on Inkplate6FLICK
-#        by drawing a random rectangle on screen which when pressed
-#        disappears and a new one is rendomly drawn again
-# LAST UPDATED: 2025-08-27
+"""Use the touchscreen on Inkplate6FLICK.
+
+Draws a random rectangle on screen which disappears when pressed, then a new
+one is randomly drawn again.
+"""
 # Include needed libraries
 from inkplate6_flick import Inkplate
 

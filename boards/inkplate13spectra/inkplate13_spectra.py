@@ -1,5 +1,7 @@
-# MicroPython driver for Inkplate 13 SPECTRA
-# Ported from Arduino Inkplate13Driver implementation
+"""MicroPython driver for the Inkplate 13 SPECTRA e-paper display.
+
+Ported from the Arduino Inkplate13Driver implementation.
+"""
 import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard

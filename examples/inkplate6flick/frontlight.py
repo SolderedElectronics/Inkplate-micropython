@@ -1,7 +1,4 @@
-# FILE: Inkplate6FLICK-frontlight.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to adjust the frontlight
-# LAST UPDATED: 2025-08-27
+"""Adjust the frontlight."""
 
 # Include required libraries
 from inkplate6_flick import Inkplate

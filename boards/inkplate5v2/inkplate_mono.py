@@ -1,6 +1,4 @@
-# MicroPython driver for Inkplate 5
-# By Soldered Electronics
-# Based on the original contribution by https://github.com/tve
+"""MicroPython class for a 1-bit black-and-white display mode."""
 import time
 import micropython
 import framebuf

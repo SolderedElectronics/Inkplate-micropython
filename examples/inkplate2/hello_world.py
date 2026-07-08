@@ -1,7 +1,4 @@
-# FILE: Inkplate2-hello_world.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to display text on the screen
-# LAST UPDATED: 2025-08-14
+"""Displays "Hello world!" text on the Inkplate 2 screen."""
 from inkplate2 import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate()  # Create an instance of the display

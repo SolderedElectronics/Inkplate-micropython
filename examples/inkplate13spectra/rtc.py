@@ -1,7 +1,4 @@
-# FILE: rtc.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to use the onboard RTC
-# LAST UPDATED: 2026-02-09
+"""Use the onboard RTC."""
 
 # Include all the required libraries
 from inkplate13_spectra import Inkplate

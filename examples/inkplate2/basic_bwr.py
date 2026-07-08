@@ -1,8 +1,7 @@
-# FILE: Inkplate2-basic_bwr.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to draw shapes and text in black, white and red
-#        Also, it will draw a bitmap of the Soldered logo in the middle
-# LAST UPDATED: 2025-08-12
+"""Draws shapes and text in black, white, and red on the Inkplate 2 display.
+
+Also draws a bitmap of the Soldered logo in the middle of the screen.
+"""
 
 # Include needed libraries
 from inkplate2 import Inkplate

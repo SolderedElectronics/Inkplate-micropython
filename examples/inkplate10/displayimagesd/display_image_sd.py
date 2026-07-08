@@ -1,8 +1,5 @@
-# FILE: Inkplate10-display_image_sd.py
-# AUTHOR: Josip Šimun Kuči @ Soldered
-# BRIEF: An example showing how to initialize an SD card and
-#        render an image located on it
-# LAST UPDATED: 2025-08-12
+"""Initialize an SD card and render an image located on it."""
+
 # Include needed libraries
 from inkplate10 import Inkplate
 import time

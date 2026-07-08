@@ -1,6 +1,4 @@
-# MicroPython driver for the PCAL6416A GPIO expander
-# By Soldered Electronics
-# Based on the original contribution by https://github.com/tve
+"""MicroPython driver for the PCAL6416A GPIO expander."""
 from micropython import const
 
 PCAL6416A_INPORT0 = const(0x00)

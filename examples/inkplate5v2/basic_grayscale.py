@@ -1,8 +1,7 @@
-# FILE: Inkplate5v2-basic_grayscale.py
-# AUTHOR: Soldered
-# BRIEF: An example showing how to draw different shades of gray using grayscale mode
-#        as well as displaying a bitmap of the Soldered logo
-# LAST UPDATED: 2025-08-22
+"""Draw different shades of gray using grayscale mode.
+
+Also displays a bitmap of the Soldered logo.
+"""
 
 # Include needed libraries
 from inkplate5v2 import Inkplate

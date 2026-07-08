@@ -1,7 +1,4 @@
-# FILE: inkplate_gs.py
-# AUTHOR: Soldered
-# BRIEF: A class for a Inkplate display instance for 2-bit grayscale mode
-# LAST UPDATED: 2025-05-26
+"""A class for an Inkplate display instance in 2-bit grayscale mode."""
 # Raw display constants for Inkplate 6
 
 import time
