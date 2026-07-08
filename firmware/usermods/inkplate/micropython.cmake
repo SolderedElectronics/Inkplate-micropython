@@ -6,6 +6,7 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/board_config.c
     ${CMAKE_CURRENT_LIST_DIR}/epd_bitbang.c
     ${CMAKE_CURRENT_LIST_DIR}/epd_i2s.c
+    ${CMAKE_CURRENT_LIST_DIR}/epd_partial_lut.c
     ${CMAKE_CURRENT_LIST_DIR}/waveform.c
 )
 

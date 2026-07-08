@@ -46,6 +46,8 @@ const board_config_t board_config_inkplate10 = {
 
     .waveform = &wave_3b_inkplate10,
 
+    .partial_reps = 5,
+
     .has_touch = 0,
     .has_frontlight = 0,
 };

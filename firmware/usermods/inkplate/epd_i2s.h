@@ -68,4 +68,18 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
 void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
                            const uint8_t (*luts)[16], uint8_t num_phases);
 
+// Mono partial-update frame: diffs old_fb against new_fb per pixel (both 1bpp MONO_HMSB
+// buffers, same layout as epd_i2s_push_mono_frame's framebuf) via `lut` (256 entries, see
+// epd_partial_lut.h's inkplate_gen_partial_diff_lut -- index (old_nibble<<4|new_nibble)),
+// and pushes the resulting per-pixel wire codes over I2S DMA cfg->partial_reps times,
+// unchanged each time (no per-repeat variation, matching the real Arduino reference
+// driver's partialUpdate() -- a fixed pulse train, not a multi-phase waveform). 230us gap
+// after each repeat, matching display3b()'s inter-phase delay. Ports partialUpdate()'s
+// diff-and-push logic onto this project's per-row-streaming I2S architecture instead of
+// the reference driver's separate precomputed full-frame `_pBuffer` -- functionally
+// identical (same LUTs, same output codes), each row's diff just gets recomputed from
+// old_fb/new_fb on the fly per repeat instead of built once into a standalone buffer.
+void epd_i2s_push_partial_frame(const board_config_t *cfg, const uint8_t *old_fb,
+                                const uint8_t *new_fb, const uint8_t lut[256]);
+
 #endif // INKPLATE_EPD_I2S_H

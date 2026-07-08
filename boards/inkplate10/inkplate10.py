@@ -266,6 +266,10 @@ class _Inkplate:
     def gs_display(framebuf):
         inkplate.gs_display(framebuf)
 
+    @staticmethod
+    def partial_display(old_fb, new_fb):
+        inkplate.partial_display(old_fb, new_fb)
+
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
     byte2gpio = []

@@ -42,6 +42,8 @@ int main(void)
     const uint8_t expected_wave_row8[MAX_WAVE_LEVELS] = {0, 0, 0, 0, 0, 0, 0, 0};
     assert(memcmp(cfg->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
 
+    assert(cfg->partial_reps == 5);
+
     assert(cfg->has_touch == 0);
     assert(cfg->has_frontlight == 0);
 

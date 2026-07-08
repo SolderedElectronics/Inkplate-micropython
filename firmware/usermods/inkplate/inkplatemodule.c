@@ -4,6 +4,7 @@
 #include "board_config.h"
 #include "epd_bitbang.h"
 #include "epd_i2s.h"
+#include "epd_partial_lut.h"
 #include "waveform.h"
 #include <stdbool.h>
 #include <string.h>
@@ -155,6 +156,27 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gs_display_obj, inkplate_gs_display);
 
+static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_obj)
+{
+    mp_buffer_info_t old_info, new_info;
+    mp_get_buffer_raise(old_fb_obj, &old_info, MP_BUFFER_READ);
+    mp_get_buffer_raise(new_fb_obj, &new_info, MP_BUFFER_READ);
+
+    const board_config_t *cfg = require_board();
+
+    static uint8_t partial_lut[256];
+    static bool partial_lut_ready = false;
+    if (!partial_lut_ready) {
+        inkplate_gen_partial_diff_lut(partial_lut);
+        partial_lut_ready = true;
+    }
+
+    epd_i2s_push_partial_frame(cfg, (const uint8_t *)old_info.buf, (const uint8_t *)new_info.buf,
+                               partial_lut);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_partial_display_obj, inkplate_partial_display);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -171,6 +193,7 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_i2s_push_frame), MP_ROM_PTR(&inkplate_i2s_push_frame_obj)},
     {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_gs_display), MP_ROM_PTR(&inkplate_gs_display_obj)},
+    {MP_ROM_QSTR(MP_QSTR_partial_display), MP_ROM_PTR(&inkplate_partial_display_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 

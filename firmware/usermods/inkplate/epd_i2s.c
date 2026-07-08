@@ -20,38 +20,6 @@
 // the logic analyzer.
 #define I2S_CLOCK_DIVIDER 5
 
-// Local fast-pin helper, same as epd_bitbang.c's -- kept local rather than shared for
-// now (two ~15-line copies, not worth a shared header yet).
-typedef struct {
-    volatile uint32_t *w1ts;
-    volatile uint32_t *w1tc;
-    uint32_t mask;
-} fast_pin_t;
-
-static fast_pin_t resolve_pin(uint8_t gpio_num)
-{
-    fast_pin_t p;
-    if (gpio_num < 32) {
-        p.w1ts = &GPIO.out_w1ts;
-        p.w1tc = &GPIO.out_w1tc;
-        p.mask = 1u << gpio_num;
-    } else {
-        p.w1ts = &GPIO.out1_w1ts.val;
-        p.w1tc = &GPIO.out1_w1tc.val;
-        p.mask = 1u << (gpio_num - 32);
-    }
-    return p;
-}
-
-static inline void fast_pin_set(fast_pin_t p)
-{
-    *p.w1ts = p.mask;
-}
-static inline void fast_pin_clear(fast_pin_t p)
-{
-    *p.w1tc = p.mask;
-}
-
 static const uint32_t data_out_sig[8] = {
     I2S1O_DATA_OUT0_IDX, I2S1O_DATA_OUT1_IDX, I2S1O_DATA_OUT2_IDX, I2S1O_DATA_OUT3_IDX,
     I2S1O_DATA_OUT4_IDX, I2S1O_DATA_OUT5_IDX, I2S1O_DATA_OUT6_IDX, I2S1O_DATA_OUT7_IDX,
@@ -180,7 +148,7 @@ void epd_i2s_deinit(const board_config_t *cfg)
 // raised once epd_i2s_wait_row() observes the transfer has finished.
 static void epd_i2s_start_row(const board_config_t *cfg, uint8_t idx)
 {
-    fast_pin_t sph = resolve_pin(cfg->pin_sph);
+    fast_pin_t sph = epd_resolve_pin(cfg->pin_sph);
 
     I2S1.out_link.stop = 1;
     I2S1.out_link.start = 0;
@@ -201,7 +169,7 @@ static void epd_i2s_start_row(const board_config_t *cfg, uint8_t idx)
 
     // CKV is left as-is here (already high, held by epd_vscan_start/epd_vscan_write --
     // see epd_bitbang.c) -- only frame the data shift with SPH.
-    fast_pin_clear(sph);
+    epd_fast_pin_clear(sph);
     I2S1.conf.tx_start = 1;
 
     s_state.in_flight = idx;
@@ -211,11 +179,11 @@ static void epd_i2s_start_row(const board_config_t *cfg, uint8_t idx)
 // SPH, and leaves the I2S link stopped so the next epd_i2s_start_row() call can reset it.
 static void epd_i2s_wait_row(const board_config_t *cfg)
 {
-    fast_pin_t sph = resolve_pin(cfg->pin_sph);
+    fast_pin_t sph = epd_resolve_pin(cfg->pin_sph);
 
     while (!I2S1.int_raw.out_total_eof)
         ;
-    fast_pin_set(sph);
+    epd_fast_pin_set(sph);
 
     I2S1.int_clr.val = I2S1.int_raw.val;
     I2S1.out_link.stop = 1;
@@ -315,6 +283,64 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
         }
 
         epd_vscan_end(cfg);
+    }
+}
+
+// Rebuilds one row's diff between old_fb and new_fb into row_buf as 2-bit wire codes,
+// via `lut` (epd_partial_lut.h's inkplate_gen_partial_diff_lut). Same byte-pair swap as
+// build_mono_row (earlier byte's pair emitted first) for the same I2S1
+// fifo_conf.tx_fifo_mod=1 reason -- this function differs from build_mono_row only in
+// that each output byte comes from combining an (old,new) nibble pair through `lut`
+// instead of looking a single framebuf nibble up in a 16-entry table.
+static void build_partial_row(const uint8_t *old_row, const uint8_t *new_row,
+                              uint16_t fb_row_bytes, const uint8_t lut[256], uint8_t *row_buf)
+{
+    uint16_t out = 0;
+    for (int16_t i = (int16_t)fb_row_bytes - 1; i > 0; i -= 2) {
+        uint8_t old1 = old_row[i]; // later byte
+        uint8_t new1 = new_row[i];
+        uint8_t old2 = old_row[i - 1]; // earlier byte
+        uint8_t new2 = new_row[i - 1];
+        row_buf[out++] = lut[((old2 & 0xF0) | (new2 >> 4))];
+        row_buf[out++] = lut[((old2 & 0x0F) << 4) | (new2 & 0x0F)];
+        row_buf[out++] = lut[((old1 & 0xF0) | (new1 >> 4))];
+        row_buf[out++] = lut[((old1 & 0x0F) << 4) | (new1 & 0x0F)];
+    }
+}
+
+void epd_i2s_push_partial_frame(const board_config_t *cfg, const uint8_t *old_fb,
+                                const uint8_t *new_fb, const uint8_t lut[256])
+{
+    uint16_t fb_row_bytes = cfg->width >> 3;
+
+    for (uint8_t rep = 0; rep < cfg->partial_reps; rep++) {
+        epd_vscan_start(cfg);
+
+        uint8_t cur = 0;
+        int32_t row = (int32_t)cfg->height - 1;
+        build_partial_row(old_fb + row * fb_row_bytes, new_fb + row * fb_row_bytes, fb_row_bytes,
+                          lut, s_state.buf[cur]);
+        epd_i2s_start_row(cfg, cur);
+
+        while (row >= 0) {
+            uint8_t next = cur ^ 1;
+            if (row > 0) {
+                build_partial_row(old_fb + (row - 1) * fb_row_bytes,
+                                  new_fb + (row - 1) * fb_row_bytes, fb_row_bytes, lut,
+                                  s_state.buf[next]);
+            }
+            epd_i2s_wait_row(cfg);
+            epd_vscan_write(cfg);
+            if (row > 0) {
+                epd_i2s_start_row(cfg, next);
+            }
+            cur = next;
+            row--;
+        }
+
+        epd_vscan_end(cfg);
+        // Matches the real Arduino partialUpdate()'s inter-repeat gap.
+        esp_rom_delay_us(230);
     }
 }
 

@@ -60,6 +60,13 @@ typedef struct {
     // Waveform data
     const waveform_table_t *waveform;
 
+    // Number of times a mono partial-update frame gets pushed over I2S (fixed pulse-train
+    // length, not a data-dependent loop bound) -- board/variant-specific per the real
+    // Arduino reference driver (INKPLATE6=5, INKPLATE6V2=6); Inkplate10 uses 5, carried
+    // over from this project's own already-HIL-verified value (docs/REFACTOR-PLAN.md
+    // step 16), not derived from either Inkplate6 variant's number.
+    uint8_t partial_reps;
+
     // Feature flags
     uint8_t has_touch;
     uint8_t has_frontlight;
