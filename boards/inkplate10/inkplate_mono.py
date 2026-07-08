@@ -2,7 +2,6 @@
 
 import time
 import framebuf
-from shapes import Shapes
 from inkplate10 import _Inkplate
 
 # Raw display constants for Inkplate 6
@@ -83,6 +82,3 @@ class InkplateMono(framebuf.FrameBuffer):
     def clear(fb: ptr8):
         for ix in range(1200 * 825 // 8):
             fb[ix] = 0x00
-
-
-Shapes.__mix_me_in(InkplateMono)

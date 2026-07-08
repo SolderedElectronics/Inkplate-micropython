@@ -8,7 +8,6 @@ from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
 from micropython import const
-from gfx import GFX
 import gfx_standard_font_01 as montserrat_black
 import gc
 
@@ -141,17 +140,6 @@ class _Inkplate:
         cls.ipg = InkplateGS2()
         cls.ipm = InkplateMono()
         cls.ipp = InkplatePartial(cls.ipm)
-
-        cls.GFX = GFX(
-            D_COLS,
-            D_ROWS,
-            cls.write_pixel,
-            cls.write_fast_hline,
-            cls.write_fast_vline,
-            cls.write_fill_rect,
-            None,
-            None,
-        )
 
     # Read the battery voltage. Note that the result depends on the ADC
     # calibration, and be a bit off.

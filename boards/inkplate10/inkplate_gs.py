@@ -8,7 +8,6 @@ import time
 import micropython
 import framebuf
 from micropython import const
-from shapes import Shapes
 from inkplate10 import _Inkplate
 
 # Raw display constants for Inkplate 10
@@ -70,6 +69,3 @@ class InkplateGS2(framebuf.FrameBuffer):
     def clear(fb: ptr8):
         for ix in range(1200 * 825 // 2):
             fb[ix] = 0x77  # both nibbles = raw level 7 (white)
-
-
-Shapes.__mix_me_in(InkplateGS2)
