@@ -263,6 +263,10 @@ class _Inkplate:
     def mono_display(framebuf):
         inkplate.mono_display(framebuf)
 
+    @staticmethod
+    def gs_display(framebuf):
+        inkplate.gs_display(framebuf)
+
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
     byte2gpio = []

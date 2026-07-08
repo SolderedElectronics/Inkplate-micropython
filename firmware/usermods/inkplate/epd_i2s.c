@@ -316,3 +316,62 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
         epd_vscan_end(cfg);
     }
 }
+
+// GS2's row is 2 bits/pixel packed 4-per-byte (GS2_HMSB), same as the wire format itself
+// -- unlike mono, one framebuf byte maps to exactly one output byte (no 1:4 expansion).
+// I2S1's fifo_conf.tx_fifo_mod=1 reordering was confirmed (by cross-referencing the real
+// Arduino Inkplate6 I2S driver's display1b()/display3b(), Inkplate6Driver.cpp) to swap
+// the first half against the second half of every 4-output-byte chunk -- this is what
+// build_mono_row's dram2-before-dram1 pattern reduces to (its 4-output chunk is one
+// input-byte-pair's 2+2 nibble codes). GS2 has no nibble split (1 input byte = 1 output
+// byte), so the same chunk-of-4 half-swap applies directly to input bytes instead: for
+// descending block {i, i-1, i-2, i-3}, transmit codes in order i-2, i-3, i, i-1. Requires
+// fb_row_bytes % 4 == 0 (true for every board on docs/REFACTOR-PLAN.md: 300/200/320/256).
+static void build_gs_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
+                         const uint8_t lut[16], uint8_t *row_buf)
+{
+    uint16_t out = 0;
+    for (int32_t i = (int32_t)fb_row_bytes - 1; i >= 3; i -= 4) {
+        uint8_t b0 = framebuf_row[i]; // highest index in this 4-block
+        uint8_t b1 = framebuf_row[i - 1];
+        uint8_t b2 = framebuf_row[i - 2];
+        uint8_t b3 = framebuf_row[i - 3]; // lowest index in this 4-block
+        row_buf[out++] = (uint8_t)((lut[b2 >> 4] << 4) | lut[b2 & 0x0F]);
+        row_buf[out++] = (uint8_t)((lut[b3 >> 4] << 4) | lut[b3 & 0x0F]);
+        row_buf[out++] = (uint8_t)((lut[b0 >> 4] << 4) | lut[b0 & 0x0F]);
+        row_buf[out++] = (uint8_t)((lut[b1 >> 4] << 4) | lut[b1 & 0x0F]);
+    }
+}
+
+void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                           const uint8_t (*luts)[16], uint8_t num_phases)
+{
+    uint16_t fb_row_bytes = cfg->width >> 2;
+
+    for (uint8_t phase = 0; phase < num_phases; phase++) {
+        const uint8_t *lut = luts[phase];
+        epd_vscan_start(cfg);
+
+        uint8_t cur = 0;
+        int32_t row = (int32_t)cfg->height - 1;
+        build_gs_row(framebuf + row * fb_row_bytes, fb_row_bytes, lut, s_state.buf[cur]);
+        epd_i2s_start_row(cfg, cur);
+
+        while (row >= 0) {
+            uint8_t next = cur ^ 1;
+            if (row > 0) {
+                build_gs_row(framebuf + (row - 1) * fb_row_bytes, fb_row_bytes, lut,
+                             s_state.buf[next]);
+            }
+            epd_i2s_wait_row(cfg);
+            epd_vscan_write(cfg);
+            if (row > 0) {
+                epd_i2s_start_row(cfg, next);
+            }
+            cur = next;
+            row--;
+        }
+
+        epd_vscan_end(cfg);
+    }
+}

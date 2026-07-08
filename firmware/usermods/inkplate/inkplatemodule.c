@@ -135,6 +135,26 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_mono_display_obj, inkplate_mono_display);
 
+static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(framebuf_obj, &bufinfo, MP_BUFFER_READ);
+
+    const board_config_t *cfg = require_board();
+
+    static uint8_t gs_luts[MAX_WAVE_PHASES][16];
+    static bool gs_luts_ready = false;
+    if (!gs_luts_ready) {
+        inkplate_gen_wave_2bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS,
+                               cfg->waveform->phases, gs_luts);
+        gs_luts_ready = true;
+    }
+
+    epd_i2s_push_gs_frame(cfg, (const uint8_t *)bufinfo.buf, gs_luts, cfg->waveform->phases);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gs_display_obj, inkplate_gs_display);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -150,6 +170,7 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_i2s_push_row), MP_ROM_PTR(&inkplate_i2s_push_row_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2s_push_frame), MP_ROM_PTR(&inkplate_i2s_push_frame_obj)},
     {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gs_display), MP_ROM_PTR(&inkplate_gs_display_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 

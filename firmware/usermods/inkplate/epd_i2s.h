@@ -55,4 +55,15 @@ void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte);
 void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
                              const uint8_t (*luts)[16], uint8_t num_phases);
 
+// Full 2bpp (4-level) grayscale display update: drives num_phases phases (see waveform.h's
+// inkplate_gen_wave_2bit / cfg->waveform), each phase writing every row via I2S DMA,
+// framed by epd_vscan_start/epd_vscan_write/epd_vscan_end -- the DMA-driven equivalent of
+// InkplateGS2.display()'s per-phase bit-banged loop, replacing _send_row(). framebuf is
+// the 2bpp GS2_HMSB source buffer (cfg->height rows of cfg->width>>2 bytes each, 4
+// pixels/byte). Each row is rebuilt last-byte-first with a chunk-of-4 half-swap (see
+// build_gs_row in epd_i2s.c), the same I2S1 FIFO compensation epd_i2s_push_mono_frame
+// applies at the nibble level, re-derived here at the whole-byte level for 2bpp.
+void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                           const uint8_t (*luts)[16], uint8_t num_phases);
+
 #endif // INKPLATE_EPD_I2S_H
