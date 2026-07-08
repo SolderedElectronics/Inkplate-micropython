@@ -1,4 +1,5 @@
 """MicroPython driver for the MCP23017 GPIO expander."""
+
 from machine import Pin as mPin
 from micropython import const
 

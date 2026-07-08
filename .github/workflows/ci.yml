@@ -15,6 +15,7 @@ jobs:
         run: |
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/board_config.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/waveform.c -o /dev/null
+          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/gs_pack.c -o /dev/null
 
   format:
     runs-on: ubuntu-latest
@@ -49,3 +50,8 @@ jobs:
             firmware/usermods/inkplate/board_config.c \
             -o /tmp/test_waveform
           /tmp/test_waveform
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_gs_pack.c \
+            firmware/usermods/inkplate/gs_pack.c \
+            -o /tmp/test_gs_pack
+          /tmp/test_gs_pack

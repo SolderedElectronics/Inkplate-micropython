@@ -1,4 +1,5 @@
 """Display text on the screen."""
+
 from inkplate5v2 import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)  # Create an instance of the display in 2-bit grayscale

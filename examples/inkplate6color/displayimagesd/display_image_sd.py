@@ -1,4 +1,5 @@
 """Example showing how to initialize an SD card and render an image located on it."""
+
 # Include needed libraries
 from inkplate6_color import Inkplate
 

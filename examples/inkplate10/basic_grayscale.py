@@ -25,11 +25,13 @@ inkplate.clear_display()
 # Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
-# Draw pallet of posible shades
-# 0 being the lightest (white), 3 being the darkest
-inkplate.write_fill_rect(0, 0, 25, 825, 3)
-inkplate.write_fill_rect(25, 0, 25, 825, 2)
-inkplate.write_fill_rect(50, 0, 25, 825, 1)
+# Draw pallet of possible shades. Framebuffer storage is now 3-bit/8-level (0-7), but the
+# C engine still folds each pixel to 4 practical levels (raw >> 1) until the real 3-bit
+# waveform table lands -- values below are the old 0-3 levels doubled so the 4 bars stay
+# visually identical to before (docs/REFACTOR-PLAN.md Phase 5 step 14).
+inkplate.write_fill_rect(0, 0, 25, 825, 6)
+inkplate.write_fill_rect(25, 0, 25, 825, 4)
+inkplate.write_fill_rect(50, 0, 25, 825, 2)
 inkplate.write_fill_rect(75, 0, 25, 825, 0)
 
 # Show on the display

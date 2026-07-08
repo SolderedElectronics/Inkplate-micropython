@@ -1,4 +1,5 @@
 """Inkplate display driver with 2 bits of grayscale (4 levels)."""
+
 import time
 import micropython
 import framebuf

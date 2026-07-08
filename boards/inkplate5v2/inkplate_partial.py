@@ -5,6 +5,7 @@ renders the differences between the copy and the new framebuffer state. The
 constructor needs a reference to the current/main display object
 (InkplateMono); only InkplateMono is supported at the moment.
 """
+
 import time
 import micropython
 from pcal6416a import *

@@ -1,4 +1,5 @@
 """Driver for the Cypress capacitive touchscreen controller on the Inkplate 6FLICK."""
+
 import time
 from machine import Pin
 from pcal6416a import *

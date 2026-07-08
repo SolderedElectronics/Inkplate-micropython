@@ -5,6 +5,7 @@ renders the differences between the copy and the new framebuffer state. The
 constructor needs a reference to the current/main display object
 (InkplateMono).
 """
+
 import time
 from uarray import array
 from inkplate6 import _Inkplate

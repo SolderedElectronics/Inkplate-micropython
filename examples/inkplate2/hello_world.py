@@ -1,4 +1,5 @@
 """Displays "Hello world!" text on the Inkplate 2 screen."""
+
 from inkplate2 import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate()  # Create an instance of the display

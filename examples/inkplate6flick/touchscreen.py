@@ -3,6 +3,7 @@
 Draws a random rectangle on screen which disappears when pressed, then a new
 one is randomly drawn again.
 """
+
 # Include needed libraries
 from inkplate6_flick import Inkplate
 

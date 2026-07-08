@@ -1,4 +1,5 @@
 """MicroPython class for a 1-bit black-and-white display mode."""
+
 import time
 import micropython
 import framebuf

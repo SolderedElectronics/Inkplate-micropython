@@ -1,4 +1,5 @@
 """MicroPython driver for the Inkplate 6COLOR e-paper display."""
+
 import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard

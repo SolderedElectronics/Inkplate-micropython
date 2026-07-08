@@ -1,4 +1,11 @@
-"""Inkplate display driver with 2 bits of grayscale (4 levels)."""
+"""Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
+
+Storage is 8-level-ready (docs/REFACTOR-PLAN.md Phase 5 step 14), but the C engine still
+folds each pixel to 4 practical levels (raw >> 1) until the real 3-bit waveform table is
+wired in (step 15, blocked on per-board timing data) -- see
+firmware/usermods/inkplate/gs_pack.h.
+"""
+
 import time
 import micropython
 import framebuf
@@ -23,10 +30,10 @@ RTC_SECOND_ADDR = 0x04
 
 class InkplateGS2(framebuf.FrameBuffer):
     def __init__(self):
-        self._framebuf = bytearray(D_ROWS * D_COLS // 4)
-        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS2_HMSB)
+        self._framebuf = bytearray(D_ROWS * D_COLS // 2)
+        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS4_HMSB)
 
-    # display sends the 4-level grayscale buffer to the display, clearing it first
+    # display sends the grayscale buffer to the display, clearing it first
     def display(self):
         ip = _Inkplate
         ip.power_on()
@@ -61,8 +68,8 @@ class InkplateGS2(framebuf.FrameBuffer):
     @staticmethod
     @micropython.viper
     def clear(fb: ptr8):
-        for ix in range(1200 * 825 // 4):
-            fb[ix] = 0xFF
+        for ix in range(1200 * 825 // 2):
+            fb[ix] = 0x77  # both nibbles = raw level 7 (white)
 
 
 Shapes.__mix_me_in(InkplateGS2)

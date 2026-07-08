@@ -1,4 +1,5 @@
 """MicroPython driver for the Soldered Inkplate 6FLICK e-paper display."""
+
 import time
 import micropython
 import os

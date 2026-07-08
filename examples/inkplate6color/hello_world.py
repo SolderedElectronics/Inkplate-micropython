@@ -1,4 +1,5 @@
 """Example showing how to display colorful text on the screen."""
+
 from inkplate6_color import Inkplate  # Include the Inkplate module
 
 inkplate = Inkplate()  # Create an instance of the display

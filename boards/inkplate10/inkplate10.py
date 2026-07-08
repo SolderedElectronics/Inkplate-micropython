@@ -1,4 +1,5 @@
 """MicroPython driver for the Inkplate 10 e-paper display."""
+
 import time
 import micropython
 import os
@@ -18,8 +19,8 @@ machine.freq(240000000)
 D_ROWS = const(825)
 D_COLS = const(1200)
 
-# Lookup mask to clear just that pixel's 2 bits
-pixel_mask_glut = bytearray(b"\xfc\xf3\xcf\x3f")  # precomputed masks
+# Lookup mask to clear just that pixel's 4 bits (GS4_HMSB, 2 pixels/byte)
+pixel_mask_glut = bytearray(b"\xf0\x0f")  # precomputed masks
 
 # Waveforms for 2 bits per pixel grey-scale.
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
@@ -608,14 +609,14 @@ class Inkplate:
                 fb[idx] = fb[idx] & ~(1 << shift)
 
         else:
-            c &= 0x03
+            c &= 0x07  # raw 0-7 (3-bit/8-level storage, GS4_HMSB)
 
-            # Find byte index
-            byte_index = py * 300 + (px >> 2)
+            # Find byte index (2 pixels/byte)
+            byte_index = py * 600 + (px >> 1)
 
-            # Which pixel inside this byte (0..3)
-            pixel_index = px & 3
-            shift = pixel_index * 2
+            # Which pixel inside this byte (0..1)
+            pixel_index = px & 1
+            shift = pixel_index * 4
 
             # Load current byte
             temp = fb[byte_index]
@@ -888,7 +889,7 @@ class Inkplate:
     ):
         __screen_width = const(1200)
         __screen_height = const(825)
-        __bytes_per_row = const(300)  # For 4 pixels per byte mode
+        __bytes_per_row = const(600)  # For 2 pixels per byte mode (GS4_HMSB, 8-level)
         __bytes_per_row_bw = const(150)  # For 8 pixels per byte mode
 
         # Safety checks with explicit type conversion
@@ -911,7 +912,7 @@ class Inkplate:
         if display_mode == 0:
             inv_mask = 0x01 if invert else 0x00  # For 1-bit mode
         else:
-            inv_mask = 0x03 if invert else 0x00  # For 2-bit mode
+            inv_mask = 0x07 if invert else 0x00  # For 3-bit(8-level) mode
 
         # Initialize error buffers if dithering
         error_current = ptr8(bytearray(0))
@@ -924,7 +925,7 @@ class Inkplate:
         if display_mode == 0:
             fb_row_pos = row_val * __bytes_per_row_bw + (x0_val // 8)
         else:
-            fb_row_pos = row_val * __bytes_per_row + (x0_val // 4)
+            fb_row_pos = row_val * __bytes_per_row + (x0_val // 2)
 
         col: int = 0
         while col < draw_width:
@@ -974,8 +975,8 @@ class Inkplate:
                 col += 8
 
             else:
-                # 2-bit mode processing (4 pixels per byte)
-                pix_grp: int = 4 if (col + 4) <= draw_width else draw_width - col
+                # 3-bit(8-level) mode processing (2 pixels per byte, GS4_HMSB)
+                pix_grp: int = 2 if (col + 2) <= draw_width else draw_width - col
                 packed: int = 0
 
                 for i in range(int(pix_grp)):  # Explicit int conversion
@@ -997,13 +998,13 @@ class Inkplate:
                             gray += err
                             gray = 255 if gray > 255 else (0 if gray < 0 else gray)
 
-                    # Convert to 2-bit value and apply inversion
-                    val: int = (gray >> 6) ^ inv_mask
-                    packed |= val << (i * 2)
+                    # Convert to 3-bit (0-7) value and apply inversion
+                    val: int = (gray >> 5) ^ inv_mask
+                    packed |= val << (i * 4)
 
                     # Calculate error for dithering
                     if dither and (col + i) < draw_width:
-                        quant_val: int = val * 85
+                        quant_val: int = val * 255 // 7
                         delta: int = gray - quant_val
                         epos = (col + i) * 2
 
@@ -1022,15 +1023,15 @@ class Inkplate:
                                 error_current[epos_right + 1] = (terr >> 8) & 0xFF
 
                 # Write to framebuffer with bounds checking
-                fb_idx: int = fb_row_pos + (col // 4)
+                fb_idx: int = fb_row_pos + (col // 2)
                 if fb_idx >= 0 and fb_idx < (__bytes_per_row * __screen_height):
-                    if pix_grp == 4:
+                    if pix_grp == 2:
                         framebuf[fb_idx] = packed
                     else:
-                        mask: int = 0xFF >> (8 - int(pix_grp) * 2)  # Explicit int conversion
+                        mask: int = 0xFF >> (8 - int(pix_grp) * 4)  # Explicit int conversion
                         old: int = int(framebuf[fb_idx])  # Explicit int conversion
                         framebuf[fb_idx] = (old & ~mask) | (packed & mask)
-                col += 4
+                col += 2
 
     def draw_bmp_from_sd(self, path, x0=0, y0=0, invert=False, dither=False):
         with open(path, "rb") as f:
@@ -1238,7 +1239,7 @@ class Inkplate:
 
         _screen_width_ = const(1200)
         _screen_height_ = const(825)
-        _bytes_per_row_ = const(300)  # For 4 pixels per byte mode
+        _bytes_per_row_ = const(600)  # For 2 pixels per byte mode (GS4_HMSB, 8-level)
         _bytes_per_row_bw_ = const(150)  # For 8 pixels per byte mode
 
         @micropython.native
@@ -1281,8 +1282,8 @@ class Inkplate:
                 return  # Nothing to draw
 
             # Pre-calculate constants
-            inv_mask: int = 0x03 if invert and display_mode else 0x01 if invert else 0x00
-            pixels_per_byte: int = 4 if display_mode else 8
+            inv_mask: int = 0x07 if invert and display_mode else 0x01 if invert else 0x00
+            pixels_per_byte: int = 2 if display_mode else 8
             bytes_per_row: int = _bytes_per_row_ if display_mode else _bytes_per_row_bw_
 
             # Dithering setup
@@ -1386,8 +1387,8 @@ class Inkplate:
 
                     # Quantize based on display mode
                     if display_mode:
-                        val: int = (gray >> 6) ^ inv_mask
-                        packed |= val << (pixels_in_packed * 2)
+                        val: int = (gray >> 5) ^ inv_mask
+                        packed |= val << (pixels_in_packed * 4)
                     else:
                         val: int = 0 if gray > 127 else 1
                         val ^= inv_mask
@@ -1397,7 +1398,7 @@ class Inkplate:
 
                     # Error diffusion for dithering
                     if dither:
-                        quant_val: int = val * 85 if display_mode else (val * 255)
+                        quant_val: int = val * 255 // 7 if display_mode else (val * 255)
                         delta: int = gray - quant_val
 
                         # Floyd-Steinberg dithering
@@ -1446,7 +1447,7 @@ class Inkplate:
                         else:
                             # Handle partial bytes at row end
                             if display_mode:
-                                shift = (pixels_per_byte - pixels_in_packed) * 2
+                                shift = (pixels_per_byte - pixels_in_packed) * 4
                                 mask = 0xFF >> shift
                                 old = framebuf[fb_idx]
                                 framebuf[fb_idx] = (old & ~mask) | ((packed << shift) & mask)
@@ -1708,7 +1709,7 @@ class Inkplate:
     ):
         _screen_width = const(1200)
         _screen_height = const(850)
-        _bytes_per_row = const(300)
+        _bytes_per_row = const(600)  # For 2 pixels per byte mode (GS4_HMSB, 8-level)
         _bytes_per_row_bw = const(150)
 
         # Predefined dithering kernels in ROM (faster access)
@@ -1734,7 +1735,7 @@ class Inkplate:
         if display_mode == 0:
             inv_mask: int = 0x01 if invert else 0x00
         else:
-            inv_mask: int = 0x03 if invert else 0x00
+            inv_mask: int = 0x07 if invert else 0x00
 
         # Dithering-specific optimizations
         if dither:
@@ -1766,7 +1767,7 @@ class Inkplate:
             if display_mode == 0:
                 fb_row_pos: int = (y0 + row) * _bytes_per_row_bw + (x0 // 8)
             else:
-                fb_row_pos: int = (y0 + row) * _bytes_per_row + (x0 // 4)
+                fb_row_pos: int = (y0 + row) * _bytes_per_row + (x0 // 2)
 
             img_row_start: int = row * width * 2
 
@@ -1813,8 +1814,8 @@ class Inkplate:
                     col += 8
 
                 else:
-                    # 2-bit mode processing - optimized dithering
-                    pix_grp: int = 4 if (col + 4) <= draw_width else draw_width - col
+                    # 3-bit(8-level) mode processing - optimized dithering
+                    pix_grp: int = 2 if (col + 2) <= draw_width else draw_width - col
                     packed: int = 0
                     for i in range(pix_grp):
                         idx: int = img_row_start + (col + i) * 2
@@ -1836,11 +1837,11 @@ class Inkplate:
                             elif gray < 0:
                                 gray = 0
 
-                        val: int = (gray >> 6) ^ inv_mask
-                        packed |= val << (i * 2)
+                        val: int = (gray >> 5) ^ inv_mask
+                        packed |= val << (i * 4)
 
                         if dither:
-                            quant_val = val * 85
+                            quant_val = val * 255 // 7
                             delta = gray - quant_val
                             error_current[epos] = 0
                             error_current[epos + 1] = 0
@@ -1865,13 +1866,13 @@ class Inkplate:
                                     target[tpos] = terr & 0xFF
                                     target[tpos + 1] = (terr >> 8) & 0xFF
 
-                    fb_idx = fb_row_pos + (col // 4)
-                    if pix_grp == 4:
+                    fb_idx = fb_row_pos + (col // 2)
+                    if pix_grp == 2:
                         framebuf[fb_idx] = packed
                     else:
-                        mask = 0xFF >> (8 - pix_grp * 2)
+                        mask = 0xFF >> (8 - pix_grp * 4)
                         framebuf[fb_idx] = (framebuf[fb_idx] & ~mask) | (packed & mask)
-                    col += 4
+                    col += 2
 
             if dither:
                 # Swap buffers efficiently

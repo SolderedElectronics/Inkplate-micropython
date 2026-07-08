@@ -1,4 +1,5 @@
 """MicroPython driver for the Inkplate 6 e-paper display."""
+
 import time
 import micropython
 import os

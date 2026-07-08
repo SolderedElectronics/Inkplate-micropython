@@ -1,4 +1,5 @@
 """Read the battery voltage."""
+
 # Include needed libraries
 from inkplate13_spectra import Inkplate
 

@@ -5,6 +5,8 @@ from the MicroPython framebuf.FrameBuffer class. Methods in Shapes call self.pix
 self.line, self.hline, and self.vline, so these must be provided by the class that
 Shapes is mixed into.
 """
+
+
 class Shapes:
     # __mix_me_in adds the methods of this class to another class.  Typical usage is to put
     # something like Shapes.__mix_me_in(MyClass) after the class definition.

@@ -1,4 +1,5 @@
 """Draw different shades of gray using grayscale mode, and display a bitmap of the Soldered logo."""
+
 # Include needed libraries
 from inkplate6_flick import Inkplate
 import time

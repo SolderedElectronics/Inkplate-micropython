@@ -2,6 +2,7 @@
 
 Ported from the Arduino Inkplate13Driver implementation.
 """
+
 import time
 import os
 from machine import ADC, I2C, SPI, Pin, SDCard

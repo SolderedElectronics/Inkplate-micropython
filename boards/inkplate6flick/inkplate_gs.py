@@ -1,4 +1,5 @@
 """Inkplate display driver with 2 bits of grayscale (4 levels)."""
+
 from inkplate6_flick import _Inkplate
 import time
 import framebuf

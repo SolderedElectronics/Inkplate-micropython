@@ -1,4 +1,5 @@
 """Initialize an SD card and render an image located on it."""
+
 # Include needed libraries
 from inkplate13_spectra import Inkplate
 

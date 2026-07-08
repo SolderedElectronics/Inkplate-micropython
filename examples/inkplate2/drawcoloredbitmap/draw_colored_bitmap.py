@@ -1,4 +1,5 @@
 """Draws a colored bitmap stored in flash memory to the Inkplate 2 display."""
+
 from inkplate2 import Inkplate
 
 # Import the bytearray containing the image from the demo_image.py file

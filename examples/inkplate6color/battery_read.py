@@ -1,4 +1,5 @@
 """Example showing how to read the battery voltage."""
+
 # Include needed libraries
 from inkplate6_color import Inkplate
 

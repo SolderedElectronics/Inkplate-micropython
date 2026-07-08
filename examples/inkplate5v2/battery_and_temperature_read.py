@@ -1,4 +1,5 @@
 """Read the battery voltage and temperature and display them on the screen."""
+
 # Include needed libraries
 from inkplate5v2 import Inkplate
 

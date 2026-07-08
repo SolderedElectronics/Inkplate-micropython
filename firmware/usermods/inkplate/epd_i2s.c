@@ -1,6 +1,7 @@
 #include "epd_i2s.h"
 
 #include "epd_bitbang.h"
+#include "gs_pack.h"
 #include "driver/gpio.h"
 #include "driver/periph_ctrl.h"
 #include "esp_heap_caps.h"
@@ -317,16 +318,22 @@ void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
     }
 }
 
-// GS2's row is 2 bits/pixel packed 4-per-byte (GS2_HMSB), same as the wire format itself
-// -- unlike mono, one framebuf byte maps to exactly one output byte (no 1:4 expansion).
-// I2S1's fifo_conf.tx_fifo_mod=1 reordering was confirmed (by cross-referencing the real
-// Arduino Inkplate6 I2S driver's display1b()/display3b(), Inkplate6Driver.cpp) to swap
-// the first half against the second half of every 4-output-byte chunk -- this is what
-// build_mono_row's dram2-before-dram1 pattern reduces to (its 4-output chunk is one
-// input-byte-pair's 2+2 nibble codes). GS2 has no nibble split (1 input byte = 1 output
-// byte), so the same chunk-of-4 half-swap applies directly to input bytes instead: for
-// descending block {i, i-1, i-2, i-3}, transmit codes in order i-2, i-3, i, i-1. Requires
-// fb_row_bytes % 4 == 0 (true for every board on docs/REFACTOR-PLAN.md: 300/200/320/256).
+// build_gs_row's input is the legacy GS2_HMSB row shape: 2 bits/pixel packed 4-per-byte,
+// same as the wire format itself -- unlike mono, one input byte maps to exactly one output
+// byte (no 1:4 expansion). I2S1's fifo_conf.tx_fifo_mod=1 reordering was confirmed (by
+// cross-referencing the real Arduino Inkplate6 I2S driver's display1b()/display3b(),
+// Inkplate6Driver.cpp) to swap the first half against the second half of every
+// 4-output-byte chunk -- this is what build_mono_row's dram2-before-dram1 pattern reduces
+// to (its 4-output chunk is one input-byte-pair's 2+2 nibble codes). This input format has
+// no nibble split (1 input byte = 1 output byte), so the same chunk-of-4 half-swap applies
+// directly to input bytes instead: for descending block {i, i-1, i-2, i-3}, transmit codes
+// in order i-2, i-3, i, i-1. Requires fb_row_bytes % 4 == 0 (true for every board on
+// docs/REFACTOR-PLAN.md: 300/200/320/256).
+//
+// The Python framebuf itself no longer stores this shape directly (Phase 5 step 14 moved
+// it to GS4_HMSB, 8-level-ready) -- epd_i2s_push_gs_frame folds each real row through
+// gs_pack.h's inkplate_gs4_row_to_gs2 before calling this, so this HIL-verified
+// byte-order handling stays untouched until step 15 generalizes it for real 8-level output.
 static void build_gs_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
                          const uint8_t lut[16], uint8_t *row_buf)
 {
@@ -343,10 +350,26 @@ static void build_gs_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
     }
 }
 
+// Converts one GS4_HMSB framebuf row (gs4_row_bytes bytes, width>>1) into the legacy
+// GS2_HMSB row shape build_gs_row expects (fb_row_bytes bytes, width>>2), via gs_pack.h's
+// interim raw>>1 fold -- see build_gs_row's header comment.
+// Scratch row size: largest parallel-bus board is 5v2 at 1280px wide (1280>>2 = 320
+// bytes) -- 512 leaves headroom without needing a per-board dynamic allocation.
+#define GS2_SCRATCH_ROW_MAX 512
+
+static void build_gs_row_from_gs4(const uint8_t *gs4_row, uint16_t fb_row_bytes,
+                                  const uint8_t lut[16], uint8_t *row_buf)
+{
+    uint8_t gs2_row[GS2_SCRATCH_ROW_MAX];
+    inkplate_gs4_row_to_gs2(gs4_row, fb_row_bytes, gs2_row);
+    build_gs_row(gs2_row, fb_row_bytes, lut, row_buf);
+}
+
 void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
                            const uint8_t (*luts)[16], uint8_t num_phases)
 {
-    uint16_t fb_row_bytes = cfg->width >> 2;
+    uint16_t fb_row_bytes = cfg->width >> 2;  // wire/output row bytes (build_gs_row's shape)
+    uint16_t gs4_row_bytes = cfg->width >> 1; // GS4_HMSB framebuf row bytes (2 px/byte)
 
     for (uint8_t phase = 0; phase < num_phases; phase++) {
         const uint8_t *lut = luts[phase];
@@ -354,14 +377,15 @@ void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
 
         uint8_t cur = 0;
         int32_t row = (int32_t)cfg->height - 1;
-        build_gs_row(framebuf + row * fb_row_bytes, fb_row_bytes, lut, s_state.buf[cur]);
+        build_gs_row_from_gs4(framebuf + row * gs4_row_bytes, fb_row_bytes, lut,
+                              s_state.buf[cur]);
         epd_i2s_start_row(cfg, cur);
 
         while (row >= 0) {
             uint8_t next = cur ^ 1;
             if (row > 0) {
-                build_gs_row(framebuf + (row - 1) * fb_row_bytes, fb_row_bytes, lut,
-                             s_state.buf[next]);
+                build_gs_row_from_gs4(framebuf + (row - 1) * gs4_row_bytes, fb_row_bytes, lut,
+                                      s_state.buf[next]);
             }
             epd_i2s_wait_row(cfg);
             epd_vscan_write(cfg);

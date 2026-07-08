@@ -1,4 +1,5 @@
 """MicroPython driver for the PCAL6416A GPIO expander."""
+
 from micropython import const
 
 PCAL6416A_INPORT0 = const(0x00)
