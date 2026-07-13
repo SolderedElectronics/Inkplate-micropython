@@ -1,0 +1,62 @@
+#include "png_decode.h"
+
+#include "pngle.h"
+
+typedef struct {
+    png_pixel_cb_t cb;
+    void *ctx;
+} png_session_t;
+
+// pngle's draw callback reports a w x h block per decoded value -- always 1x1
+// for non-interlaced PNGs, but wider/taller during Adam7 interlace passes
+// before a later pass refines it. Expand to one call per output pixel so
+// callers see a flat raster-order pixel stream regardless of interlacing.
+static void png_draw_cb(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                        const uint8_t rgba[4])
+{
+    png_session_t *s = (png_session_t *)pngle_get_user_data(pngle);
+    for (uint32_t dy = 0; dy < h; dy++) {
+        for (uint32_t dx = 0; dx < w; dx++) {
+            s->cb(s->ctx, x + dx, y + dy, rgba);
+        }
+    }
+}
+
+int png_decode(const uint8_t *buf, size_t len, png_pixel_cb_t cb, void *ctx, uint32_t *out_width,
+               uint32_t *out_height)
+{
+    pngle_t *pngle = pngle_new();
+    if (pngle == NULL) {
+        return -1;
+    }
+
+    png_session_t s = {.cb = cb, .ctx = ctx};
+    pngle_set_user_data(pngle, &s);
+    pngle_set_draw_callback(pngle, png_draw_cb);
+
+    size_t pos = 0;
+    int ok = 1;
+    while (pos < len) {
+        int eaten = pngle_feed(pngle, buf + pos, len - pos);
+        if (eaten <= 0) {
+            // -1: pngle reported an error; 0 with input remaining: pngle stalled
+            // (truncated/malformed stream) -- the whole file is already in buf,
+            // so it can't just need more data.
+            ok = 0;
+            break;
+        }
+        pos += (size_t)eaten;
+    }
+
+    if (ok) {
+        if (out_width != NULL) {
+            *out_width = pngle_get_width(pngle);
+        }
+        if (out_height != NULL) {
+            *out_height = pngle_get_height(pngle);
+        }
+    }
+
+    pngle_destroy(pngle);
+    return ok ? 0 : -1;
+}

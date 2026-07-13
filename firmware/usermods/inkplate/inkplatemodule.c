@@ -8,6 +8,7 @@
 #include "waveform.h"
 #include "gfx.h"
 #include "jpeg_draw.h"
+#include "png_draw.h"
 #include <stdbool.h>
 #include <string.h>
 
@@ -370,6 +371,32 @@ static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_gs4_obj, 7, 7,
                                            inkplate_jpeg_draw_gs4);
 
+// Decodes+draws a PNG straight into a GS4 framebuffer, ahead of
+// docs/REFACTOR-PLAN.md step 21's real dithering -- see png_draw.h. args:
+// framebuf, phys_w, phys_h, rotation, x0, y0, png_bytes. Returns (width, height)
+// of the decoded PNG.
+static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t fb_buf, png_buf;
+    uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
+    mp_get_buffer_raise(args[6], &png_buf, MP_BUFFER_READ);
+
+    uint32_t width = 0, height = 0;
+    int res =
+        png_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+                     mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+                     (const uint8_t *)png_buf.buf, png_buf.len, &width, &height);
+    if (res != 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("PNG decode failed"));
+    }
+
+    mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
+    return mp_obj_new_tuple(2, dims);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_png_draw_gs4_obj, 7, 7,
+                                           inkplate_png_draw_gs4);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -400,6 +427,7 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_gfx_fill_round_rect), MP_ROM_PTR(&inkplate_gfx_fill_round_rect_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_draw_char), MP_ROM_PTR(&inkplate_gfx_draw_char_obj)},
     {MP_ROM_QSTR(MP_QSTR_jpeg_draw_gs4), MP_ROM_PTR(&inkplate_jpeg_draw_gs4_obj)},
+    {MP_ROM_QSTR(MP_QSTR_png_draw_gs4), MP_ROM_PTR(&inkplate_png_draw_gs4_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 
