@@ -424,11 +424,17 @@ class Inkplate:
                     sck=Pin(14),
                     cs=Pin(15),
                     # 80MHz (the old value) failed to mount with OSError(16) on real
-                    # hardware -- SPI-mode SD cards top out well below that. 400kHz is
-                    # the standard SD-over-SPI init clock and is what's been verified
-                    # working here; not yet tested whether a higher steady-state speed
-                    # (post-init) would also mount reliably.
-                    freq=400000,
+                    # hardware -- SPI-mode SD cards top out well below that. `freq` here
+                    # only caps the post-identification data-transfer clock: ESP-IDF's
+                    # sdspi host driver always runs the CMD0/CMD8/ACMD41 identification
+                    # sequence at its own <=400kHz internally regardless of this value,
+                    # so 400kHz previously throttled every read/write too, not just
+                    # mounting (measured: a 947KB read took 37s at 400kHz vs ~12s at
+                    # 20MHz, with byte-identical reads confirmed at every step from
+                    # 400kHz up to 25MHz on this exact board/wiring). 20MHz matches this
+                    # driver's own built-in default and leaves headroom below the 80MHz
+                    # that failed.
+                    freq=20000000,
                 ),
                 "/sd",
             )
