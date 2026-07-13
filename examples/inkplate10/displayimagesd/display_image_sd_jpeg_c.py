@@ -1,10 +1,10 @@
 """Decode mountain.jpg from the SD card through the new C JPEG decode path (ROM tjpgd,
-docs/REFACTOR-PLAN.md Phase 7 step 18) and draw it in grayscale.
+docs/REFACTOR-PLAN.md Phase 7 step 18) with real Floyd-Steinberg dithering (step 21) and
+draw it in grayscale.
 
-Ahead of step 21 (real Floyd-Steinberg/etc. dithering): calls the low-level
-inkplate.jpeg_draw_gs4() C binding directly, with simple nearest-of-8-levels luminance
-quantization and no error diffusion -- expect visible banding. draw_image()/
-draw_jpg_from_sd() aren't wired to this path yet.
+Calls the low-level inkplate.jpeg_draw_gs4() C binding directly -- draw_image()/
+draw_jpg_from_sd() (boards/inkplate10/inkplate10.py) now call the same binding, so this
+example is mainly useful for exercising it without SD-card/urequests plumbing.
 """
 
 from inkplate10 import Inkplate
@@ -25,7 +25,17 @@ with open("/sd/mountain.jpg", "rb") as f:
 
 t0 = time.ticks_ms()
 width, height = inkplate.jpeg_draw_gs4(
-    ipk.ipg._framebuf, D_COLS, D_ROWS, ipk.rotation, 0, 0, jpg_data
+    ipk.ipg._framebuf,
+    D_COLS,
+    D_ROWS,
+    ipk.rotation,
+    ipk.display_mode,
+    0,
+    0,
+    jpg_data,
+    False,  # invert
+    True,  # dither
+    0,  # kernel_type: Floyd-Steinberg
 )
 print("decoded {}x{} JPEG in {} ms".format(width, height, time.ticks_diff(time.ticks_ms(), t0)))
 

@@ -19,6 +19,7 @@ jobs:
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_decode.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/gfx.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_draw.c -o /dev/null
+          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/dither.c -o /dev/null
 
   format:
     runs-on: ubuntu-latest
@@ -69,3 +70,8 @@ jobs:
             firmware/usermods/inkplate/gfx.c \
             -o /tmp/test_gfx
           /tmp/test_gfx
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_dither.c \
+            firmware/usermods/inkplate/dither.c \
+            -o /tmp/test_dither
+          /tmp/test_dither

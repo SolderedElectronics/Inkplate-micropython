@@ -347,21 +347,24 @@ static mp_obj_t inkplate_gfx_draw_char(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_char_obj, 12, 12,
                                            inkplate_gfx_draw_char);
 
-// Decodes+draws a JPEG straight into a GS4 framebuffer, ahead of docs/REFACTOR-PLAN.md
-// step 21's real dithering -- see jpeg_draw.h. args: framebuf, phys_w, phys_h, rotation,
-// x0, y0, jpeg_bytes. Returns (width, height) of the decoded JPEG.
+// Decodes+draws a JPEG straight into a framebuffer, with optional scalar
+// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see jpeg_draw.h,
+// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
+// display_mode, x0, y0, jpeg_bytes, invert, dither, kernel_type. Returns (width,
+// height) of the decoded JPEG.
 static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, jpg_buf;
     uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
-    mp_get_buffer_raise(args[6], &jpg_buf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[7], &jpg_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res =
-        jpeg_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                      mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
-                      (const uint8_t *)jpg_buf.buf, jpg_buf.len, &width, &height);
+    int res = jpeg_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+                            mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                            mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                            (const uint8_t *)jpg_buf.buf, jpg_buf.len, mp_obj_is_true(args[8]),
+                            mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
     if (res != 0) {
         mp_raise_ValueError(MP_ERROR_TEXT("JPEG decode failed"));
     }
@@ -369,25 +372,27 @@ static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
     mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
     return mp_obj_new_tuple(2, dims);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_gs4_obj, 7, 7,
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_gs4_obj, 11, 11,
                                            inkplate_jpeg_draw_gs4);
 
-// Decodes+draws a PNG straight into a GS4 framebuffer, ahead of
-// docs/REFACTOR-PLAN.md step 21's real dithering -- see png_draw.h. args:
-// framebuf, phys_w, phys_h, rotation, x0, y0, png_bytes. Returns (width, height)
-// of the decoded PNG.
+// Decodes+draws a PNG straight into a framebuffer, with optional scalar
+// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see png_draw.h,
+// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
+// display_mode, x0, y0, png_bytes, invert, dither, kernel_type. Returns (width,
+// height) of the decoded PNG.
 static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, png_buf;
     uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
-    mp_get_buffer_raise(args[6], &png_buf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[7], &png_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res =
-        png_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                     mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
-                     (const uint8_t *)png_buf.buf, png_buf.len, &width, &height);
+    int res = png_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+                           mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                           mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                           (const uint8_t *)png_buf.buf, png_buf.len, mp_obj_is_true(args[8]),
+                           mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
     if (res != 0) {
         mp_raise_ValueError(MP_ERROR_TEXT("PNG decode failed"));
     }
@@ -395,24 +400,27 @@ static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
     mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
     return mp_obj_new_tuple(2, dims);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_png_draw_gs4_obj, 7, 7,
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_png_draw_gs4_obj, 11, 11,
                                            inkplate_png_draw_gs4);
 
-// Decodes+draws a BMP straight into a GS4 framebuffer, ahead of docs/REFACTOR-PLAN.md
-// step 21's real dithering -- see bmp_draw.h. args: framebuf, phys_w, phys_h, rotation,
-// x0, y0, bmp_bytes. Returns (width, height) of the decoded BMP.
+// Decodes+draws a BMP straight into a framebuffer, with optional scalar
+// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see bmp_draw.h,
+// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
+// display_mode, x0, y0, bmp_bytes, invert, dither, kernel_type. Returns (width,
+// height) of the decoded BMP.
 static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, bmp_buf;
     uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
-    mp_get_buffer_raise(args[6], &bmp_buf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[7], &bmp_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res =
-        bmp_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                     mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
-                     (const uint8_t *)bmp_buf.buf, bmp_buf.len, &width, &height);
+    int res = bmp_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
+                           mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                           mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                           (const uint8_t *)bmp_buf.buf, bmp_buf.len, mp_obj_is_true(args[8]),
+                           mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
     if (res != 0) {
         mp_raise_ValueError(MP_ERROR_TEXT("BMP decode failed"));
     }
@@ -420,7 +428,7 @@ static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
     mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
     return mp_obj_new_tuple(2, dims);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_gs4_obj, 7, 7,
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_gs4_obj, 11, 11,
                                            inkplate_bmp_draw_gs4);
 
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
