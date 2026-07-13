@@ -10,6 +10,8 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/waveform.c
     ${CMAKE_CURRENT_LIST_DIR}/bmp_decode.c
     ${CMAKE_CURRENT_LIST_DIR}/gfx.c
+    ${CMAKE_CURRENT_LIST_DIR}/jpeg_decode.c
+    ${CMAKE_CURRENT_LIST_DIR}/jpeg_draw.c
 )
 
 target_include_directories(usermod_inkplate INTERFACE
