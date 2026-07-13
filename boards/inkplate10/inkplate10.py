@@ -423,7 +423,12 @@ class Inkplate:
                     mosi=Pin(13),
                     sck=Pin(14),
                     cs=Pin(15),
-                    freq=80000000,
+                    # 80MHz (the old value) failed to mount with OSError(16) on real
+                    # hardware -- SPI-mode SD cards top out well below that. 400kHz is
+                    # the standard SD-over-SPI init clock and is what's been verified
+                    # working here; not yet tested whether a higher steady-state speed
+                    # (post-init) would also mount reliably.
+                    freq=400000,
                 ),
                 "/sd",
             )

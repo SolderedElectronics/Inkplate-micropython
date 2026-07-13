@@ -14,15 +14,15 @@ inkplate.begin()
 # Initializes the SD card.
 #
 # Parameters:
-# - fastboot (bool, default=False):
+# - fast_boot (bool, default=False):
 #     If True, performs a soft reboot immediately after SD card initialization
 #     (only on cold start or hard reset). This significantly improves SD card
 #     read speeds—typically doubling performance.
 #
 # Note:
 # - This function must be called before accessing files on the SD card.
-# - The fastboot option has no effect if the device is already running.
-inkplate.init_sd_card(fastBoot=True)
+# - The fast_boot option has no effect if the device is already running.
+inkplate.init_sd_card(fast_boot=True)
 
 # This prints all the files on card
 print(listdir("/sd"))
