@@ -131,6 +131,44 @@ int main(void)
     assert(cfg5v2->has_touch == 0);
     assert(cfg5v2->has_frontlight == 0);
 
+    // INKPLATE6FLICK: same pin/data-bus layout, own resolution/waveform/partial_reps.
+    const board_config_t *cflick = &board_config_inkplate6flick;
+
+    assert(strcmp(cflick->name, "inkplate6flick") == 0);
+
+    assert(cflick->width == 1024);
+    assert(cflick->height == 758);
+
+    assert(memcmp(cflick->data_pins, expected_data_pins, sizeof(expected_data_pins)) == 0);
+    assert(cflick->data_mask == 0x0E8C0030);
+
+    assert(cflick->pin_cl == 0);
+    assert(cflick->pin_le == 2);
+    assert(cflick->pin_ckv == 32);
+    assert(cflick->pin_sph == 33);
+
+    assert(cflick->pin_oe.expander_addr == 0x20 && cflick->pin_oe.pin == 0);
+    assert(cflick->pin_gmode.expander_addr == 0x20 && cflick->pin_gmode.pin == 1);
+    assert(cflick->pin_spv.expander_addr == 0x20 && cflick->pin_spv.pin == 2);
+
+    assert(cflick->pmic_i2c_addr == 0x48);
+
+    assert(cflick->waveform != NULL);
+    assert(cflick->waveform->levels == 8);
+    assert(cflick->waveform->phases == 9);
+    // Phase 5 row, cross-checked against the real Arduino waveform3Bit[color][phase=5]
+    // column (Inkplate6FLICK.h): color0=1, color1=1, color2=1, color3=1, color4=2,
+    // color5=2, color6=2, color7=0.
+    const uint8_t expected_wave_flick_row5[MAX_WAVE_LEVELS] = {1, 1, 1, 1, 2, 2, 2, 0};
+    assert(memcmp(cflick->waveform->table[5], expected_wave_flick_row5, MAX_WAVE_LEVELS) == 0);
+    // Final phase (8) is the all-discharge/park row.
+    assert(memcmp(cflick->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
+
+    assert(cflick->partial_reps == 5);
+
+    assert(cflick->has_touch == 0);
+    assert(cflick->has_frontlight == 0);
+
     printf("board_config: all assertions passed\n");
     return 0;
 }

@@ -56,6 +56,8 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
         active_board = &board_config_inkplate6v2;
     } else if (strcmp(name, "inkplate5v2") == 0) {
         active_board = &board_config_inkplate5v2;
+    } else if (strcmp(name, "inkplate6flick") == 0) {
+        active_board = &board_config_inkplate6flick;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown board"));
     }
@@ -133,15 +135,19 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(framebuf_obj, &bufinfo, MP_BUFFER_READ);
 
-    static uint8_t mono_luts[INKPLATE_MONO_WAVE_PHASES][16];
-    static bool mono_luts_ready = false;
-    if (!mono_luts_ready) {
-        inkplate_gen_mono_wave(mono_luts);
-        mono_luts_ready = true;
-    }
+    const board_config_t *cfg = require_board();
 
-    epd_i2s_push_mono_frame(require_board(), (const uint8_t *)bufinfo.buf, mono_luts,
-                            INKPLATE_MONO_WAVE_PHASES);
+    // Inkplate6FLICK's Arduino reference driver (display1b()) uses 4 black-push phases
+    // instead of the 5 every other wired board uses, followed by its own discharge pass
+    // (pushed separately from Python via clean(2, ...)/i2s_push_frame(0), matching the
+    // Arduino driver's discharge loop) -- see docs/REFACTOR-PLAN.md Phase 8 step 24.
+    // Regenerated per call (board never changes after select_board(), and the LUT gen
+    // itself is a handful of nibble-lookup loops -- not worth caching across boards).
+    uint8_t black_phases = (cfg == &board_config_inkplate6flick) ? 4 : 5;
+    uint8_t mono_luts[INKPLATE_MONO_WAVE_MAX_PHASES][16];
+    inkplate_gen_mono_wave(black_phases, mono_luts);
+
+    epd_i2s_push_mono_frame(cfg, (const uint8_t *)bufinfo.buf, mono_luts, black_phases + 1);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_mono_display_obj, inkplate_mono_display);

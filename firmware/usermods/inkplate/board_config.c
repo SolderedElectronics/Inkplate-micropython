@@ -189,3 +189,60 @@ const board_config_t board_config_inkplate5v2 = {
     .has_touch = 0,
     .has_frontlight = 0,
 };
+
+// Real 3-bit/8-level waveform for Inkplate6FLICK, transcribed from the Arduino reference
+// driver's Inkplate6FLICK.h WAVEFORM3BIT macro -- declared as waveform3Bit[color][phase]
+// (8 colors x 9 phases), transposed here to [phase][color] to match this struct's
+// row-per-phase convention (same as prior boards).
+static const waveform_table_t wave_3b_inkplate6flick = {
+    .levels = 8,
+    .phases = 9,
+    .table =
+        {
+            {0, 0, 0, 1, 1, 0, 1, 0},
+            {0, 0, 1, 1, 1, 1, 2, 0},
+            {0, 1, 1, 1, 1, 1, 1, 0},
+            {0, 2, 2, 2, 2, 2, 1, 0},
+            {0, 1, 1, 2, 1, 1, 2, 0},
+            {1, 1, 1, 1, 2, 2, 2, 0},
+            {1, 2, 1, 1, 1, 1, 1, 0},
+            {1, 1, 2, 2, 2, 2, 2, 2},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+// INKPLATE6FLICK (1024x758): PCAL6416A expander @ 0x20 handles OE/GMODE/SPV plus
+// WAKEUP/PWRUP/VCOM (Inkplate6FLICKDriver's pins.h), second expander @ 0x21 reserved for
+// SD/touchscreen -- not wired here, touch/frontlight explicitly deferred to Phase 11
+// (docs/REFACTOR-PLAN.md step 24). PMIC addr assumed 0x48 (TPS65186 default, not given in
+// pins.h, same as every other board). 5 reps/frame in partialUpdate()'s for(k<5) loop.
+// Mono display1b() uses 4 black-push phases (not the usual 5) followed by its own
+// discharge pass -- see waveform.c's inkplate_gen_mono_wave and inkplatemodule.c's
+// inkplate_mono_display board check.
+const board_config_t board_config_inkplate6flick = {
+    .name = "inkplate6flick",
+
+    .width = 1024,
+    .height = 758,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate6flick,
+
+    .partial_reps = 5,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};

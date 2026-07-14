@@ -80,13 +80,16 @@ static void test_mono_wave_parity(void)
     static const uint8_t expected_bw[16] = {170, 169, 166, 165, 154, 153, 150, 149,
                                             106, 105, 102, 101, 90,  89,  86,  85};
 
-    uint8_t wave[INKPLATE_MONO_WAVE_PHASES][16];
-    inkplate_gen_mono_wave(wave);
+    // 5 black-push phases + 1 final phase, matching every wired board except
+    // Inkplate6FLICK (waveform.h: black_phases is board-specific, this covers the
+    // common 5-phase case).
+    uint8_t wave[INKPLATE_MONO_WAVE_MAX_PHASES][16];
+    inkplate_gen_mono_wave(5, wave);
 
-    for (int phase = 0; phase < INKPLATE_MONO_WAVE_PHASES - 1; phase++) {
+    for (int phase = 0; phase < 5; phase++) {
         assert(memcmp(wave[phase], expected_blk, 16) == 0);
     }
-    assert(memcmp(wave[INKPLATE_MONO_WAVE_PHASES - 1], expected_bw, 16) == 0);
+    assert(memcmp(wave[5], expected_bw, 16) == 0);
 
     printf("test_mono_wave_parity: passed\n");
 }

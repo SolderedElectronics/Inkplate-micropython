@@ -32,12 +32,15 @@ void inkplate_gen_nibble_lut(const uint8_t *op, int bpp, uint8_t out[16]);
 void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases,
                             uint8_t out[][16]);
 
-// Mono (1bpp) display waveform: 5 "push toward black" phases (white pixels skip, black
-// pixels discharge) then 1 "final black/white" phase. Board-independent -- unlike
-// gen_wave_2bit's per-board WAVE_2B table, this is fixed op-code math transcribed from
-// boards/inkplate10/inkplateMono.py's _gen_luts (lut_blk x5, lut_bw x1), confirmed the
-// same regardless of panel (docs/REFACTOR-PLAN.md step 11).
-#define INKPLATE_MONO_WAVE_PHASES 6
-void inkplate_gen_mono_wave(uint8_t out[INKPLATE_MONO_WAVE_PHASES][16]);
+// Mono (1bpp) display waveform: black_phases "push toward black" phases (white pixels
+// skip, black pixels discharge) then 1 "final black/white" phase. The op-code math itself
+// (lut_blk/lut_bw) is fixed, transcribed from boards/inkplate10/inkplateMono.py's
+// _gen_luts, confirmed the same regardless of panel (docs/REFACTOR-PLAN.md step 11) --
+// but black_phases is NOT: every wired board's Arduino reference driver uses 5 except
+// Inkplate6FLICK's display1b(), which uses 4 (then does its own separate discharge pass,
+// pushed from Python via i2s_push_frame(0)/clean(2,...) -- see docs/REFACTOR-PLAN.md
+// Phase 8 step 24). out must have room for black_phases+1 rows of 16 bytes each.
+#define INKPLATE_MONO_WAVE_MAX_PHASES 6
+void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16]);
 
 #endif // INKPLATE_WAVEFORM_H
