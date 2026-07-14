@@ -214,10 +214,16 @@ static const waveform_table_t wave_3b_inkplate6flick = {
 };
 
 // INKPLATE6FLICK (1024x758): PCAL6416A expander @ 0x20 handles OE/GMODE/SPV plus
-// WAKEUP/PWRUP/VCOM (Inkplate6FLICKDriver's pins.h), second expander @ 0x21 reserved for
-// SD/touchscreen -- not wired here, touch/frontlight explicitly deferred to Phase 11
-// (docs/REFACTOR-PLAN.md step 24). PMIC addr assumed 0x48 (TPS65186 default, not given in
-// pins.h, same as every other board). 5 reps/frame in partialUpdate()'s for(k<5) loop.
+// WAKEUP/PWRUP/VCOM (Inkplate6FLICKDriver's pins.h) -- and, per the real pins.h, also
+// SD_PMOS_PIN (SD power MOSFET, pin 13) and most touchscreen lines (EN=pin 12, RST=pin
+// 10, IO_EXPANDER=IO_INT_ADDR i.e. this same 0x20 expander; only TOUCHSCREEN_INT is a
+// direct ESP32 GPIO, 36). SD is wired (boards/inkplate6flick/inkplate6_flick.py
+// init_sd_card/sd_card_sleep/sd_card_wake). Touch/frontlight still explicitly deferred to
+// Phase 11 (docs/REFACTOR-PLAN.md step 24); the second expander @ 0x21's actual purpose
+// is still unconfirmed (not SD/touchscreen as previously assumed here -- those turned out
+// to live on the internal expander instead). PMIC addr assumed 0x48 (TPS65186 default,
+// not given in pins.h, same as every other board). 5 reps/frame in partialUpdate()'s
+// for(k<5) loop.
 // Mono display1b() uses 4 black-push phases (not the usual 5) followed by its own
 // discharge pass -- see waveform.c's inkplate_gen_mono_wave and inkplatemodule.c's
 // inkplate_mono_display board check.

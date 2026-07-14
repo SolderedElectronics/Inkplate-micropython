@@ -1,50 +1,32 @@
-"""Connect to WiFi and render an image from a URL."""
+"""Initialize an SD card and render an image located on it."""
 
-import network
-import time
+# Include needed libraries
 from inkplate6_flick import Inkplate
 
-# Enter your WiFi credentials here
-SSID = "Xiaomi 13 Lite"
-PASSWORD = "asdqwe12345"
-
-
-# Connects to a WiFi network using given SSID and PASSWORD.
-#
-# Returns:
-# - True if successfully connected
-# - False if connection fails within the timeout period
-#
-# Notes:
-# - Timeout is set to 30 seconds
-# - Prints network IP config on success
-def do_connect():
-    sta_if = network.WLAN(network.STA_IF)
-    if not sta_if.isconnected():
-        print("Connecting to network...")
-        sta_if.active(True)
-        sta_if.connect(SSID, PASSWORD)
-
-        timeout = 30  # seconds
-        start = time.ticks_ms()
-        while not sta_if.isconnected():
-            if time.ticks_diff(time.ticks_ms(), start) > timeout * 1000:
-                print("Failed to connect within timeout")
-                return False
-            time.sleep(0.5)
-    print("Network config:", sta_if.ifconfig())
-    return True
-
+from os import listdir
 
 # Create Inkplate object in 2-bit (grayscale) mode
-inkplate = Inkplate()
+inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
 
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
-# Connect to WiFi
-if not do_connect():
-    raise SystemExit("WiFi connection failed")
+# Initializes the SD card.
+#
+# Parameters:
+# - fastboot (bool, default=False):
+#     If True, performs a soft reboot immediately after SD card initialization
+#     (only on cold start or hard reset). This significantly improves SD card
+#     read speeds—typically doubling performance.
+#
+# Note:
+# - This function must be called before accessing files on the SD card.
+# - The fastboot option has no effect if the device is already running.
+inkplate.init_sd_card(fast_boot=True)
+
+# This prints all the files on card
+print(listdir("/sd"))
+
 
 # Draw an image on the screen.
 #
@@ -61,25 +43,26 @@ if not do_connect():
 # - dither (bool, default=False): If True, applies a dithering algorithm to
 #   the image for better grayscale rendering.
 #
-# Performance Notes:
-# - JPG: ~3 seconds (or ~5s with dithering)
-# - PNG: ~4 seconds (or ~6s with dithering)
-# - BMP: ~6 seconds (or ~7s with dithering)
-# - Maximum image file size: ~800kB
+# - kernel_type (int): Specifies the dithering algorithm to use.
+#     Available options:
+#       Inkplate.KERNEL_FLOYD_STEINBERG = 0
+#       Inkplate.KERNEL_JJN             = 1
+#       Inkplate.KERNEL_STUCKI          = 2
+#       Inkplate.KERNEL_BURKES          = 3
 #
 # Example usage:
-draw_length = time.ticks_ms()
 inkplate.draw_image(
-    "https://i.imgur.com/VSRtgBr.jpeg",  # URL to image
+    "sd/coastal.jpg",
     0,
-    0,  # X, Y position
-    dither=True,  # Enable dithering
+    0,
+    invert=False,
+    dither=True,
+    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
 )
-draw_length = time.ticks_ms() - draw_length
-print("time it took to draw to buffer: {} ms ".format(draw_length))
 
-# Show the image from the internal buffer
-draw_length = time.ticks_ms()
+# Show the image from the buffer
 inkplate.display()
-draw_length = time.ticks_ms() - draw_length
-print("time it took to display: {} ms ".format(draw_length))
+
+inkplate.sd_card_sleep()
+# To turn it back on, use:
+# inkplate.sd_card_wake()

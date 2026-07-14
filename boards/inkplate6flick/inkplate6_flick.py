@@ -4,7 +4,7 @@ import time
 import micropython
 import os
 import inkplate
-from machine import I2C, Pin
+from machine import I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
 from micropython import const
@@ -22,25 +22,7 @@ D_COLS = const(1024)
 # Lookup mask to clear just that pixel's 4 bits (GS4_HMSB, 2 pixels/byte)
 pixel_mask_glut = bytearray(b"\xf0\x0f")  # precomputed masks
 
-TPS65186_addr = const(0x48)  # I2C address -- confirmed via the real TPS65186.h
-
-# TPS65186 registers/constants, transcribed from the real Inkplate6FLICK Arduino
-# reference's TPS65186.h/.cpp (user-supplied) -- the earlier version of this file guessed
-# a power-on sequence copied from Inkplate6's own driver, which was wrong: it wrote the
-# ENABLE register (0x01) as 0x3F instead of the real 0x20, skipped the one-time UPSEQ/
-# DWNSEQ sequencer setup TPS65186::begin() does, used fixed delays instead of polling
-# PWR_GOOD, and asserted VCOM before rails were confirmed good instead of after. HIL
-# testing showed the guessed sequence only ever worked when the PMIC/expander happened to
-# already be latched into a working state from an earlier power cycle in the same boot
-# session -- a genuine cold boot never brought the panel up. See docs/REFACTOR-PLAN.md
-# step 24.
-_TPS_REG_ENABLE = const(0x01)
-_TPS_REG_UPSEQ0 = const(0x09)
-_TPS_REG_DWNSEQ0 = const(0x0B)
-_TPS_REG_TMST1 = const(0x0D)
-_TPS_REG_TEMP = const(0x00)
-_TPS_REG_PWRGOOD = const(0x0F)
-_TPS_PWR_GOOD_OK = const(0b11111010)
+TPS65186_addr = const(0x48)  # I2C address
 
 # IO_INT_ADDR/IO_EXT_ADDR straight from Inkplate6FLICKDriver's pins.h -- single fixed
 # variant, unlike INKPLATE6/INKPLATE6V2 there's no address-selectable board revision here.
@@ -98,16 +80,13 @@ class _Inkplate:
         cls.TPS_VCOM = GpioPin(cls._PCAL6416A_1, 5, mode_output)
         cls.TPS_VCOM.digital_write(0)
 
-        cls._on = False  # whether panel is powered on or not
+        # SD card power MOSFET -- real Arduino pins.h: "Pin on the internal io expander
+        # which controls MOSFET for turning on and off the SD card", SD_PMOS_PIN =
+        # IO_PIN_B5 = pin 13 on this same internal expander (0x20). Different pin number
+        # from Inkplate6/6V2's SD_ENABLE (pin 10) but same expander/role.
+        cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 13, mode_output)
 
-        # One-time PMIC sequencer setup (TPS65186::begin() in the real Arduino driver) --
-        # programs the power-up/power-down sequencer registers once, independent of any
-        # later power_on()/power_off() cycle.
-        cls.TPS_WAKEUP.digital_write(1)
-        time.sleep_ms(1)
-        cls._i2c.writeto_mem(TPS65186_addr, _TPS_REG_UPSEQ0, bytes((0x1B, 0x00, 0x1B, 0x00)))
-        time.sleep_ms(1)
-        cls.TPS_WAKEUP.digital_write(0)
+        cls._on = False  # whether panel is powered on or not
 
         if len(_Inkplate.byte2gpio) == 0:
             _Inkplate.gen_byte2gpio()
@@ -132,60 +111,45 @@ class _Inkplate:
         cls.ipm = InkplateMono()
         cls.ipp = InkplatePartial(cls.ipm)
 
-    # power_on turns the voltage regulator on (TPS65186::powerUp()) and wakes up the
-    # display (GMODE and OE, Arduino's einkOn()).
+    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE) --
+    # guessed sequence copied from Inkplate6 (Inkplate6FLICKDriver.cpp's einkOn() only
+    # calls an abstracted pmic.powerUp(), not itself pasted).
     @classmethod
     def power_on(cls):
         if cls._on:
             return
-
-        cls.TPS_WAKEUP.digital_write(1)
-        time.sleep_ms(5)
-
-        cls._tps65186_write(_TPS_REG_ENABLE, 0x20)  # enableRails(true)
-
-        cls._tps65186_write(_TPS_REG_UPSEQ0, 0xE4)
-        cls._tps65186_write(_TPS_REG_DWNSEQ0, 0x1B)
-
-        cls.TPS_PWRUP.digital_write(1)
-
-        t0 = time.ticks_ms()
-        while cls._tps65186_read(_TPS_REG_PWRGOOD) != _TPS_PWR_GOOD_OK:
-            if time.ticks_diff(time.ticks_ms(), t0) >= 250:
-                raise RuntimeError("TPS65186 power-good timeout")
-            time.sleep_ms(1)
-
-        cls.TPS_VCOM.digital_write(1)
         cls._on = True
 
+        cls.TPS_WAKEUP.digital_write(1)
+        cls.TPS_PWRUP.digital_write(1)
+        cls.TPS_VCOM.digital_write(1)
+
+        # enable all rails
+        cls._tps65186_write(0x01, 0x3F)  # ???
+        time.sleep_ms(40)
+        cls._tps65186_write(0x0D, 0x80)  # ???
+        time.sleep_ms(2)
+        cls._temperature = cls._tps65186_read(0x01)
         # wake-up display
         cls.EPD_GMODE.digital_write(1)
         cls.EPD_OE.digital_write(1)
 
         time.sleep_ms(50)
 
-    # power_off puts the display to sleep and cuts the power (Arduino's einkOff(), which
-    # clears GMODE/OE before TPS65186::powerDown() runs).
+    # power_off puts the display to sleep and cuts the power
     @classmethod
     def power_off(cls):
         if not cls._on:
             return
+        cls._on = False
+        # put display to sleep
         cls.EPD_GMODE.digital_write(0)
         cls.EPD_OE.digital_write(0)
 
-        cls.TPS_VCOM.digital_write(0)
+        # turn off power regulator
         cls.TPS_PWRUP.digital_write(0)
-
-        t0 = time.ticks_ms()
-        while cls._tps65186_read(_TPS_REG_PWRGOOD) != 0:
-            if time.ticks_diff(time.ticks_ms(), t0) >= 250:
-                break
-            time.sleep_ms(1)
-
         cls.TPS_WAKEUP.digital_write(0)
-        cls._tps65186_write(_TPS_REG_ENABLE, 0x00)  # enableRails(false)
-
-        cls._on = False
+        cls.TPS_VCOM.digital_write(0)
 
     # _tps65186_write writes an 8-bit value to a register
     @classmethod
@@ -324,6 +288,41 @@ class Inkplate:
             return GpioPin(_Inkplate._PCAL6416A_1, pin, mode)
         elif expander == 2:
             return GpioPin(_Inkplate._PCAL6416A_2, pin, mode)
+
+    def init_sd_card(self, fast_boot=False):
+        # Same SD wiring as Inkplate6/5v2 (miso/mosi/sck/cs pins, 4MHz); SD_ENABLE (the
+        # power MOSFET gate, internal expander pin 13 -- see _Inkplate.init) confirmed
+        # against this board's real Arduino pins.h.
+        _Inkplate.SD_ENABLE.digital_write(0)
+        try:
+            os.mount(
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15),
+                    freq=4000000,
+                ),
+                "/sd",
+            )
+            if fast_boot is True:
+                if (
+                    machine.reset_cause() == machine.PWRON_RESET
+                    or machine.reset_cause() == machine.HARD_RESET
+                    or machine.reset_cause() == machine.WDT_RESET
+                ):
+                    machine.soft_reset()
+        except Exception:
+            print("Sd card could not be read")
+
+    def sd_card_sleep(self):
+        _Inkplate.SD_ENABLE.digital_write(1)
+        time.sleep_ms(5)
+
+    def sd_card_wake(self):
+        _Inkplate.SD_ENABLE.digital_write(0)
+        time.sleep_ms(5)
 
     def clear_display(self):
         InkplateMono.clear(self.ipm._framebuf)
