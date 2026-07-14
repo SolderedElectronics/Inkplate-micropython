@@ -53,8 +53,7 @@ int main(void)
     const char *expected_names[2] = {"inkplate6", "inkplate6v2"};
     const uint8_t expected_partial_reps[2] = {5, 6};
 
-    for (int i = 0; i < 2; ++i)
-    {
+    for (int i = 0; i < 2; ++i) {
         const board_config_t *v = variants[i];
 
         assert(strcmp(v->name, expected_names[i]) == 0);
@@ -168,6 +167,47 @@ int main(void)
 
     assert(cflick->has_touch == 0);
     assert(cflick->has_frontlight == 0);
+
+    // INKPLATE6PLUSV2: same pin/data-bus layout, same panel resolution as Inkplate6FLICK
+    // (1024x758), own waveform table, same partial_reps.
+    const board_config_t *c6plusv2 = &board_config_inkplate6plusv2;
+
+    assert(strcmp(c6plusv2->name, "inkplate6plusv2") == 0);
+
+    assert(c6plusv2->width == 1024);
+    assert(c6plusv2->height == 758);
+
+    assert(memcmp(c6plusv2->data_pins, expected_data_pins, sizeof(expected_data_pins)) == 0);
+    assert(c6plusv2->data_mask == 0x0E8C0030);
+
+    assert(c6plusv2->pin_cl == 0);
+    assert(c6plusv2->pin_le == 2);
+    assert(c6plusv2->pin_ckv == 32);
+    assert(c6plusv2->pin_sph == 33);
+
+    assert(c6plusv2->pin_oe.expander_addr == 0x20 && c6plusv2->pin_oe.pin == 0);
+    assert(c6plusv2->pin_gmode.expander_addr == 0x20 && c6plusv2->pin_gmode.pin == 1);
+    assert(c6plusv2->pin_spv.expander_addr == 0x20 && c6plusv2->pin_spv.pin == 2);
+
+    assert(c6plusv2->pmic_i2c_addr == 0x48);
+
+    assert(c6plusv2->waveform != NULL);
+    assert(c6plusv2->waveform->levels == 8);
+    assert(c6plusv2->waveform->phases == 9);
+    // Phase 4 row, cross-checked against the real Arduino WAVEFORM3BIT macro's
+    // waveform3Bit[color][phase=4] column (Inkplate6PLUS's pins.h/waveforms.h, as pasted
+    // by the user and independently transposed via a python3 script): color0=0, color1=1,
+    // color2=1, color3=2, color4=2, color5=2, color6=2, color7=2.
+    const uint8_t expected_wave_6plusv2_row4[MAX_WAVE_LEVELS] = {0, 1, 1, 2, 2, 2, 2, 2};
+    assert(memcmp(c6plusv2->waveform->table[4], expected_wave_6plusv2_row4, MAX_WAVE_LEVELS) ==
+           0);
+    // Final phase (8) is the all-discharge/park row.
+    assert(memcmp(c6plusv2->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
+
+    assert(c6plusv2->partial_reps == 5);
+
+    assert(c6plusv2->has_touch == 0);
+    assert(c6plusv2->has_frontlight == 0);
 
     printf("board_config: all assertions passed\n");
     return 0;

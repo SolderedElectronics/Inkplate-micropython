@@ -38,3 +38,14 @@ void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16])
     }
     inkplate_gen_nibble_lut(op_bw, 1, out[black_phases]);
 }
+
+void inkplate_gen_mono_wave_white_first(uint8_t repeat_phases, uint8_t out[][16])
+{
+    static const uint8_t op_wht[2] = {2, 3};       // white(0)->white, black(1)->skip
+    static const uint8_t op_blk_final[2] = {3, 1}; // white(0)->skip, black(1)->black
+
+    for (int phase = 0; phase < repeat_phases; phase++) {
+        inkplate_gen_nibble_lut(op_wht, 1, out[phase]);
+    }
+    inkplate_gen_nibble_lut(op_blk_final, 1, out[repeat_phases]);
+}

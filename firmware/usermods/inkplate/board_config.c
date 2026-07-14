@@ -246,3 +246,72 @@ const board_config_t board_config_inkplate6flick = {
     .has_touch = 0,
     .has_frontlight = 0,
 };
+
+// Real 3-bit/8-level waveform for Inkplate6PLUS(V2), transcribed from the Arduino
+// reference driver's WAVEFORM3BIT macro -- declared as waveform3Bit[color][phase] (8
+// colors x 9 phases), transposed here to [phase][color] to match this struct's
+// row-per-phase convention (same as prior boards), via an independent python3 transpose
+// script (same process as step 22/23/24).
+static const waveform_table_t wave_3b_inkplate6plusv2 = {
+    .levels = 8,
+    .phases = 9,
+    .table =
+        {
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 2, 0, 0, 0, 0, 0},
+            {0, 2, 2, 2, 0, 2, 2, 0},
+            {0, 1, 2, 2, 0, 1, 2, 0},
+            {0, 1, 1, 2, 2, 2, 2, 2},
+            {2, 1, 1, 1, 2, 1, 1, 2},
+            {1, 2, 2, 2, 2, 1, 1, 2},
+            {1, 1, 1, 1, 1, 2, 2, 2},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+// INKPLATE6PLUS -- V2 revision only (this pass doesn't wire the classic/non-V2 board):
+// same 1024x758 panel as Inkplate6FLICK (confirmed against the pasted Arduino reference
+// driver's pins.h), same PCAL6416A expander @ 0x20 for OE/GMODE/SPV. The Arduino pins.h's
+// IO_EXT_ADDR differs between revisions (0x22 classic INKPLATE6PLUS, 0x21 V2) but that
+// address is only used for touch, which isn't part of this struct and stays out of
+// scope this pass (deferred, same precedent as Inkplate6FLICK's second expander).
+// PMIC addr assumed 0x48 (TPS65186 default, not given in the pasted pins.h, same
+// assumption already made for every other board here). 5 reps/frame in
+// partialUpdate()'s for(k<5) loop. Mono display1b() loops for(k<4) like Inkplate6FLICK,
+// but HIL testing showed its phase *roles* are reversed from every other wired board
+// (repeated phases push white/skip black, one final phase pushes black/skip white) --
+// root-caused by decoding this board's own GraphicsDefs.h LUTW/LUTB against its
+// ~dram/dram indexing scheme, after the naive black_phases=4 mapping (copying
+// inkplate_gen_mono_wave's scheme) produced a uniformly dark/washed panel on real
+// hardware. Handled via inkplatemodule.c's inkplate_mono_display special-casing this
+// board onto inkplate_gen_mono_wave_white_first (waveform.c) instead. GS3 display3b() is
+// the standard for(k<9) loop, no special-casing needed. Display-path only (mono/GS3/
+// partial/clean) -- VCOM/
+// EEPROM, SD, battery/temperature, touch and frontlight are all out of scope this pass.
+const board_config_t board_config_inkplate6plusv2 = {
+    .name = "inkplate6plusv2",
+
+    .width = 1024,
+    .height = 758,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate6plusv2,
+
+    .partial_reps = 5,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};

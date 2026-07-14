@@ -58,6 +58,8 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
         active_board = &board_config_inkplate5v2;
     } else if (strcmp(name, "inkplate6flick") == 0) {
         active_board = &board_config_inkplate6flick;
+    } else if (strcmp(name, "inkplate6plusv2") == 0) {
+        active_board = &board_config_inkplate6plusv2;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown board"));
     }
@@ -143,11 +145,29 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
     // Arduino driver's discharge loop) -- see docs/REFACTOR-PLAN.md Phase 8 step 24.
     // Regenerated per call (board never changes after select_board(), and the LUT gen
     // itself is a handful of nibble-lookup loops -- not worth caching across boards).
-    uint8_t black_phases = (cfg == &board_config_inkplate6flick) ? 4 : 5;
     uint8_t mono_luts[INKPLATE_MONO_WAVE_MAX_PHASES][16];
-    inkplate_gen_mono_wave(black_phases, mono_luts);
+    uint8_t num_phases;
 
-    epd_i2s_push_mono_frame(cfg, (const uint8_t *)bufinfo.buf, mono_luts, black_phases + 1);
+    if (cfg == &board_config_inkplate6plusv2) {
+        // Inkplate6PLUSV2's real display1b() also loops for(k<4), but HIL testing (a
+        // uniformly dark/washed panel, unchanged by bumping the repeat count to 5) plus
+        // decoding this board's own GraphicsDefs.h LUTW/LUTB against its ~dram/dram
+        // indexing scheme showed its phase *roles* are the mirror image of every other
+        // wired board's: repeated phases push white (black skips), one final phase pushes
+        // black (white skips) -- the opposite of inkplate_gen_mono_wave's scheme. Confirmed
+        // NOT a generic-engine bug (Inkplate6/10/5v2/6FLICK are independently HIL-verified
+        // correct on the original scheme) -- scoped to this board only via
+        // inkplate_gen_mono_wave_white_first (waveform.c).
+        uint8_t repeat_phases = 4;
+        inkplate_gen_mono_wave_white_first(repeat_phases, mono_luts);
+        num_phases = repeat_phases + 1;
+    } else {
+        uint8_t black_phases = (cfg == &board_config_inkplate6flick) ? 4 : 5;
+        inkplate_gen_mono_wave(black_phases, mono_luts);
+        num_phases = black_phases + 1;
+    }
+
+    epd_i2s_push_mono_frame(cfg, (const uint8_t *)bufinfo.buf, mono_luts, num_phases);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_mono_display_obj, inkplate_mono_display);

@@ -91,7 +91,7 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
         if (color) {
             fb[idx] |= (uint8_t)(1 << shift);
         } else {
-            fb[idx] &= (uint8_t) ~(1 << shift);
+            fb[idx] &= (uint8_t)~(1 << shift);
         }
     } else {
         color &= 0x07;

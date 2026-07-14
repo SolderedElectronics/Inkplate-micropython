@@ -43,4 +43,16 @@ void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases
 #define INKPLATE_MONO_WAVE_MAX_PHASES 6
 void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16]);
 
+// Mono (1bpp) display waveform, reversed-role variant: `repeat_phases` "push toward white"
+// phases (white pixels pushed white, black pixels skip) then 1 final "push toward black"
+// phase (black pixels pushed black, white pixels skip) -- the mirror image of
+// inkplate_gen_mono_wave's phase roles. Required for Inkplate6PLUSV2: decoding its real
+// Arduino reference driver's display1b() (LUTW/LUTB from its own GraphicsDefs.h, indexed
+// via ~dram for the repeated loop and dram for the final loop) gives exactly this shape,
+// not inkplate_gen_mono_wave's -- HIL-confirmed on real hardware (inkplate_gen_mono_wave
+// produced a uniformly dark/washed panel: background only ever got one white push,
+// regardless of black_phases count, since white pixels are skipped in every repeated
+// phase under that scheme). out must have room for repeat_phases+1 rows of 16 bytes each.
+void inkplate_gen_mono_wave_white_first(uint8_t repeat_phases, uint8_t out[][16]);
+
 #endif // INKPLATE_WAVEFORM_H

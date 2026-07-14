@@ -94,11 +94,36 @@ static void test_mono_wave_parity(void)
     printf("test_mono_wave_parity: passed\n");
 }
 
+static void test_mono_wave_white_first_parity(void)
+{
+    // Inkplate6PLUSV2-only variant (docs/REFACTOR-PLAN.md Phase 8 step 25 HIL fix):
+    // repeated phases push white/skip black (op={2,3}, the mirror of expected_blk below),
+    // one final phase pushes black/skip white (op={3,1} -- coincidentally identical bytes
+    // to test_mono_wave_parity's expected_blk, just used as the last phase instead of the
+    // repeated ones). Values cross-checked via an independent python3 re-derivation of
+    // inkplate_gen_nibble_lut's own packing formula, not hand-derived.
+    static const uint8_t expected_wht[16] = {170, 171, 174, 175, 186, 187, 190, 191,
+                                             234, 235, 238, 239, 250, 251, 254, 255};
+    static const uint8_t expected_blk_final[16] = {255, 253, 247, 245, 223, 221, 215, 213,
+                                                   127, 125, 119, 117, 95,  93,  87,  85};
+
+    uint8_t wave[INKPLATE_MONO_WAVE_MAX_PHASES][16];
+    inkplate_gen_mono_wave_white_first(4, wave);
+
+    for (int phase = 0; phase < 4; phase++) {
+        assert(memcmp(wave[phase], expected_wht, 16) == 0);
+    }
+    assert(memcmp(wave[4], expected_blk_final, 16) == 0);
+
+    printf("test_mono_wave_white_first_parity: passed\n");
+}
+
 int main(void)
 {
     test_synthetic_nibble_lut();
     test_3bit_wave_parity();
     test_mono_wave_parity();
+    test_mono_wave_white_first_parity();
     printf("test_waveform: all assertions passed\n");
     return 0;
 }
