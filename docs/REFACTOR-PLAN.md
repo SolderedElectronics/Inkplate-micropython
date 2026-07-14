@@ -149,3 +149,27 @@ Completes the shared dithering engine scaffolded in Phase 7 (JPEG/PNG/BMP decode
 ## Verification approach summary
 
 Every task falls into one of three checks: (a) build/CI check for scaffolding, (b) host-compiled C unit test for pure logic (LUT generation, config struct, framebuffer packing) — runnable without hardware, (c) hardware-in-the-loop check on real Inkplate hardware comparing against the Phase 0 baseline. No task is marked done on "should work" — timing and visual output get compared against baseline photos/logs at each hardware checkpoint.
+
+## Old vs new, measured head-to-head (Inkplate10, real hardware)
+
+Every number below was measured back-to-back on the same physical Inkplate10, same SD card, same 3 sample files (`mountain.jpg`, `coastal.png`, `coastal.bmp`), in one session — not pulled from the per-step HIL notes above, which were taken at different points in the refactor and aren't always directly comparable to each other.
+
+**Method**: the pre-refactor code is pure Python + `@micropython.viper` — it never calls the `inkplate` C module, so it doesn't need a separate firmware build. "Old" and "new" runs were done by swapping which `.py` files sit in the device's `:lib/` (old files pulled from `git show 447426f:...`, the commit `refactor` forked from) on top of the *same already-flashed* current C firmware, running a timed script, then swapping back. No reflashing either direction.
+
+One pre-existing bug in the old code had to be worked around to get any numbers at all: `initSDCard` hardcoded `freq=80000000`, which doesn't mount on this hardware/card (same failure this refactor already root-caused and fixed in Phase 7 step 18) — patched to `freq=4000000` (matching the current fixed value) so the SD clock isn't a second variable on top of decode/draw. Everything else is the old code unmodified.
+
+| Operation | Old (pure Python) | New (C path) | Delta | Notes |
+|---|---|---|---|---|
+| Mono full display (clear→display) | 2295 ms (self-reported: 1332 clean + 402 draw = 1734) | 1413 ms (self-reported: 923 clean + 177 draw = 1100) | ~1.6x faster | wrapper time includes trailing clean/power-off the self-reported figure doesn't |
+| Mono full display (after drawing shapes) | 2071 ms | 1638 ms | ~1.3x faster | second `display()` call, same shapes as `basic_bw.py` rotation 0 |
+| Mono partial update (1 changed region) | 678 ms (self-reported draw-only: 418 ms, 101us/row) | 671 ms (self-reported draw-only: 211 ms) | draw-only ~2x faster; wall time ~same | wall time dominated by a fixed `einkOn`/`einkOff` power-sequencing cost common to both — the actual shift-out is 2x faster, it's just not the bottleneck at 1-frame scale |
+| Full-screen `fill_rect` (824x825, single call) | 15417 ms | 238 ms | **~65x faster** | old path is a per-pixel `writePixel` Python loop (~680k calls); new path is one C call — biggest single number in this table |
+| Grayscale full display (bar pattern) | 2451 ms (self-reported: 1173 clean + 1073 draw = 2246), **4 gray levels only** | 1792 ms (self-reported: 810 clean + 783 draw = 1593), **8 gray levels** | ~1.4x faster, *and* 2x the gray levels | old code never had a 3-bit path — this is a quality upgrade bundled with the speedup |
+| JPEG load+draw, no dither (`mountain.jpg`) | **dead code** — `import jpeg` raises `ImportError: no module named 'jpeg'` | 4257 ms draw + 2022 ms display | new capability, not a speedup | old `drawJPGFromSd` never worked on this firmware; pre-existing, unrelated to this refactor |
+| JPEG load+draw, dithered | dead code (same) | 6022 ms draw + 2025 ms display | new capability | — |
+| PNG load+draw, no dither (`coastal.png`, 947KB) | **fails**: `MemoryError: memory allocation failed, allocating 947302 bytes` | 17413 ms draw + 1791 ms display | new capability, not a speedup | old `drawPNGFromSd` does one whole-file `f.read()`; pre-existing heap-fragmentation bug, unrelated to this refactor |
+| PNG load+draw, dithered | fails (same) | 18330 ms draw + 1791 ms display | new capability | — |
+| BMP load+draw, no dither (`coastal.bmp`, 1.44MB, 24-bit) | 15144 ms draw + 2458 ms display | 7480 ms draw + 1792 ms display | ~2x faster draw, ~1.4x faster display | old code is 24-bit-only; new code also decodes indexed (1/4/8-bit) and 16-bit BMP, old can't open those at all |
+| BMP load+draw, dithered | 19131 ms draw + 2455 ms display | 8216 ms draw + 1792 ms display | ~2.3x faster draw | — |
+
+Takeaways: the shape/fill-rect path is where C wins biggest (per-pixel Python loop vs one C call — 65x). Whole-frame display/clean timing improves more modestly (~1.3–1.6x) since a chunk of that time is fixed panel power-sequencing, not compute. Image loading isn't just faster — JPEG and PNG (this file size) didn't work pre-refactor at all; those are new capabilities, and the BMP/grayscale comparisons come with a format/quality upgrade bundled in (indexed+16-bit BMP, 8 vs 4 gray levels), not just a raw speed delta.
