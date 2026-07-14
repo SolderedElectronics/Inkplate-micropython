@@ -17,6 +17,16 @@
 
 #include <stdint.h>
 
+// gfx_set_mirror_x flips every primitive's physical column (px = phys_w - 1 - px, after
+// the rotation remap) -- for boards whose panel scans columns opposite to Inkplate6/10's
+// (confirmed on Inkplate5V2, see boards/inkplate5v2/inkplate5v2.py's write_pixel_viper,
+// which needs the same flip). This is deliberately a one-time session-constant switch
+// (set once at board init, like inkplatemodule.c's active_board), not a per-call param
+// threaded through every gfx_* signature -- unlike rotation/display_mode, this never
+// varies call to call once a board is selected. Defaults to 0 (off); Inkplate6/10 never
+// call this, so their behavior is unchanged.
+void gfx_set_mirror_x(int enable);
+
 void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x,
                    int y, int color);
 

@@ -32,6 +32,15 @@ static void swap_int(int *a, int *b)
     *b = t;
 }
 
+// See gfx_set_mirror_x's declaration (gfx.h) for why this is static session state rather
+// than a per-call parameter.
+static int s_mirror_x = 0;
+
+void gfx_set_mirror_x(int enable)
+{
+    s_mirror_x = enable;
+}
+
 // Single pixel-write core -- consolidates what was boards/inkplate10/inkplate10.py's
 // write_pixel_viper (logical-bounds check with rotation-aware swap, physical remap, then
 // 1bpp bit set/clear or 4bpp GS4_HMSB nibble pack). Every primitive below funnels through
@@ -70,6 +79,10 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
             px = w - 1 - y;
             py = x;
             break;
+    }
+
+    if (s_mirror_x) {
+        px = w - 1 - px;
     }
 
     if (display_mode == 0) {

@@ -54,6 +54,8 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
         active_board = &board_config_inkplate6;
     } else if (strcmp(name, "inkplate6v2") == 0) {
         active_board = &board_config_inkplate6v2;
+    } else if (strcmp(name, "inkplate5v2") == 0) {
+        active_board = &board_config_inkplate5v2;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown board"));
     }
@@ -194,6 +196,13 @@ static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
     mp_get_buffer_raise(fb_obj, bufinfo, MP_BUFFER_WRITE);
     return (uint8_t *)bufinfo->buf;
 }
+
+static mp_obj_t inkplate_gfx_set_mirror_x(mp_obj_t enable_obj)
+{
+    gfx_set_mirror_x(mp_obj_is_true(enable_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gfx_set_mirror_x_obj, inkplate_gfx_set_mirror_x);
 
 static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
 {
@@ -452,6 +461,7 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_gs_display), MP_ROM_PTR(&inkplate_gs_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_partial_display), MP_ROM_PTR(&inkplate_partial_display_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_set_mirror_x), MP_ROM_PTR(&inkplate_gfx_set_mirror_x_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_hline), MP_ROM_PTR(&inkplate_gfx_hline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_vline), MP_ROM_PTR(&inkplate_gfx_vline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_line), MP_ROM_PTR(&inkplate_gfx_line_obj)},
