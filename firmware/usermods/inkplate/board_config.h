@@ -73,6 +73,8 @@ typedef struct {
 } board_config_t;
 
 extern const board_config_t board_config_inkplate10;
+extern const board_config_t board_config_inkplate6;
+extern const board_config_t board_config_inkplate6v2;
 
 // board_config_row_bytes: bytes needed for one row of 2-bit-per-pixel wire codes --
 // driven only by panel width, since the wire format is always 2 bits/pixel regardless

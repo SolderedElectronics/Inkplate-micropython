@@ -3,63 +3,40 @@
 import time
 import micropython
 import os
+import inkplate
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
 from micropython import const
-from gfx import GFX
+import gfx_standard_font_01 as montserrat_black
 import gc
 
-
-# Raw display constants for Inkplate 6
-D_ROWS = const(600)
-D_COLS = const(800)
 
 import machine
 
 machine.freq(240000000)
+# Raw display constants for Inkplate 6
+D_ROWS = const(600)
+D_COLS = const(800)
 
-# Waveforms for 2 bits per pixel grey-scale.
-# Order of 4 values in each tuple: blk, dk-grey, light-grey, white
-# Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
-# Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
-
-# add discharge to waveforms to try to fix them
-WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
-    (0, 0, 0, 0),
-    (0, 0, 0, 0),
-    (0, 1, 1, 0),
-    (0, 1, 1, 0),
-    (1, 2, 1, 0),
-    (1, 1, 2, 0),
-    (1, 2, 2, 2),
-)
-
-# Lookup mask to clear just that pixel's 2 bits
-pixel_mask_glut = bytearray(b"\xfc\xf3\xcf\x3f")  # precomputed masks
-# Ink6 WAVEFORM3BIT from arduino driver
-# {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
-#  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
+# Lookup mask to clear just that pixel's 4 bits (GS4_HMSB, 2 pixels/byte)
+pixel_mask_glut = bytearray(b"\xf0\x0f")  # precomputed masks
 
 TPS65186_addr = const(0x48)  # I2C address
 
-# ESP32 GPIO set and clear registers to twiddle 32 gpio bits at once
-# from esp-idf:
-# define DR_REG_GPIO_BASE           0x3ff44000
-# define GPIO_OUT_W1TS_REG          (DR_REG_GPIO_BASE + 0x0008)
-# define GPIO_OUT_W1TC_REG          (DR_REG_GPIO_BASE + 0x000c)
-ESP32_GPIO = const(0x3FF44000)  # ESP32 GPIO base
-# register offsets from ESP32_GPIO
-W1TS0 = const(2)  # offset for "write one to set" register for gpios 0..31
-W1TC0 = const(3)  # offset for "write one to clear" register for gpios 0..31
-W1TS1 = const(5)  # offset for "write one to set" register for gpios 32..39
-W1TC1 = const(6)  # offset for "write one to clear" register for gpios 32..39
-# bit masks in W1TS/W1TC registers
+# This driver targets the INKPLATE6V2 hardware revision by default -- confirmed from this
+# repo's own pre-refactor driver, which already used external-expander address 0x21
+# (INKPLATE6V2's IO_EXT_ADDR per the Arduino reference driver; classic INKPLATE6 uses 0x22
+# and has an onboard touchpad this project doesn't drive yet, deferred to Phase 11). Flip
+# to "inkplate6" below if your board is the original (non-V2) revision.
+_BOARD_VARIANT = "inkplate6v2"
+_EXPANDER2_ADDR = 0x21 if _BOARD_VARIANT == "inkplate6v2" else 0x22
+
+# Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
+# pulse sequencing itself now lives in C (firmware/usermods/inkplate/epd_bitbang.c),
+# selected via inkplate.select_board() below.
 EPD_DATA = const(0x0E8C0030)  # EPD_D0..EPD_D7
 EPD_CL = const(0x00000001)  # in W1Tx0
-EPD_LE = const(0x00000004)  # in W1Tx0
-EPD_CKV = const(0x00000001)  # in W1Tx1
-EPD_SPH = const(0x00000002)  # in W1Tx1
 
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
@@ -75,26 +52,34 @@ class _Inkplate:
     def init(cls, i2c):
         cls._i2c = i2c
         cls._PCAL6416A_1 = PCAL6416A(i2c)
-        cls._PCAL6416A_2 = PCAL6416A(i2c, 0x21)
-        # Display control lines
-        cls.EPD_CL = Pin(0, Pin.OUT, value=0)
-        cls.EPD_LE = Pin(2, Pin.OUT, value=0)
-        cls.EPD_CKV = Pin(32, Pin.OUT, value=0)
-        cls.EPD_SPH = Pin(33, Pin.OUT, value=1)
+        cls._PCAL6416A_2 = PCAL6416A(i2c, _EXPANDER2_ADDR)
+        # Display control lines -- pin mode/initial level only; toggling happens in C.
+        Pin(0, Pin.OUT, value=0)  # EPD_CL
+        Pin(2, Pin.OUT, value=0)  # EPD_LE
+        Pin(32, Pin.OUT, value=0)  # EPD_CKV
+        Pin(33, Pin.OUT, value=1)  # EPD_SPH
+        inkplate.select_board(_BOARD_VARIANT)
+        inkplate.set_expander_write_cb(cls._expander_write_cb)
 
         cls.EPD_OE = GpioPin(cls._PCAL6416A_1, 0, mode_output)
         cls.EPD_GMODE = GpioPin(cls._PCAL6416A_1, 1, mode_output)
+        # EPD_SPV itself is never read again -- toggling happens in C via pin_spv in
+        # board_config.c, which must stay pin 2 on this same expander (0x20) to match.
+        # This call's job is the pin_mode(OUTPUT) side effect (see PCAL6416A.GpioPin),
+        # not the object it returns.
         cls.EPD_SPV = GpioPin(cls._PCAL6416A_1, 2, mode_output)
+
         # Display data lines - we only use the Pin class to init the pins
-        Pin(4, Pin.OUT)
-        Pin(5, Pin.OUT)
-        Pin(18, Pin.OUT)
-        Pin(19, Pin.OUT)
-        Pin(23, Pin.OUT)
-        Pin(25, Pin.OUT)
-        Pin(26, Pin.OUT)
-        Pin(27, Pin.OUT)
+        Pin(4, Pin.OUT)  # D0
+        Pin(5, Pin.OUT)  # D1
+        Pin(18, Pin.OUT)  # D2
+        Pin(19, Pin.OUT)  # D3
+        Pin(23, Pin.OUT)  # D4
+        Pin(25, Pin.OUT)  # D5
+        Pin(26, Pin.OUT)  # D6
+        Pin(27, Pin.OUT)  # D7
         # TPS65186 power regulator control
+
         cls.TPS_WAKEUP = GpioPin(cls._PCAL6416A_1, 3, mode_output)
         cls.TPS_WAKEUP.digital_write(0)
 
@@ -108,23 +93,35 @@ class _Inkplate:
         cls.TPS_PWR_GOOD = GpioPin(cls._PCAL6416A_1, 7, mode_input)
 
         # Misc
+
         cls.GPIO0_PUP = GpioPin(cls._PCAL6416A_1, 8, mode_output)
         cls.GPIO0_PUP.digital_write(0)
 
         cls.VBAT_EN = GpioPin(cls._PCAL6416A_1, 9, mode_output)
-        cls.VBAT_EN.digital_write(0)
-
-        cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 10, mode_output)
-        cls.SD_ENABLE.digital_write(0)
+        cls.VBAT_EN.digital_write(0)  # Initially disable the battery read
 
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
 
+        cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 10, mode_output)
+
         cls._on = False  # whether panel is powered on or not
 
         if len(_Inkplate.byte2gpio) == 0:
             _Inkplate.gen_byte2gpio()
+
+    # _expander_write_cb is invoked from C (epd_bitbang.c, via expander_bridge.c) to
+    # toggle a PCAL6416A-controlled line (currently only SPV) -- routes by I2C address
+    # to whichever expander instance owns that address.
+    @classmethod
+    def _expander_write_cb(cls, addr, pin, value):
+        if addr == cls._PCAL6416A_1.addr:
+            cls._PCAL6416A_1.digital_write(pin, value)
+        elif addr == cls._PCAL6416A_2.addr:
+            cls._PCAL6416A_2.digital_write(pin, value)
+        else:
+            raise ValueError("no expander at addr {:#x}".format(addr))
 
     @classmethod
     def begin(cls):
@@ -133,18 +130,6 @@ class _Inkplate:
         cls.ipg = InkplateGS2()
         cls.ipm = InkplateMono()
         cls.ipp = InkplatePartial(cls.ipm)
-        cls.clear_display()
-
-        cls.GFX = GFX(
-            D_COLS,
-            D_ROWS,
-            cls.write_pixel,
-            cls.write_fast_hline,
-            cls.write_fast_vline,
-            cls.write_fill_rect,
-            None,
-            None,
-        )
 
     # Read the battery voltage. Note that the result depends on the ADC
     # calibration, and be a bit off.
@@ -161,21 +146,20 @@ class _Inkplate:
     # Read panel temperature. I varies +- 2 degree
     @classmethod
     def read_temperature(cls):
-        # start temperature measurement and wait 5 ms
         cls.TPS_WAKEUP.digital_write(1)
         cls.TPS_PWRUP.digital_write(1)
-        cls._tps65186_write(0x0D, 0x80)
-        time.sleep_ms(2)
+        # start temperature measurement and wait 5 ms
+        cls._i2c.writeto_mem(TPS65186_addr, 0x0D, bytes((0x80,)))
+        time.sleep_ms(5)
 
         # request temperature data from panel
         cls._i2c.writeto(TPS65186_addr, bytearray((0x00,)))
         cls._temperature = cls._i2c.readfrom(TPS65186_addr, 1)
 
-        # convert data from bytes to integer
-        cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
-
         cls.TPS_WAKEUP.digital_write(0)
         cls.TPS_PWRUP.digital_write(0)
+        # convert data from bytes to integer
+        cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
         return cls.temperatureInt
 
     # _tps65186_write writes an 8-bit value to a register
@@ -195,9 +179,11 @@ class _Inkplate:
             return
         cls._on = True
         # turn on power regulator
+
         cls.TPS_WAKEUP.digital_write(1)
         cls.TPS_PWRUP.digital_write(1)
         cls.TPS_VCOM.digital_write(1)
+
         # enable all rails
         cls._tps65186_write(0x01, 0x3F)  # ???
         time.sleep_ms(40)
@@ -208,8 +194,9 @@ class _Inkplate:
         cls.EPD_GMODE.digital_write(1)
         cls.EPD_OE.digital_write(1)
 
+        time.sleep_ms(50)
+
     # power_off puts the display to sleep and cuts the power
-    # TODO: also tri-state gpio pins to avoid current leakage during deep-sleep
     @classmethod
     def power_off(cls):
         if not cls._on:
@@ -226,36 +213,41 @@ class _Inkplate:
 
     # ===== Methods that are independent of pixel bit depth
 
-    # vscan_start begins a vertical scan by toggling CKV and SPV
-    # sleep_us calls are commented out 'cause MP is slow enough...
+    # vscan_start/vscan_write/vscan_end/fill_screen are implemented in C
+    # (firmware/usermods/inkplate/epd_bitbang.c), config-driven via board_config_t --
+    # same names/signatures as Inkplate10, so inkplate_mono.py/inkplate_gs.py/
+    # inkplate_partial.py need no changes.
     @classmethod
     def vscan_start(cls):
-        def ckv_pulse():
-            cls.EPD_CKV(0)
-            cls.EPD_CKV(1)
+        inkplate.vscan_start()
 
-        # start a vertical scan pulse
-        cls.EPD_CKV(1)  # time.sleep_us(7)
-        cls.EPD_SPV.digital_write(0)  # time.sleep_us(10)
-        ckv_pulse()  # time.sleep_us(8)
-        cls.EPD_SPV.digital_write(1)  # time.sleep_us(10)
-        # pulse through 3 scan lines that end up being invisible
-        ckv_pulse()  # time.sleep_us(18)
-        ckv_pulse()  # time.sleep_us(18)
-        ckv_pulse()
+    @classmethod
+    def vscan_end(cls):
+        inkplate.vscan_end()
 
-    # vscan_write latches the row into the display pixels and moves to the next row
-    @micropython.viper
     @staticmethod
     def vscan_write():
-        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
-        w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
-        w1ts0[0] = EPD_LE  # pulse to latch row --
-        w1ts0[0] = EPD_LE  # delay a tiny bit
-        w1tc0[0] = EPD_LE
-        w1tc0[0] = EPD_LE  # delay a tiny bit
-        w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
+        inkplate.vscan_write()
+
+    @classmethod
+    def i2s_init(cls):
+        inkplate.i2s_init()
+
+    @classmethod
+    def i2s_deinit(cls):
+        inkplate.i2s_deinit()
+
+    @staticmethod
+    def mono_display(framebuf):
+        inkplate.mono_display(framebuf)
+
+    @staticmethod
+    def gs_display(framebuf):
+        inkplate.gs_display(framebuf)
+
+    @staticmethod
+    def partial_display(old_fb, new_fb):
+        inkplate.partial_display(old_fb, new_fb)
 
     # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
     # (oh, e-radionica, why didn't you group the gpios better?!)
@@ -274,51 +266,18 @@ class _Inkplate:
             union |= cls.byte2gpio[i]
         assert union == EPD_DATA
 
-    # fill_screen writes the same value to all bytes of the screen, it is used for cleaning
-    @micropython.viper
     @staticmethod
     def fill_screen(data: int):
-        w1ts0 = ptr32(int(ESP32_GPIO + 4 * W1TS0))
-        w1tc0 = ptr32(int(ESP32_GPIO + 4 * W1TC0))
-        # set the data output gpios
-        w1tc0[0] = EPD_DATA | EPD_CL
-        w1ts0[0] = data
-        epd_cl = EPD_CL
+        inkplate.fill_screen(data)
 
-        # send all rows
-        for r in range(D_ROWS):
-            # send first byte of row with start-row signal
-            w1tc0[W1TC1 - W1TC0] = EPD_SPH
-            w1ts0[0] = epd_cl
-            w1tc0[0] = epd_cl
-            w1ts0[W1TS1 - W1TS0] = EPD_SPH
-
-            # send remaining bytes (we overshoot by one, which is OK)
-            i = int(D_COLS >> 3)
-            while i > 0:
-                w1ts0[0] = epd_cl
-                w1tc0[0] = epd_cl
-                w1ts0[0] = epd_cl
-                w1tc0[0] = epd_cl
-                i -= 1
-
-            # latch row and increment to next
-            # inlined vscan_write()
-            w1tc0[W1TC1 - W1TC0] = EPD_CKV  # remove gate drive
-            w1ts0[0] = EPD_LE  # pulse to latch row --
-            w1ts0[0] = EPD_LE  # delay a tiny bit
-            w1tc0[0] = EPD_LE
-            w1tc0[0] = EPD_LE  # delay a tiny bit
-            w1ts0[W1TS1 - W1TS0] = EPD_CKV  # apply gate drive to next row
-
-    # clean fills the screen with one of the four possible pixel patterns
+    # clean fills the screen with one of the four possible pixel patterns via I2S DMA.
+    # Caller must have already called i2s_init() -- same precondition as
+    # epd_i2s_push_frame/push_row (firmware/usermods/inkplate/epd_i2s.h).
     @classmethod
     def clean(cls, patt, rep):
         c = [0xAA, 0x55, 0x00, 0xFF][patt]
-        data = _Inkplate.byte2gpio[c] & ~EPD_CL
         for i in range(rep):
-            cls.vscan_start()
-            cls.fill_screen(data)
+            inkplate.i2s_push_frame(c)
 
     @classmethod
     def rtc_dec_to_bcd(cls, val):
@@ -394,10 +353,11 @@ class _Inkplate:
 from inkplate_partial import *
 from inkplate_gs import *
 from inkplate_mono import *
-# Inkplate wraper to make it more easy for use
 
 
 class Inkplate:
+    # Inkplate wraper to make it more easy for use
+
     INKPLATE_1BIT = 0
     INKPLATE_2BIT = 1
 
@@ -430,7 +390,7 @@ class Inkplate:
         else:
             self.textColor = 1
 
-        self.wrap_text = True
+        self.textWrapping = 1
 
         self.cursor = [0, 0]
 
@@ -438,20 +398,10 @@ class Inkplate:
         self.fullUpdateThreshold = 10
         self.partialUpdateCounter = 0
 
-        self.textWrapping = 1
-
         self.clear_display()
 
-        self.GFX = GFX(
-            D_COLS,
-            D_ROWS,
-            self.write_pixel,
-            self.write_fast_hline,
-            self.write_fast_vline,
-            self.write_fill_rect,
-            None,
-            None,
-        )
+        self.font_family = montserrat_black
+        self.font = self.font_family._font
 
     def init_sd_card(self, fast_boot=False):
         _Inkplate.SD_ENABLE.digital_write(0)
@@ -463,7 +413,14 @@ class Inkplate:
                     mosi=Pin(13),
                     sck=Pin(14),
                     cs=Pin(15),
-                    freq=80000000,
+                    # Same SD wiring/expander as Inkplate10 (confirmed against the Arduino
+                    # reference driver's sdCardInit(), same pins), so reusing Inkplate10's
+                    # already-HIL-verified 4MHz value here too -- but that finding was
+                    # specific to Inkplate10's own SD card/cable on that session's hardware
+                    # (docs/REFACTOR-PLAN.md Phase 7 step 21); not yet independently
+                    # confirmed on real Inkplate6 hardware. Re-verify during this step's
+                    # HIL pass and raise if 4MHz proves unnecessarily conservative here.
+                    freq=4000000,
                 ),
                 "/sd",
             )
@@ -531,14 +488,16 @@ class Inkplate:
 
     def clean(self):
         self.eink_on()
+        _Inkplate.i2s_init()
         _Inkplate.clean(0, 1)
-        _Inkplate.clean(1, 12)
+        _Inkplate.clean(1, 18)
         _Inkplate.clean(2, 1)
-        _Inkplate.clean(0, 11)
+        _Inkplate.clean(0, 18)
         _Inkplate.clean(2, 1)
-        _Inkplate.clean(1, 12)
+        _Inkplate.clean(1, 18)
         _Inkplate.clean(2, 1)
-        _Inkplate.clean(0, 11)
+        _Inkplate.clean(0, 18)
+        _Inkplate.i2s_deinit()
         self.eink_off()
 
     def eink_on(self):
@@ -562,15 +521,10 @@ class Inkplate:
     # Arduino compatibility functions
     def set_rotation(self, x):
         self.rotation = x % 4
-        self.GFX.rotation = self.rotation
         if self.rotation == 0 or self.rotation == 2:
-            self.GFX.width = D_COLS
-            self.GFX.height = D_ROWS
             self._width = D_COLS
             self._height = D_ROWS
         elif self.rotation == 1 or self.rotation == 3:
-            self.GFX.width = D_ROWS
-            self.GFX.height = D_COLS
             self._width = D_ROWS
             self._height = D_COLS
 
@@ -585,6 +539,7 @@ class Inkplate:
     def start_write(self):
         pass
 
+    @micropython.native
     def write_pixel(self, x, y, c):
         if self.display_mode == 0:
             Inkplate.write_pixel_viper(
@@ -631,14 +586,14 @@ class Inkplate:
                 fb[idx] = fb[idx] & ~(1 << shift)
 
         else:
-            c &= 0x03
+            c &= 0x07  # raw 0-7 (3-bit/8-level storage, GS4_HMSB)
 
-            # Find byte index
-            byte_index = py * 200 + (px >> 2)
+            # Find byte index (2 pixels/byte)
+            byte_index = py * 400 + (px >> 1)
 
-            # Which pixel inside this byte (0..3)
-            pixel_index = px & 3
-            shift = pixel_index * 2
+            # Which pixel inside this byte (0..1)
+            pixel_index = px & 1
+            shift = pixel_index * 4
 
             # Load current byte
             temp = fb[byte_index]
@@ -660,21 +615,36 @@ class Inkplate:
                     self.write_pixel(x + i, y + j, c)
         self.end_write()
 
+    # write_fill_rect/write_fast_hline/write_fast_vline predate shared/gfx.py's GFX class
+    # (GFX.fill_rect/hline/vline are bound to these, not the other way around) so they were
+    # out of scope for the initial gfx C port -- ported here as a direct follow-up since
+    # gfx_fill_rect/gfx_hline/gfx_vline already exist and are already tested: collapsing
+    # these from an O(w*h)/O(n) per-pixel Python loop into a single C call is the actual win
+    # (write_pixel itself is already a viper function, so it wasn't worth touching).
     def write_fill_rect(self, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                self.write_pixel(x + j, y + i, c)
+        inkplate.gfx_fill_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, h, c
+        )
 
     def write_fast_vline(self, x, y, h, c):
-        for i in range(h):
-            self.write_pixel(x, y + i, c)
+        inkplate.gfx_vline(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, h, c
+        )
 
     def write_fast_hline(self, x, y, w, c):
-        for i in range(w):
-            self.write_pixel(x + i, y, c)
+        inkplate.gfx_hline(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, c
+        )
+
+    # Active framebuf for the current display_mode -- shared by every gfx_* call below,
+    # since C owns the whole draw now instead of a per-pixel Python callback.
+    def _framebuf(self):
+        return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf
 
     def write_line(self, x0, y0, x1, y1, c):
-        self.GFX.line(x0, y0, x1, y1, c)
+        inkplate.gfx_line(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x0, y0, x1, y1, c
+        )
 
     def end_write(self):
         pass
@@ -703,25 +673,61 @@ class Inkplate:
         self.end_write()
 
     def draw_rect(self, x, y, w, h, c):
-        self.GFX.rect(x, y, w, h, c)
+        inkplate.gfx_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, h, c
+        )
 
     def draw_circle(self, x, y, r, c):
-        self.GFX.circle(x, y, r, c)
+        inkplate.gfx_circle(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, r, c
+        )
 
     def fill_circle(self, x, y, r, c):
-        self.GFX.fill_circle(x, y, r, c)
+        inkplate.gfx_fill_circle(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, r, c
+        )
 
     def draw_triangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_triangle(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            c,
+        )
 
     def fill_triangle(self, x0, y0, x1, y1, x2, y2, c):
-        self.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_fill_triangle(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            c,
+        )
 
     def draw_round_rect(self, x, y, q, h, r, c):
-        self.GFX.round_rect(x, y, q, h, r, c)
+        inkplate.gfx_round_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, q, h, r, c
+        )
 
     def fill_round_rect(self, x, y, q, h, r, c):
-        self.GFX.fill_round_rect(x, y, q, h, r, c)
+        inkplate.gfx_fill_round_rect(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, q, h, r, c
+        )
 
     def set_display_mode(self, mode):
         self.display_mode = mode
@@ -733,8 +739,8 @@ class Inkplate:
         self.text_size = s
 
     def set_font(self, f):
-        self.GFX.font_family = f
-        self.GFX.font = self.GFX.font_family._font
+        self.font_family = f
+        self.font = self.font_family._font
 
     def set_text_color(self, c):
         self.textColor = c
@@ -748,79 +754,104 @@ class Inkplate:
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
-    def print_text(self, x, y, s):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.GFX._print_text(
-                self.ipg._framebuf,
-                x,
-                y,
-                s,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
+    # Ported from shared/gfx.py GFX._print_text, with the per-char blit routed through
+    # inkplate.gfx_draw_char instead of GFX._draw_char_1bpp/_draw_char_2bpp. Those two were
+    # dispatched by a caller-supplied `bpp` kwarg that had drifted out of sync with the real
+    # framebuf storage -- this version dispatches on self.display_mode instead, like every
+    # other draw method here, so there is one packing decision instead of two that can
+    # disagree.
+    def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
+        display_width = self._width
+
+        if self.display_mode == 0:
+            color = 1 if color else 0
         else:
-            self.GFX._print_text(
-                self.ipm._framebuf,
-                x,
-                y,
-                s,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
+            color = min(max(color, 0), 7)
+
+        x = int(x0)
+        y = int(y0)
+        line_height = 0
+
+        def blit(cx, cy, char_data, ch_w, ch_h):
+            inkplate.gfx_draw_char(
+                framebuf,
+                D_COLS,
+                D_ROWS,
+                self.rotation,
+                self.display_mode,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                color,
             )
 
+        for chunk in string.split("__"):
+            try:
+                char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
+                line_height = max(line_height, ch_h * size)
+
+                if text_wrap is True and x + ch_w * size > display_width:
+                    x = 0
+                    y += line_height
+                    line_height = ch_h * size
+
+                blit(x, y, char_data, ch_w, ch_h)
+                x += ch_w * size
+            except (ValueError, TypeError):
+                for char in chunk:
+                    if char == "\n":
+                        x = x0
+                        y += line_height
+                        line_height = 0
+                        continue
+
+                    try:
+                        char_data, ch_h, ch_w = self.font_family.get_ch(char)
+                    except (ValueError, TypeError):
+                        char_data, ch_h, ch_w = self.font_family.get_ch("?")
+
+                    line_height = max(line_height, ch_h * size)
+
+                    if text_wrap is True and x + ch_w * size > display_width:
+                        x = 0
+                        y += line_height
+                        line_height = ch_h * size
+
+                    blit(x, y, char_data, ch_w, ch_h)
+                    x += ch_w * size
+        return [x, y], line_height
+
+    def print_text(self, x, y, s):
+        self._print_text(
+            self._framebuf(), x, y, s, self.text_size, self.textColor, text_wrap=self.textWrapping
+        )
+
     def println(self, text):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipg._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
-        else:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipm._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
-            )
+        self.cursor, line_height = self._print_text(
+            self._framebuf(),
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.text_size,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
         self.cursor[1] += line_height
         self.cursor[0] = 0
 
     def print(self, text):
-        if self.display_mode == Inkplate.INKPLATE_2BIT:
-            self.cursor, line_height = self.GFX._print_text(
-                self.ipg._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=2,
-            )
-        else:
-            self.cursor, _ = self.GFX._print_text(
-                self.ipm._framebuf,
-                self.cursor[0],
-                self.cursor[1],
-                text,
-                self.text_size,
-                self.textColor,
-                text_wrap=self.textWrapping,
-                bpp=1,
-            )
+        self.cursor, _ = self._print_text(
+            self._framebuf(),
+            self.cursor[0],
+            self.cursor[1],
+            text,
+            self.text_size,
+            self.textColor,
+            text_wrap=self.textWrapping,
+        )
 
     def wrap_text(self, text, max_chars):
         lines = []
@@ -870,7 +901,7 @@ class Inkplate:
         if path.startswith(("http://", "https://")):
             # Determine image type from URL
             if path.lower().endswith(".bmp"):
-                self.draw_bmp_from_web(path, x0, y0, invert, dither)
+                self.draw_bmp_from_web(path, x0, y0, invert, dither, kernel_type)
             elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
                 self.draw_jpg_from_web(path, x0, y0, invert, dither, kernel_type)
             elif path.lower().endswith(".png"):
@@ -880,7 +911,7 @@ class Inkplate:
         else:
             # Handle local file
             if path.lower().endswith(".bmp"):
-                self.draw_bmp_from_sd(path, x0, y0, invert, dither)
+                self.draw_bmp_from_sd(path, x0, y0, invert, dither, kernel_type)
             elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
                 self.draw_jpg_from_sd(path, x0, y0, invert, dither, kernel_type)
             elif path.lower().endswith(".png"):
@@ -897,1015 +928,165 @@ class Inkplate:
     def rtc_get_data(self):
         return _Inkplate.rtc_get_rtc_data()
 
-    @staticmethod
-    @micropython.viper
-    def write_row(
-        framebuf: ptr8,
-        row: int,
-        x0: int,
-        width: int,
-        rowdata: ptr8,
-        invert: bool = False,
-        dither: bool = False,
-        display_mode: int = 1,
-    ):
-        __screen_width = const(800)
-        __screen_height = const(600)
-        __bytes_per_row = const(200)  # For 4 pixels per byte mode
-        __bytes_per_row_bw = const(100)  # For 8 pixels per byte mode
-
-        # Safety checks with explicit type conversion
-        row_val: int = int(row)
-        x0_val: int = int(x0)
-        width_val: int = int(width)
-
-        if row_val < 0 or row_val >= __screen_height or x0_val < 0 or width_val <= 0:
-            return
-
-        # Calculate drawing boundaries
-        draw_width: int = (
-            width_val if (x0_val + width_val) <= __screen_width else __screen_width - x0_val
-        )
-        if draw_width <= 0:
-            return
-
-        # Inversion mask
-        inv_mask: int = 0
-        if display_mode == 0:
-            inv_mask = 0x01 if invert else 0x00  # For 1-bit mode
-        else:
-            inv_mask = 0x03 if invert else 0x00  # For 2-bit mode
-
-        # Initialize error buffers if dithering
-        error_current = ptr8(bytearray(0))
-        if dither:
-            error_buf = bytearray(draw_width * 2)
-            error_current = ptr8(error_buf)
-
-        # Calculate framebuffer row position with explicit types
-        fb_row_pos: int = 0
-        if display_mode == 0:
-            fb_row_pos = row_val * __bytes_per_row_bw + (x0_val // 8)
-        else:
-            fb_row_pos = row_val * __bytes_per_row + (x0_val // 4)
-
-        col: int = 0
-        while col < draw_width:
-            if display_mode == 0:
-                # 1-bit mode processing (8 pixels per byte)
-                pix_grp: int = 8 if (col + 8) <= draw_width else draw_width - col
-                packed: int = 0
-
-                # Process each pixel in the group
-                for i in range(int(pix_grp)):  # Explicit int conversion
-                    # Safe array access
-                    if (col + i) >= draw_width:
-                        break
-
-                    gray: int = int(rowdata[col + i])  # Explicit int conversion
-
-                    # Apply dithering if enabled
-                    if dither:
-                        epos: int = (col + i) * 2
-                        if epos + 1 < draw_width * 2:
-                            err: int = int(error_current[epos]) | (
-                                int(error_current[epos + 1]) << 8
-                            )
-                            if err & 0x8000:
-                                err |= -65536
-                            gray += err
-                            gray = 255 if gray > 255 else (0 if gray < 0 else gray)
-
-                    # Threshold to black or white and apply inversion
-                    val: int = 0 if gray > 127 else 1
-                    val ^= inv_mask
-
-                    # Pack bits in proper order (MSB first)
-                    packed |= val << i
-
-                # Write to framebuffer with bounds checking
-                fb_idx: int = fb_row_pos + (col // 8)
-                if fb_idx >= 0 and fb_idx < (__bytes_per_row_bw * __screen_height):
-                    if pix_grp == 8:
-                        framebuf[fb_idx] = packed
-                    else:
-                        shift: int = 8 - int(pix_grp)  # Explicit int conversion here
-                        mask: int = (0xFF >> shift) << shift
-                        packed = (packed >> shift) << shift
-                        old: int = int(framebuf[fb_idx])  # Explicit int conversion
-                        framebuf[fb_idx] = (old & ~mask) | (packed & mask)
-                col += 8
-
-            else:
-                # 2-bit mode processing (4 pixels per byte)
-                pix_grp: int = 4 if (col + 4) <= draw_width else draw_width - col
-                packed: int = 0
-
-                for i in range(int(pix_grp)):  # Explicit int conversion
-                    # Safe array access
-                    if (col + i) >= draw_width:
-                        break
-
-                    gray: int = int(rowdata[col + i])  # Explicit int conversion
-
-                    # Apply dithering if enabled
-                    if dither:
-                        epos: int = (col + i) * 2
-                        if epos + 1 < draw_width * 2:
-                            err: int = int(error_current[epos]) | (
-                                int(error_current[epos + 1]) << 8
-                            )
-                            if err & 0x8000:
-                                err |= -65536
-                            gray += err
-                            gray = 255 if gray > 255 else (0 if gray < 0 else gray)
-
-                    # Convert to 2-bit value and apply inversion
-                    val: int = (gray >> 6) ^ inv_mask
-                    packed |= val << (i * 2)
-
-                    # Calculate error for dithering
-                    if dither and (col + i) < draw_width:
-                        quant_val: int = val * 85
-                        delta: int = gray - quant_val
-                        epos = (col + i) * 2
-
-                        # Floyd-Steinberg error diffusion with bounds checking
-                        if col + i + 1 < draw_width:
-                            # Right neighbor (7/16)
-                            epos_right: int = epos + 2
-                            if epos_right + 1 < draw_width * 2:
-                                terr: int = int(error_current[epos_right]) | (
-                                    int(error_current[epos_right + 1]) << 8
-                                )
-                                if terr & 0x8000:
-                                    terr |= -65536
-                                terr += (delta * 7) // 16
-                                error_current[epos_right] = terr & 0xFF
-                                error_current[epos_right + 1] = (terr >> 8) & 0xFF
-
-                # Write to framebuffer with bounds checking
-                fb_idx: int = fb_row_pos + (col // 4)
-                if fb_idx >= 0 and fb_idx < (__bytes_per_row * __screen_height):
-                    if pix_grp == 4:
-                        framebuf[fb_idx] = packed
-                    else:
-                        mask: int = 0xFF >> (8 - int(pix_grp) * 2)  # Explicit int conversion
-                        old: int = int(framebuf[fb_idx])  # Explicit int conversion
-                        framebuf[fb_idx] = (old & ~mask) | (packed & mask)
-                col += 4
-
-    def draw_bmp_from_sd(self, path, x0=0, y0=0, invert=False, dither=False):
+    def draw_bmp_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        bmp_size = os.stat(path)[6]
+        bmp_data = bytearray(bmp_size)
         with open(path, "rb") as f:
-            # Read BMP header
-            header = f.read(54)
-            if len(header) < 54 or header[0:2] != b"BM":
-                raise ValueError("Not a valid BMP file")
+            # os.stat + readinto into a pre-sized bytearray, not f.read(): MicroPython's
+            # whole-file read() grows its buffer geometrically and can transiently need
+            # more than the final size, MemoryError-ing on files a pre-sized allocation
+            # handles fine.
+            f.readinto(bmp_data)
+        inkplate.bmp_draw_gs4(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            bmp_data,
+            invert,
+            dither,
+            kernel_type,
+        )
+        gc.collect()
 
-            # Parse header information
-            w = int.from_bytes(header[18:22], "little", True)
-            h = int.from_bytes(header[22:26], "little", True)
-            depth = int.from_bytes(header[28:30], "little")
-            data_start = int.from_bytes(header[10:14], "little")
-
-            if depth != 24:
-                raise ValueError("Only 24-bit BMP files are supported")
-
-            # Handle negative height (top-down BMP)
-            flip_y = h > 0
-            w = abs(w)
-            h = abs(h)
-
-            # Calculate drawing boundaries
-            fb_width = min(w, self._width - x0)
-            fb_height = min(h, self._height - y0)
-
-            if fb_width <= 0 or fb_height <= 0:
-                return  # Image would be drawn outside display area
-
-            # BMP rows are padded to 4-byte boundaries
-            row_size = (w * 3 + 3) & ~3
-
-            # Prepare buffers
-            temp_row = bytearray(fb_width)
-            raw_buf = bytearray(row_size)
-
-            # Seek to pixel data
-            f.seek(data_start)
-
-            display_mode = self.display_mode
-
-            for row in range(h):
-                bmp_y = h - 1 - row if flip_y else row
-                if bmp_y >= fb_height:
-                    f.readinto(raw_buf)  # Skip unused rows
-                    continue
-
-                # Read BMP row data
-                f.readinto(raw_buf)
-
-                # Convert to grayscale with optional dithering
-                for col in range(fb_width):
-                    i = col * 3
-                    b = raw_buf[i]
-                    g = raw_buf[i + 1]
-                    r = raw_buf[i + 2]
-
-                    # Calculate grayscale (faster integer approximation)
-                    gray = (r * 77 + g * 151 + b * 28) >> 8  # ~= 0.299R + 0.587G + 0.114B
-
-                    if invert:
-                        gray = 255 - gray
-
-                    # Store in temp row (will be processed by write_row)
-                    temp_row[col] = gray
-
-                # Write the row with optional dithering
-                if display_mode == 1:
-                    Inkplate.write_row(
-                        self.ipg._framebuf,
-                        y0 + bmp_y,
-                        x0,
-                        fb_width,
-                        temp_row,
-                        invert,
-                        dither,
-                        display_mode,
-                    )
-                elif display_mode == 0:
-                    Inkplate.write_row(
-                        self.ipm._framebuf,
-                        y0 + bmp_y,
-                        x0,
-                        fb_width,
-                        temp_row,
-                        invert,
-                        dither,
-                        display_mode,
-                    )
-
-    def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False):
+    def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """Display a BMP image downloaded from the web
 
         Args:
-            bmp_data (bytes): Raw BMP file data
+            url (str): URL of the BMP image
             x0 (int): X position to start drawing
             y0 (int): Y position to start drawing
             invert (bool): Whether to invert colors
             dither (bool): Whether to apply dithering
+            kernel_type (int): Dithering kernel (0=Floyd-Steinberg, 1=JJN, 2=Stucki, 3=Burkes)
         """
-        import gc
         import urequests
 
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             bmp_data = response.content
             response.close()
-            # Check if we have enough data for BMP headers
-            if len(bmp_data) < 54:
-                raise ValueError("Not enough data for BMP headers")
-
-            # Check BMP signature
-            if bmp_data[0:2] != b"BM":
-                raise ValueError("Not a valid BMP file")
-
-            # Parse header information using memoryview for efficiency
-            header = memoryview(bmp_data)
-            w = int.from_bytes(header[18:22], "little", True)
-            h = int.from_bytes(header[22:26], "little", True)
-            depth = int.from_bytes(header[28:30], "little")
-            data_start = int.from_bytes(header[10:14], "little")
-
-            if depth != 24:
-                raise ValueError("Only 24-bit BMP files are supported")
-
-            # Handle negative height (top-down BMP)
-            flip_y = h > 0
-            w = abs(w)
-            h = abs(h)
-
-            # Calculate drawing boundaries
-            fb_width = min(w, self._width - x0)
-            fb_height = min(h, self._height - y0)
-
-            if fb_width <= 0 or fb_height <= 0:
-                return  # Image would be drawn outside display area
-
-            # BMP rows are padded to 4-byte boundaries
-            row_size = (w * 3 + 3) & ~3
-
-            # Prepare buffers
-            temp_row = bytearray(fb_width)
-            display_mode = self.display_mode
-
-            # Get pixel data section
-            if len(bmp_data) < data_start + row_size * h:
-                raise ValueError("BMP data incomplete or corrupted")
-
-            pixel_data = memoryview(bmp_data)[data_start:]
-
-            for row in range(h):
-                bmp_y = h - 1 - row if flip_y else row
-                if bmp_y >= fb_height:
-                    continue  # Skip unused rows
-
-                # Get current row data
-                row_start = row * row_size
-                row_end = row_start + row_size
-                raw_row = pixel_data[row_start:row_end]
-
-                # Convert to grayscale with optional dithering
-                for col in range(fb_width):
-                    i = col * 3
-                    b = raw_row[i]
-                    g = raw_row[i + 1]
-                    r = raw_row[i + 2]
-
-                    # Fast grayscale conversion
-                    gray = (r * 77 + g * 151 + b * 28) >> 8  # ~= 0.299R + 0.587G + 0.114B
-
-                    if invert:
-                        gray = 255 - gray
-
-                    # Store in temp row
-                    temp_row[col] = gray
-
-                # Write the row with optional dithering
-                target_framebuf = self.ipm._framebuf if display_mode == 0 else self.ipg._framebuf
-                Inkplate.write_row(
-                    target_framebuf,
-                    y0 + bmp_y,
-                    x0,
-                    fb_width,
-                    temp_row,
-                    invert,
-                    dither,
-                    display_mode,
-                )
-                gc.collect()
+            inkplate.bmp_draw_gs4(
+                self._framebuf(),
+                D_COLS,
+                D_ROWS,
+                self.rotation,
+                self.display_mode,
+                x0,
+                y0,
+                bmp_data,
+                invert,
+                dither,
+                kernel_type,
+            )
+            gc.collect()
         except Exception as e:
             print("Error in draw_bmp_from_web:", e)
             if "response" in locals():
                 response.close()
-
-    @staticmethod
-    def decode_png_to_framebuffer(
-        png_data, framebuf, x0, y0, invert=False, dither=False, display_mode=1
-    ):
-        import deflate
-        import io
-        from uctypes import addressof, bytearray_at
-
-        _screen_width_ = const(800)
-        _screen_height_ = const(600)
-        _bytes_per_row_ = const(200)  # For 4 pixels per byte mode
-        _bytes_per_row_bw_ = const(100)  # For 8 pixels per byte mode
-
-        @micropython.native
-        def process_chunks(png_data):
-            pos = 8  # Skip PNG signature
-            ihdr = None
-            idat_data = bytearray()
-            while pos + 8 <= len(png_data):
-                chunk_len = int.from_bytes(png_data[pos : pos + 4], "big")
-                chunk_type = png_data[pos + 4 : pos + 8]
-                chunk_start = pos + 8
-                if chunk_type == b"IHDR":
-                    ihdr = png_data[chunk_start : chunk_start + chunk_len]
-                elif chunk_type == b"IDAT":
-                    idat_data += png_data[chunk_start : chunk_start + chunk_len]
-                elif chunk_type == b"IEND":
-                    break
-                pos += chunk_len + 12
-            return ihdr, idat_data
-
-        @micropython.viper
-        def process_image(
-            idat_data: ptr8,
-            idat_len: int,
-            framebuf: ptr8,
-            width: int,
-            height: int,
-            bpp: int,
-            x0: int,
-            y0: int,
-            invert: bool,
-            dither: bool,
-            display_mode: int,
-        ):
-            # Screen boundary checks
-            draw_width: int = width if (x0 + width) <= _screen_width_ else _screen_width_ - x0
-            draw_height: int = height if (y0 + height) <= _screen_height_ else _screen_height_ - y0
-
-            if draw_width <= 0 or draw_height <= 0:
-                return  # Nothing to draw
-
-            # Pre-calculate constants
-            inv_mask: int = 0x03 if invert and display_mode else 0x01 if invert else 0x00
-            pixels_per_byte: int = 4 if display_mode else 8
-            bytes_per_row: int = _bytes_per_row_ if display_mode else _bytes_per_row_bw_
-
-            # Dithering setup
-            if dither:
-                errbuf_w: int = draw_width
-                error_current_buf = bytearray(errbuf_w * 2)
-                error_next_buf = bytearray(errbuf_w * 2)
-                error_current = ptr8(addressof(error_current_buf))
-                error_next = ptr8(addressof(error_next_buf))
-                for i in range(errbuf_w * 2):
-                    error_current[i] = 0
-                    error_next[i] = 0
-
-            # Image processing buffers
-            row_size: int = width * bpp
-            stride: int = row_size + 1
-            cur_buf = bytearray(row_size)
-            prev_buf = bytearray(row_size)
-            cur = ptr8(addressof(cur_buf))
-            prev = ptr8(addressof(prev_buf))
-            for i in range(row_size):
-                prev[i] = 0
-
-            # Decompression
-            idat_mv = bytearray_at(idat_data, idat_len)
-            dstream = deflate.DeflateIO(io.BytesIO(idat_mv))
-
-            for y in range(height):
-                # Skip if this row is outside our draw area
-                if y >= draw_height:
-                    dstream.read(stride)  # Still need to read to advance
-                    continue
-
-                # Decompress and filter row
-                raw = dstream.read(stride)
-                if not raw:
-                    break
-
-                filt: int = int(raw[0])
-                rp = ptr8(int(addressof(raw)) + 1)
-
-                # Calculate framebuffer position
-                fb_row_pos: int = (y0 + y) * bytes_per_row + (x0 // pixels_per_byte)
-
-                # Process each pixel in row
-                packed: int = 0
-                pixels_in_packed: int = 0
-                fb_idx: int = fb_row_pos
-
-                for x in range(draw_width):
-                    # Get pixel components with PNG filtering
-                    px_pos: int = x * bpp
-                    for k in range(bpp):
-                        v: int = int(rp[px_pos + k])
-                        if filt == 1:  # Sub
-                            if px_pos >= bpp:
-                                v = (v + cur[px_pos + k - bpp]) & 0xFF
-                        elif filt == 2:  # Up
-                            v = (v + prev[px_pos + k]) & 0xFF
-                        elif filt == 3:  # Average
-                            a: int = cur[px_pos + k - bpp] if px_pos >= bpp else 0
-                            b: int = prev[px_pos + k]
-                            v = (v + ((a + b) >> 1)) & 0xFF
-                        elif filt == 4:  # Paeth
-                            a = cur[px_pos + k - bpp] if px_pos >= bpp else 0
-                            b = prev[px_pos + k]
-                            c = prev[px_pos + k - bpp] if px_pos >= bpp else 0
-                            p = a + b - c
-                            pa = abs(p - a)
-                            pb = abs(p - b)
-                            pc = abs(p - c)
-                            pred = a if pa <= pb and pa <= pc else b if pb <= pc else c
-                            v = (v + pred) & 0xFF
-                        cur[px_pos + k] = v
-
-                    # Get color components
-                    r: int = cur[px_pos]
-                    g: int = cur[px_pos + 1] if bpp > 1 else r
-                    b: int = cur[px_pos + 2] if bpp > 2 else r
-                    alpha: int = cur[px_pos + 3] if bpp > 3 else 255
-
-                    # Handle transparency and grayscale conversion
-                    if alpha == 0:
-                        gray: int = 255 if invert else 0
-                    else:
-                        if alpha < 255:
-                            bg: int = 255 if invert else 0
-                            r = (r * alpha + bg * (255 - alpha)) // 255
-                            g = (g * alpha + bg * (255 - alpha)) // 255
-                            b = (b * alpha + bg * (255 - alpha)) // 255
-                        gray = (r * 77 + g * 151 + b * 28) >> 8
-
-                    # Apply dithering if enabled
-                    if dither:
-                        epos: int = x * 2
-                        err: int = int(error_current[epos]) | (int(error_current[epos + 1]) << 8)
-                        if err & 0x8000:
-                            err |= -65536
-                        gray += err
-                        gray = 255 if gray > 255 else (0 if gray < 0 else gray)
-
-                    # Quantize based on display mode
-                    if display_mode:
-                        val: int = (gray >> 6) ^ inv_mask
-                        packed |= val << (pixels_in_packed * 2)
-                    else:
-                        val: int = 0 if gray > 127 else 1
-                        val ^= inv_mask
-                        packed |= val << pixels_in_packed
-
-                    pixels_in_packed += 1
-
-                    # Error diffusion for dithering
-                    if dither:
-                        quant_val: int = val * 85 if display_mode else (val * 255)
-                        delta: int = gray - quant_val
-
-                        # Floyd-Steinberg dithering
-                        if x + 1 < draw_width:
-                            epos = (x + 1) * 2
-                            terr: int = int(error_current[epos]) | (
-                                int(error_current[epos + 1]) << 8
-                            )
-                            if terr & 0x8000:
-                                terr |= -65536
-                            terr += delta * 7 // 16
-                            error_current[epos] = terr & 0xFF
-                            error_current[epos + 1] = (terr >> 8) & 0xFF
-
-                        if y + 1 < draw_height:
-                            if x > 0:
-                                epos = (x - 1) * 2
-                                terr = int(error_next[epos]) | (int(error_next[epos + 1]) << 8)
-                                if terr & 0x8000:
-                                    terr |= -65536
-                                terr += delta * 3 // 16
-                                error_next[epos] = terr & 0xFF
-                                error_next[epos + 1] = (terr >> 8) & 0xFF
-
-                            epos = x * 2
-                            terr = int(error_next[epos]) | (int(error_next[epos + 1]) << 8)
-                            if terr & 0x8000:
-                                terr |= -65536
-                            terr += delta * 5 // 16
-                            error_next[epos] = terr & 0xFF
-                            error_next[epos + 1] = (terr >> 8) & 0xFF
-
-                            if x + 1 < draw_width:
-                                epos = (x + 1) * 2
-                                terr = int(error_next[epos]) | (int(error_next[epos + 1]) << 8)
-                                if terr & 0x8000:
-                                    terr |= -65536
-                                terr += delta * 1 // 16
-                                error_next[epos] = terr & 0xFF
-                                error_next[epos + 1] = (terr >> 8) & 0xFF
-
-                    # Write packed pixels to framebuffer when we have a complete byte
-                    if pixels_in_packed == pixels_per_byte or x == draw_width - 1:
-                        if pixels_in_packed == pixels_per_byte:
-                            framebuf[fb_idx] = packed
-                        else:
-                            # Handle partial bytes at row end
-                            if display_mode:
-                                shift = (pixels_per_byte - pixels_in_packed) * 2
-                                mask = 0xFF >> shift
-                                old = framebuf[fb_idx]
-                                framebuf[fb_idx] = (old & ~mask) | ((packed << shift) & mask)
-                            else:
-                                shift = 8 - pixels_in_packed
-                                mask = 0xFF >> shift
-                                old = framebuf[fb_idx]
-                                framebuf[fb_idx] = (old & ~mask) | ((packed << shift) & mask)
-
-                        # Reset for next byte
-                        packed = 0
-                        pixels_in_packed = 0
-                        fb_idx += 1
-
-                # Swap error buffers for next row
-                if dither:
-                    tmp = error_current
-                    error_current = error_next
-                    error_next = tmp
-                    for i in range(errbuf_w * 2):
-                        error_next[i] = 0
-
-                # Swap row buffers
-                cur, prev = prev, cur
-
-        try:
-            # Fast PNG signature check
-            if len(png_data) < 8 or png_data[1:4] != b"PNG":
-                raise ValueError("Invalid PNG")
-
-            ihdr, idat_data = process_chunks(png_data)
-            if not ihdr:
-                raise ValueError("Missing IHDR")
-            if not idat_data:
-                raise ValueError("No IDAT chunks")
-
-            width = int.from_bytes(ihdr[0:4], "big")
-            height = int.from_bytes(ihdr[4:8], "big")
-            color_type = ihdr[9]
-            bpp = 3 if color_type == 2 else 4
-
-            # Process directly to framebuffer
-            process_image(
-                addressof(idat_data),
-                len(idat_data),
-                framebuf,
-                width,
-                height,
-                bpp,
-                x0,
-                y0,
-                invert,
-                dither,
-                display_mode,
-            )
-
-        except Exception as e:
-            print("PNG decode error:", e)
             raise
 
     def draw_png_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         with open(path, "rb") as f:
             png_data = f.read()
-        if self.display_mode == 1:
-            Inkplate.decode_png_to_framebuffer(
-                png_data, self.ipg._framebuf, x0, y0, invert, dither, self.display_mode
-            )
-        elif self.display_mode == 0:
-            Inkplate.decode_png_to_framebuffer(
-                png_data, self.ipm._framebuf, x0, y0, invert, dither, self.display_mode
-            )
+        inkplate.png_draw_gs4(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            png_data,
+            invert,
+            dither,
+            kernel_type,
+        )
         gc.collect()
 
     def draw_png_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
-        import gc
         import urequests
 
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             png_data = response.content
             response.close()
-
-            if self.display_mode == 1:
-                Inkplate.decode_png_to_framebuffer(
-                    png_data,
-                    self.ipg._framebuf,
-                    x0,
-                    y0,
-                    invert,
-                    dither,
-                    display_mode=self.display_mode,
-                )
-            elif self.display_mode == 0:
-                Inkplate.decode_png_to_framebuffer(
-                    png_data,
-                    self.ipm._framebuf,
-                    x0,
-                    y0,
-                    invert,
-                    dither,
-                    display_mode=self.display_mode,
-                )
+            inkplate.png_draw_gs4(
+                self._framebuf(),
+                D_COLS,
+                D_ROWS,
+                self.rotation,
+                self.display_mode,
+                x0,
+                y0,
+                png_data,
+                invert,
+                dither,
+                kernel_type,
+            )
             gc.collect()
-
         except Exception as e:
             print("Error in draw_png_from_web:", e)
             if "response" in locals():
                 response.close()
-
-    def draw_jpg_from_sd(
-        self, path, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
-    ):
-        import jpeg
-        import gc
-
-        try:
-            # 1. Initialize decoder
-
-            decoder = jpeg.Decoder(
-                rotation=0,
-                format="RGB565_LE",
-                clipper_width=self._width,
-                clipper_height=self._height,
-            )
-
-            # 2. Read file
-            with open(path, "rb") as f:
-                jpeg_data = f.read()
-
-            # 3. Get image info before decoding
-            try:
-                width, height = decoder.get_img_info(jpeg_data)[0:2]
-            except Exception as e:
-                print(e)
-                decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
-                width, height = decoder.get_img_info(jpeg_data)[0:2]
-
-            # 4. Decode image
-            decoded = decoder.decode(jpeg_data)
-
-            if self.display_mode == 1:
-                Inkplate.write_image(
-                    self.ipg._framebuf,
-                    x0,
-                    y0,
-                    width,
-                    height,
-                    decoded,
-                    invert,
-                    dither,
-                    kernel_type,
-                    self.display_mode,
-                )
-            elif self.display_mode == 0:
-                Inkplate.write_image(
-                    self.ipm._framebuf,
-                    x0,
-                    y0,
-                    width,
-                    height,
-                    decoded,
-                    invert,
-                    dither,
-                    kernel_type,
-                    self.display_mode,
-                )
-
-            gc.collect()
-
-        except Exception as e:
-            print("\nJPEG Decode error:", e)
             raise
 
-    def draw_jpg_from_web(
-        self, url, x0=0, y0=0, invert=False, dither: bool = False, kernel_type: int = 0
-    ):
-        import jpeg
-        import gc
+    def draw_jpg_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        with open(path, "rb") as f:
+            jpg_data = f.read()
+        inkplate.jpeg_draw_gs4(
+            self._framebuf(),
+            D_COLS,
+            D_ROWS,
+            self.rotation,
+            self.display_mode,
+            x0,
+            y0,
+            jpg_data,
+            invert,
+            dither,
+            kernel_type,
+        )
+        gc.collect()
+
+    def draw_jpg_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
-            # 1. Initialize decoder
-            decoder = jpeg.Decoder(
-                rotation=0,
-                format="RGB565_LE",
-                clipper_width=self._width,
-                clipper_height=self._height,
-            )
-
-            # 2. Download the image (with timeout and basic error handling)
             response = urequests.get(url, timeout=20)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
-            jpeg_data = response.content
+            jpg_data = response.content
             response.close()
-
-            try:
-                width, height = decoder.get_img_info(jpeg_data)[0:2]
-            except Exception as e:
-                print(e)
-                decoder = jpeg.Decoder(rotation=0, format="RGB565_LE")
-                width, height = decoder.get_img_info(jpeg_data)[0:2]
-
-            # 4. Decode image
-            decoded = decoder.decode(jpeg_data)
-
-            # 5. Display the image
-            if self.display_mode == 1:
-                Inkplate.write_image(
-                    self.ipg._framebuf,
-                    x0,
-                    y0,
-                    width,
-                    height,
-                    decoded,
-                    invert,
-                    dither,
-                    kernel_type,
-                    self.display_mode,
-                )
-            elif self.display_mode == 0:
-                Inkplate.write_image(
-                    self.ipm._framebuf,
-                    x0,
-                    y0,
-                    width,
-                    height,
-                    decoded,
-                    invert,
-                    dither,
-                    kernel_type,
-                    self.display_mode,
-                )
-
-            # 6. Free memory
+            inkplate.jpeg_draw_gs4(
+                self._framebuf(),
+                D_COLS,
+                D_ROWS,
+                self.rotation,
+                self.display_mode,
+                x0,
+                y0,
+                jpg_data,
+                invert,
+                dither,
+                kernel_type,
+            )
             gc.collect()
-
         except Exception as e:
             print("Error in draw_jpg_from_web:", e)
             if "response" in locals():
                 response.close()
             raise
-
-    @staticmethod
-    @micropython.viper
-    def write_image(
-        framebuf: ptr8,
-        x0: int,
-        y0: int,
-        width: int,
-        height: int,
-        imagedata: ptr8,
-        invert: bool = False,
-        dither: bool = False,
-        kernel_type: int = 0,
-        display_mode: int = 1,
-    ):
-        _screen_width = const(800)
-        _screen_height = const(600)
-        _bytes_per_row = const(200)
-        _bytes_per_row_bw = const(100)
-
-        # Predefined dithering kernels in ROM (faster access)
-        fs_dx = ptr8(b"\x01\xff\x00\x01")
-        fs_dy = ptr8(b"\x00\x01\x01\x01")
-        fs_wt = ptr8(b"\x07\x03\x05\x01")
-
-        jjn_dx = ptr8(b"\x01\x02\xfe\xff\x00\x01\x02")
-        jjn_dy = ptr8(b"\x00\x00\x01\x01\x01\x01\x01")
-        jjn_wt = ptr8(b"\x07\x05\x03\x05\x07\x05\x03")
-
-        stucki_dx = ptr8(b"\x01\x02\xfe\xff\x00\x01\x02")
-        stucki_dy = ptr8(b"\x00\x00\x01\x01\x01\x01\x01")
-        stucki_wt = ptr8(b"\x08\x04\x02\x04\x08\x04\x02")
-
-        burkes_dx = ptr8(b"\x01\x02\xfe\xff\x00\x01\x02")
-        burkes_dy = ptr8(b"\x00\x00\x01\x01\x01\x01\x01")
-        burkes_wt = ptr8(b"\x08\x04\x02\x04\x08\x04\x02")
-
-        draw_width: int = width if (x0 + width) <= _screen_width else _screen_width - x0
-        draw_height: int = height if (y0 + height) <= _screen_height else _screen_height - y0
-
-        if display_mode == 0:
-            inv_mask: int = 0x01 if invert else 0x00
-        else:
-            inv_mask: int = 0x03 if invert else 0x00
-
-        # Dithering-specific optimizations
-        if dither:
-            errbuf_size: int = draw_width * 2
-            error_current = ptr8(bytearray(errbuf_size))
-            error_next = ptr8(bytearray(errbuf_size))
-
-            # Select kernel with minimal branching
-            if kernel_type == 1:
-                dx_arr, dy_arr, wt_arr = jjn_dx, jjn_dy, jjn_wt
-                kernel_len, divisor = 7, 48
-            elif kernel_type == 2:
-                dx_arr, dy_arr, wt_arr = stucki_dx, stucki_dy, stucki_wt
-                kernel_len, divisor = 7, 42
-            elif kernel_type == 3:
-                dx_arr, dy_arr, wt_arr = burkes_dx, burkes_dy, burkes_wt
-                kernel_len, divisor = 7, 32
-            else:  # Floyd-Steinberg (default)
-                dx_arr, dy_arr, wt_arr = fs_dx, fs_dy, fs_wt
-                kernel_len, divisor = 4, 16
-
-            # Precompute kernel bounds checks
-        else:
-            # Dummy pointers when not dithering
-            error_current = ptr8(bytearray(0))
-            error_next = ptr8(bytearray(0))
-
-        for row in range(draw_height):
-            if display_mode == 0:
-                fb_row_pos: int = (y0 + row) * _bytes_per_row_bw + (x0 // 8)
-            else:
-                fb_row_pos: int = (y0 + row) * _bytes_per_row + (x0 // 4)
-
-            img_row_start: int = row * width * 2
-
-            col: int = 0
-            while col < draw_width:
-                if display_mode == 0:
-                    # 1-bit mode processing (8 pixels per byte)
-                    # Process groups of 8 pixels (1 byte) or less at row ends
-                    pix_grp: int = 8 if (col + 8) <= draw_width else draw_width - col
-                    packed: int = 0
-
-                    # Process each pixel in the group
-                    for i in range(pix_grp):
-                        # Get pixel from source image (16-bit color)
-                        idx: int = img_row_start + (col + i) * 2
-                        pixel: int = imagedata[idx] | (imagedata[idx + 1] << 8)
-
-                        # Convert to grayscale
-                        r: int = ((pixel >> 11) & 0x1F) * 255 // 31
-                        g: int = ((pixel >> 5) & 0x3F) * 255 // 63
-                        b: int = (pixel & 0x1F) * 255 // 31
-                        gray: int = (r * 299 + g * 587 + b * 114) // 1000
-
-                        if dither:
-                            epos: int = (col + i) * 2
-                            err: int = int(error_current[epos]) | (
-                                int(error_current[epos + 1]) << 8
-                            )
-                            if err & 0x8000:
-                                err -= 65536
-                            gray += err
-                            gray = 255 if gray > 255 else (0 if gray < 0 else gray)
-
-                        val: int = 0 if gray > 127 else 1
-                        val ^= inv_mask
-                        packed |= val << i
-
-                    fb_idx = fb_row_pos + (col // 8)
-                    if pix_grp == 8:
-                        framebuf[fb_idx] = packed
-                    else:
-                        mask = 0xFF >> (8 - pix_grp)
-                        framebuf[fb_idx] = (framebuf[fb_idx] & ~mask) | (packed & mask)
-                    col += 8
-
-                else:
-                    # 2-bit mode processing - optimized dithering
-                    pix_grp: int = 4 if (col + 4) <= draw_width else draw_width - col
-                    packed: int = 0
-                    for i in range(pix_grp):
-                        idx: int = img_row_start + (col + i) * 2
-                        pixel: int = imagedata[idx] | (imagedata[idx + 1] << 8)
-
-                        r: int = ((pixel >> 11) & 0x1F) * 255 // 31
-                        g: int = ((pixel >> 5) & 0x3F) * 255 // 63
-                        b: int = (pixel & 0x1F) * 255 // 31
-                        gray: int = (r * 77 + g * 151 + b * 28) >> 8
-
-                        if dither:
-                            epos: int = (col + i) * 2
-                            err: int = error_current[epos] | (error_current[epos + 1] << 8)
-                            if err & 0x8000:
-                                err |= -65536
-                            gray += err
-                            if gray > 255:
-                                gray = 255
-                            elif gray < 0:
-                                gray = 0
-
-                        val: int = (gray >> 6) ^ inv_mask
-                        packed |= val << (i * 2)
-
-                        if dither:
-                            quant_val = val * 85
-                            delta = gray - quant_val
-                            error_current[epos] = 0
-                            error_current[epos + 1] = 0
-
-                            for ka in range(int(kernel_len)):
-                                dx: int = int(dx_arr[ka])
-                                dy: int = int(dy_arr[ka])
-                                wt: int = int(wt_arr[ka])
-                                nx: int = col + i + dx
-                                ny: int = row + dy
-                                if 0 <= nx < draw_width and ny < draw_height:
-                                    target = error_next if dy else error_current
-                                    tpos: int = nx * 2
-                                    terr: int = target[tpos] | (target[tpos + 1] << 8)
-                                    if terr & 0x8000:
-                                        terr |= -65536
-                                    terr += (delta * wt) // int(divisor)
-                                    if terr > 32767:
-                                        terr = 32767
-                                    elif terr < -32768:
-                                        terr = -32768
-                                    target[tpos] = terr & 0xFF
-                                    target[tpos + 1] = (terr >> 8) & 0xFF
-
-                    fb_idx = fb_row_pos + (col // 4)
-                    if pix_grp == 4:
-                        framebuf[fb_idx] = packed
-                    else:
-                        mask = 0xFF >> (8 - pix_grp * 2)
-                        framebuf[fb_idx] = (framebuf[fb_idx] & ~mask) | (packed & mask)
-                    col += 4
-
-            if dither:
-                # Swap buffers efficiently
-                tmp = error_current
-                error_current = error_next
-                error_next = tmp
-                # Clear next buffer in one pass
-                for i in range(errbuf_size):
-                    error_next[i] = 0
 
 
 if __name__ == "__main__":

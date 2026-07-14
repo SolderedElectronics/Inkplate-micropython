@@ -50,6 +50,10 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
     const char *name = mp_obj_str_get_str(name_obj);
     if (strcmp(name, "inkplate10") == 0) {
         active_board = &board_config_inkplate10;
+    } else if (strcmp(name, "inkplate6") == 0) {
+        active_board = &board_config_inkplate6;
+    } else if (strcmp(name, "inkplate6v2") == 0) {
+        active_board = &board_config_inkplate6v2;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown board"));
     }

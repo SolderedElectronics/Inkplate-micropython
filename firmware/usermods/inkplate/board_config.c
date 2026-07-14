@@ -51,3 +51,86 @@ const board_config_t board_config_inkplate10 = {
     .has_touch = 0,
     .has_frontlight = 0,
 };
+
+// Real 3-bit/8-level waveform shared by INKPLATE6 and INKPLATE6V2, transcribed from the
+// Arduino reference driver's waveforms.h WAVEFORM3BIT macro (identical for both variants
+// in that header) -- declared as waveform3Bit[color][phase] (8 colors x 9 phases),
+// transposed here to [phase][color] to match this struct's row-per-phase convention.
+static const waveform_table_t wave_3b_inkplate6 = {
+    .levels = 8,
+    .phases = 9,
+    .table =
+        {
+            {0, 0, 1, 1, 1, 0, 0, 0},
+            {0, 0, 1, 1, 1, 1, 0, 0},
+            {0, 0, 1, 1, 1, 1, 0, 0},
+            {0, 1, 1, 2, 1, 1, 0, 0},
+            {1, 1, 0, 2, 2, 2, 1, 0},
+            {1, 1, 2, 1, 2, 2, 1, 0},
+            {1, 1, 1, 1, 1, 1, 2, 2},
+            {1, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+// INKPLATE6 (classic): PCAL6416A external expander at 0x22, onboard touchpad (driver not
+// yet ported -- Phase 11), 4 clean-cycle reps in display1b's full update (hardcoded in C,
+// same precedent as Inkplate10), 5 reps for partial update.
+const board_config_t board_config_inkplate6 = {
+    .name = "inkplate6",
+
+    .width = 800,
+    .height = 600,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate6,
+
+    .partial_reps = 5,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};
+
+// INKPLATE6V2: PCAL6416A external expander at 0x21, no touchpad, adds SD P-MOS gpio
+// control (handled in board-level Python/driver code, not this struct). 5 clean-cycle
+// reps in display1b's full update, 6 for partial.
+const board_config_t board_config_inkplate6v2 = {
+    .name = "inkplate6v2",
+
+    .width = 800,
+    .height = 600,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate6,
+
+    .partial_reps = 6,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};

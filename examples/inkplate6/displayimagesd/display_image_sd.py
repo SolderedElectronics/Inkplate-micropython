@@ -22,7 +22,7 @@ inkplate.begin()
 # Note:
 # - This function must be called before accessing files on the SD card.
 # - The fastboot option has no effect if the device is already running.
-inkplate.init_sd_card(fastBoot=True)
+inkplate.init_sd_card(fast_boot=True)
 
 # This prints all the files on card
 print(listdir("/sd"))
