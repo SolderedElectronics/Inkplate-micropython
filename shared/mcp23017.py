@@ -62,6 +62,24 @@ class MCP23017:
     def pin(self, num, mode=mPin.IN, pull=None, value=None):
         return Pin(self, num, mode, pull, value)
 
+    def pin_mode(self, pin, mode):
+        # mode uses the same 0/1/2/3 convention as pcal6416a.py's mode_input/
+        # mode_output/mode_input_pullup/mode_input_pulldown -- kept as plain ints
+        # here so this driver has no import dependency on pcal6416a.py.
+        if mode == 3:  # mode_input_pulldown
+            raise ValueError("MCP23017 has no pull-down support")
+        incr = pin >> 3
+        num = pin & 0x7
+        self.bit(IODIR + incr, num, 0 if mode == 1 else 1)
+        if mode == 2:  # mode_input_pullup
+            self.bit(GPPU + incr, num, 1)
+
+    def digital_write(self, pin, value):
+        self.bit(GPIO + (pin >> 3), pin & 0x7, value)
+
+    def digital_read(self, pin):
+        return self.bit(GPIO + (pin >> 3), pin & 0x7)
+
 
 # Pin implements a minimal machine.Pin look-alike for pins on the MCP23017
 class Pin:

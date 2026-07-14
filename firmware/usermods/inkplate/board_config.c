@@ -73,8 +73,10 @@ static const waveform_table_t wave_3b_inkplate6 = {
         },
 };
 
-// INKPLATE6 (classic): PCAL6416A external expander at 0x22, onboard touchpad (driver not
-// yet ported -- Phase 11), 4 clean-cycle reps in display1b's full update (hardcoded in C,
+// INKPLATE6 (classic): MCP23017 internal expander @ 0x20 (V2 uses PCAL6416A there
+// instead), MCP23017 external expander @ 0x22, onboard touchpad wired
+// (boards/inkplate6/inkplate6.py TOUCH1/2/3 -- pure GPIO read via the internal expander,
+// no C-side hook needed), 4 clean-cycle reps in display1b's full update (hardcoded in C,
 // same precedent as Inkplate10), 5 reps for partial update.
 const board_config_t board_config_inkplate6 = {
     .name = "inkplate6",
@@ -100,7 +102,7 @@ const board_config_t board_config_inkplate6 = {
 
     .partial_reps = 5,
 
-    .has_touch = 0,
+    .has_touch = 1,
     .has_frontlight = 0,
 };
 

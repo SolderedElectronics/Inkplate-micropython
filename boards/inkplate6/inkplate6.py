@@ -7,6 +7,7 @@ import inkplate
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
+from mcp23017 import MCP23017
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -26,10 +27,15 @@ TPS65186_addr = const(0x48)  # I2C address
 
 # This driver targets the INKPLATE6V2 hardware revision by default -- confirmed from this
 # repo's own pre-refactor driver, which already used external-expander address 0x21
-# (INKPLATE6V2's IO_EXT_ADDR per the Arduino reference driver; classic INKPLATE6 uses 0x22
-# and has an onboard touchpad this project doesn't drive yet, deferred to Phase 11). Flip
-# to "inkplate6" below if your board is the original (non-V2) revision.
-_BOARD_VARIANT = "inkplate6v2"
+# (INKPLATE6V2's IO_EXT_ADDR per the Arduino reference driver). INKPLATE6V2's internal
+# expander (OE/GMODE/SPV/TPS_*/etc, addr 0x20) is a PCAL6416A; classic INKPLATE6's
+# same-role expander is an MCP23017 (confirmed against the real Arduino reference driver
+# + this repo's own pre-refactor tve-authored driver). External expander addr also
+# differs (classic=0x22, V2=0x21). Flip to "inkplate6" below if your board is the
+# original (non-V2) revision -- that also enables TOUCH1/2/3 (classic-only, same
+# expander pins 10/11/12 that V2 repurposes for SD_ENABLE).
+_BOARD_VARIANT = "inkplate6"
+_IS_CLASSIC = _BOARD_VARIANT != "inkplate6v2"
 _EXPANDER2_ADDR = 0x21 if _BOARD_VARIANT == "inkplate6v2" else 0x22
 
 # Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
@@ -51,8 +57,12 @@ class _Inkplate:
     @classmethod
     def init(cls, i2c):
         cls._i2c = i2c
-        cls._PCAL6416A_1 = PCAL6416A(i2c)
-        cls._PCAL6416A_2 = PCAL6416A(i2c, _EXPANDER2_ADDR)
+        if _IS_CLASSIC:
+            cls._expander1 = MCP23017(i2c)
+            cls._expander2 = MCP23017(i2c, _EXPANDER2_ADDR)
+        else:
+            cls._expander1 = PCAL6416A(i2c)
+            cls._expander2 = PCAL6416A(i2c, _EXPANDER2_ADDR)
         # Display control lines -- pin mode/initial level only; toggling happens in C.
         Pin(0, Pin.OUT, value=0)  # EPD_CL
         Pin(2, Pin.OUT, value=0)  # EPD_LE
@@ -61,13 +71,13 @@ class _Inkplate:
         inkplate.select_board(_BOARD_VARIANT)
         inkplate.set_expander_write_cb(cls._expander_write_cb)
 
-        cls.EPD_OE = GpioPin(cls._PCAL6416A_1, 0, mode_output)
-        cls.EPD_GMODE = GpioPin(cls._PCAL6416A_1, 1, mode_output)
+        cls.EPD_OE = GpioPin(cls._expander1, 0, mode_output)
+        cls.EPD_GMODE = GpioPin(cls._expander1, 1, mode_output)
         # EPD_SPV itself is never read again -- toggling happens in C via pin_spv in
         # board_config.c, which must stay pin 2 on this same expander (0x20) to match.
-        # This call's job is the pin_mode(OUTPUT) side effect (see PCAL6416A.GpioPin),
-        # not the object it returns.
-        cls.EPD_SPV = GpioPin(cls._PCAL6416A_1, 2, mode_output)
+        # This call's job is the pin_mode(OUTPUT) side effect (see GpioPin), not the
+        # object it returns.
+        cls.EPD_SPV = GpioPin(cls._expander1, 2, mode_output)
 
         # Display data lines - we only use the Pin class to init the pins
         Pin(4, Pin.OUT)  # D0
@@ -80,31 +90,39 @@ class _Inkplate:
         Pin(27, Pin.OUT)  # D7
         # TPS65186 power regulator control
 
-        cls.TPS_WAKEUP = GpioPin(cls._PCAL6416A_1, 3, mode_output)
+        cls.TPS_WAKEUP = GpioPin(cls._expander1, 3, mode_output)
         cls.TPS_WAKEUP.digital_write(0)
 
-        cls.TPS_PWRUP = GpioPin(cls._PCAL6416A_1, 4, mode_output)
+        cls.TPS_PWRUP = GpioPin(cls._expander1, 4, mode_output)
         cls.TPS_PWRUP.digital_write(0)
 
-        cls.TPS_VCOM = GpioPin(cls._PCAL6416A_1, 5, mode_output)
+        cls.TPS_VCOM = GpioPin(cls._expander1, 5, mode_output)
         cls.TPS_VCOM.digital_write(0)
 
-        cls.TPS_INT = GpioPin(cls._PCAL6416A_1, 6, mode_input)
-        cls.TPS_PWR_GOOD = GpioPin(cls._PCAL6416A_1, 7, mode_input)
+        cls.TPS_INT = GpioPin(cls._expander1, 6, mode_input)
+        cls.TPS_PWR_GOOD = GpioPin(cls._expander1, 7, mode_input)
 
         # Misc
 
-        cls.GPIO0_PUP = GpioPin(cls._PCAL6416A_1, 8, mode_output)
+        cls.GPIO0_PUP = GpioPin(cls._expander1, 8, mode_output)
         cls.GPIO0_PUP.digital_write(0)
 
-        cls.VBAT_EN = GpioPin(cls._PCAL6416A_1, 9, mode_output)
+        cls.VBAT_EN = GpioPin(cls._expander1, 9, mode_output)
         cls.VBAT_EN.digital_write(0)  # Initially disable the battery read
 
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
 
-        cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 10, mode_output)
+        # Pin 10 (and 11/12) is classic-only touchpads vs V2-only SD_ENABLE -- the real
+        # Arduino reference driver puts both on the same expander pin per variant, they
+        # aren't simultaneously present on either board.
+        if _IS_CLASSIC:
+            cls.TOUCH1 = GpioPin(cls._expander1, 10, mode_input)
+            cls.TOUCH2 = GpioPin(cls._expander1, 11, mode_input)
+            cls.TOUCH3 = GpioPin(cls._expander1, 12, mode_input)
+        else:
+            cls.SD_ENABLE = GpioPin(cls._expander1, 10, mode_output)
 
         cls._on = False  # whether panel is powered on or not
 
@@ -112,14 +130,15 @@ class _Inkplate:
             _Inkplate.gen_byte2gpio()
 
     # _expander_write_cb is invoked from C (epd_bitbang.c, via expander_bridge.c) to
-    # toggle a PCAL6416A-controlled line (currently only SPV) -- routes by I2C address
-    # to whichever expander instance owns that address.
+    # toggle an expander-controlled line (currently only SPV) -- routes by I2C address
+    # to whichever expander instance owns that address. Works for either chip since both
+    # PCAL6416A and MCP23017 expose the same .addr / .digital_write(pin, value) shape.
     @classmethod
     def _expander_write_cb(cls, addr, pin, value):
-        if addr == cls._PCAL6416A_1.addr:
-            cls._PCAL6416A_1.digital_write(pin, value)
-        elif addr == cls._PCAL6416A_2.addr:
-            cls._PCAL6416A_2.digital_write(pin, value)
+        if addr == cls._expander1.addr:
+            cls._expander1.digital_write(pin, value)
+        elif addr == cls._expander2.addr:
+            cls._expander2.digital_write(pin, value)
         else:
             raise ValueError("no expander at addr {:#x}".format(addr))
 
@@ -404,7 +423,10 @@ class Inkplate:
         self.font = self.font_family._font
 
     def init_sd_card(self, fast_boot=False):
-        _Inkplate.SD_ENABLE.digital_write(0)
+        # Classic v1 has no SD-card power MOSFET (confirmed against real hardware) --
+        # SD is always powered, nothing to enable.
+        if not _IS_CLASSIC:
+            _Inkplate.SD_ENABLE.digital_write(0)
         try:
             os.mount(
                 SDCard(
@@ -436,18 +458,29 @@ class Inkplate:
             print("Sd card could not be read")
 
     def sd_card_sleep(self):
-        _Inkplate.SD_ENABLE.digital_write(1)
+        if not _IS_CLASSIC:
+            _Inkplate.SD_ENABLE.digital_write(1)
         time.sleep_ms(5)
 
     def sd_card_wake(self):
-        _Inkplate.SD_ENABLE.digital_write(0)
+        if not _IS_CLASSIC:
+            _Inkplate.SD_ENABLE.digital_write(0)
         time.sleep_ms(5)
+
+    def touch1(self):
+        return _Inkplate.TOUCH1.digital_read()
+
+    def touch2(self):
+        return _Inkplate.TOUCH2.digital_read()
+
+    def touch3(self):
+        return _Inkplate.TOUCH3.digital_read()
 
     def gpio_expander_pin(self, expander, pin, mode):
         if expander == 1:
-            return GpioPin(_Inkplate._PCAL6416A_1, pin, mode)
+            return GpioPin(_Inkplate._expander1, pin, mode)
         elif expander == 2:
-            return GpioPin(_Inkplate._PCAL6416A_2, pin, mode)
+            return GpioPin(_Inkplate._expander2, pin, mode)
 
     def clear_display(self):
         InkplateMono.clear(self.ipm._framebuf)

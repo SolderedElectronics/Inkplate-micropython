@@ -52,6 +52,9 @@ int main(void)
     const board_config_t *variants[2] = {&board_config_inkplate6, &board_config_inkplate6v2};
     const char *expected_names[2] = {"inkplate6", "inkplate6v2"};
     const uint8_t expected_partial_reps[2] = {5, 6};
+    // INKPLATE6 (classic) has onboard touchpads (MCP23017-driven, no C-side hook);
+    // INKPLATE6V2 doesn't (same expander pins repurposed for SD_ENABLE instead).
+    const uint8_t expected_has_touch[2] = {1, 0};
 
     for (int i = 0; i < 2; ++i) {
         const board_config_t *v = variants[i];
@@ -88,7 +91,7 @@ int main(void)
 
         assert(v->partial_reps == expected_partial_reps[i]);
 
-        assert(v->has_touch == 0);
+        assert(v->has_touch == expected_has_touch[i]);
         assert(v->has_frontlight == 0);
     }
 
