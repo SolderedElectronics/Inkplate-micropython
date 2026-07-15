@@ -14,8 +14,13 @@ class InkplateMono(framebuf.FrameBuffer):
         self._framebuf = bytearray(D_ROWS * D_COLS // 8)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
 
-    # display_mono sends the monochrome buffer to the display, clearing it first
-    def display(self):
+    # display_mono sends the monochrome buffer to the display, clearing it first.
+    # extra_clean runs the pre-clean sequence twice instead of once -- defaults on because the
+    # panel's prior content may be GS3 (8-level), whose per-pixel charge diversity the vendor's
+    # single-pass rep counts (tuned for same-mode transitions) don't fully flush: HIL-confirmed
+    # ghosting on a GS3->mono switch with a single pass, gone with two. Costs an extra ~570ms;
+    # pass extra_clean=False to skip it for back-to-back mono updates that don't need it.
+    def display(self, extra_clean=True):
         ip = _Inkplate
         ip.power_on()
         ip.i2s_init()
@@ -25,12 +30,13 @@ class InkplateMono(framebuf.FrameBuffer):
         # own sequence on this board, matching Inkplate6's precedent of the two sequences
         # matching, though the actual rep counts differ from Inkplate6's).
         t0 = time.ticks_ms()
-        ip.clean(0, 1)
-        ip.clean(1, 15)
-        ip.clean(2, 1)
-        ip.clean(0, 5)
-        ip.clean(2, 1)
-        ip.clean(1, 15)
+        for _ in range(2 if extra_clean else 1):
+            ip.clean(0, 1)
+            ip.clean(1, 15)
+            ip.clean(2, 1)
+            ip.clean(0, 5)
+            ip.clean(2, 1)
+            ip.clean(1, 15)
 
         # the display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 4 white-push phases + 1

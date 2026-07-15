@@ -364,9 +364,9 @@ class Inkplate:
         InkplateMono.clear(self.ipm._framebuf)
         InkplateGS2.clear(self.ipg._framebuf)
 
-    def display(self):
+    def display(self, extra_clean=True):
         if self.display_mode == 0:
-            self.ipm.display()
+            self.ipm.display(extra_clean=extra_clean)
             self.ipp.start()
         elif self.display_mode == 1:
             self.ipg.display()
