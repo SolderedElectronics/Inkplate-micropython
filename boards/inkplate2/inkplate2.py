@@ -1,21 +1,18 @@
 """MicroPython driver for the Inkplate 2 e-paper display."""
 
 import time
-from machine import I2C, SPI, Pin
+from machine import I2C, Pin
 from micropython import const
 from gfx import GFX
 
 import machine
+import inkplate
 
 machine.freq(240000000)
 
-# Connections between ESP32 and color Epaper
-EPAPER_RST_PIN = const(19)
-EPAPER_DC_PIN = const(33)
-EPAPER_CS_PIN = const(27)
-EPAPER_BUSY_PIN = const(32)
-EPAPER_CLK = const(18)
-EPAPER_DIN = const(23)
+# RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C spi_panel
+# transport (firmware/usermods/inkplate/epd_spi.c, docs/REFACTOR-PLAN.md Phase 9 step 31)
+# -- no Python-side pin constants needed.
 
 pixel_mask_lut = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
 pixel_mask_glut = [0xF, 0xF0]
@@ -28,7 +25,16 @@ E_INK_WIDTH = 104
 E_INK_NUM_PIXELS = E_INK_HEIGHT * E_INK_WIDTH
 E_INK_BUFFER_SIZE = E_INK_NUM_PIXELS // 8
 
-busy_timeout_ms = 30000
+# From the real Arduino reference driver's pins.h BUSY_TIMEOUT_MS -- used for the
+# init-wake (command 0x04) and sleep (command 0x02) busy-waits. display()'s own
+# post-refresh wait uses a separate, longer timeout (see DISPLAY_REFRESH_TIMEOUT_MS)
+# matching the reference driver's own distinct inline value there.
+busy_timeout_ms = 1000
+
+# From the real Arduino reference driver's display(): waitForEpd(60000) after sending
+# the refresh command (0x12) -- a full panel refresh takes far longer than the
+# init/sleep BUSY_TIMEOUT_MS above.
+display_refresh_timeout_ms = 60000
 
 
 class Inkplate:
@@ -52,7 +58,14 @@ class Inkplate:
     @classmethod
     def begin(cls):
         cls.wire = I2C(0, scl=Pin(22), sda=Pin(21))
-        cls.spi = SPI(2, baudrate=800000)
+
+        # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
+        # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
+        # docs/REFACTOR-PLAN.md Phase 9 step 31) -- no more machine.SPI/Pin objects for
+        # the panel itself.
+        inkplate.select_spi_panel("inkplate2")
+        inkplate.spi_panel_init()
+
         cls._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         cls._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
         cls.text_color = 1
@@ -91,31 +104,28 @@ class Inkplate:
     def set_panel_deep_sleep_state(cls, state):
         # False wakes the panel up
         # True puts it to sleep
+        #
+        # Pin config/CS+DC idle levels and the SPI bus itself are owned by the C
+        # spi_panel transport (epd_spi_init(), already called once from begin()) --
+        # only the reset+reinit / sleep-register sequence needs repeating here, same
+        # convention as boards/inkplate6color/inkplate6_color.py's own
+        # set_panel_deep_sleep().
         if not state:
-            cls.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
-            cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-            cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
-            cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
-            cls.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
-            time.sleep_ms(10)
             cls.reset_panel()
 
             # Reinit the panel
-            cls.send_command(b"\x04")
-            _timeout = time.ticks_ms()
-            while (
-                not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms
-            ):
-                pass
+            cls.send_command(0x04)
+            if not inkplate.spi_panel_wait_busy(1, busy_timeout_ms):
+                return False
 
-            cls.send_command(b"\x00")
+            cls.send_command(0x00)
             cls.send_data(b"\x0f")
             cls.send_data(b"\x89")
-            cls.send_command(b"\x61")
+            cls.send_command(0x61)
             cls.send_data(b"\x68")
             cls.send_data(b"\x00")
             cls.send_data(b"\xd4")
-            cls.send_command(b"\x50")
+            cls.send_command(0x50)
             cls.send_data(b"\x77")
 
             cls._panel_state = True
@@ -124,25 +134,19 @@ class Inkplate:
 
         else:
             # Put the panel to sleep
-            cls.send_command(b"\x50")
+            cls.send_command(0x50)
             cls.send_data(b"\xf7")
-            cls.send_command(b"\x02")
-            # Wait for ePaper
-            _timeout = time.ticks_ms()
-            while (
-                not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms
-            ):
-                pass
-            cls.send_command(b"\07")
+            cls.send_command(0x02)
+            inkplate.spi_panel_wait_busy(1, busy_timeout_ms)
+            cls.send_command(0x07)
             cls.send_data(b"\xa5")
 
             time.sleep_ms(1)
-            # Turn off SPI
-            cls.spi.deinit()
-            cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-            cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.IN)
-            cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.IN)
-            cls.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.IN)
+
+            # Hold RST asserted low while asleep (matches the real Arduino reference
+            # driver's setPanelDeepSleep(true) -- lower power than leaving it floating
+            # or driven high).
+            inkplate.spi_panel_set_rst(0)
 
             cls._panel_state = False
 
@@ -150,27 +154,15 @@ class Inkplate:
 
     @classmethod
     def reset_panel(cls):
-        cls.EPAPER_RST_PIN.value(0)
-        time.sleep_ms(10)
-        cls.EPAPER_RST_PIN.value(1)
-        time.sleep_ms(10)
+        inkplate.spi_panel_reset()
 
     @classmethod
     def send_command(cls, command):
-        cls.EPAPER_DC_PIN.value(0)
-        cls.EPAPER_CS_PIN.value(0)
-        cls.spi.write(command)
-
-        cls.EPAPER_CS_PIN.value(1)
+        inkplate.spi_panel_send_command(command)
 
     @classmethod
     def send_data(cls, data):
-        cls.EPAPER_CS_PIN.value(0)
-        cls.EPAPER_DC_PIN.value(1)
-        cls.spi.write(data)
-
-        cls.EPAPER_CS_PIN.value(1)
-        time.sleep_ms(1)
+        inkplate.spi_panel_send_data(data)
 
     @classmethod
     def clear_display(cls):
@@ -183,24 +175,21 @@ class Inkplate:
         cls.set_panel_deep_sleep_state(False)
 
         # Write b/w pixels
-        cls.send_command(b"\x10")
+        cls.send_command(0x10)
         cls.send_data(cls._framebuf_BW)
 
         # Write red pixels
-        cls.send_command(b"\x13")
+        cls.send_command(0x13)
         cls.send_data(cls._framebuf_RED)
 
         # Stop transfer
-        cls.send_command(b"\x11")
+        cls.send_command(0x11)
         cls.send_data(b"\x00")
 
         # Refresh
-        cls.send_command(b"\x12")
-        time.sleep_ms(5)
-
-        _timeout = time.ticks_ms()
-        while not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < busy_timeout_ms:
-            pass
+        cls.send_command(0x12)
+        time.sleep_us(500)
+        inkplate.spi_panel_wait_busy(1, display_refresh_timeout_ms)
 
         # Put the display back to sleep
         cls.set_panel_deep_sleep_state(True)

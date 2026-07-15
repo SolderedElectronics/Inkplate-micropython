@@ -16,15 +16,23 @@
 #include <stdint.h>
 
 // One-time SPI peripheral (VSPI/SPI3_HOST) + GPIO setup (RST/DC/CS as outputs, BUSY as
-// input) for the given panel. Call once before any other epd_spi_* call.
+// pulled-up input -- matches Inkplate2's real Arduino reference driver's
+// INPUT_PULLUP) for the given panel. Call once before any other epd_spi_* call.
 void epd_spi_init(const spi_panel_config_t *cfg);
 
 // Tears down the SPI peripheral/device claimed by epd_spi_init.
 void epd_spi_deinit(const spi_panel_config_t *cfg);
 
-// Hardware reset pulse: RST low, then high -- matches the real Arduino reference
-// driver's resetPanel() (1ms low, 200ms recovery before the panel's BUSY line is
-// trusted).
+// Hardware reset pulse: RST low, then high -- 100ms low pulse, 200ms recovery before
+// the panel's BUSY line is trusted. Matches Inkplate2's real Arduino reference driver's
+// resetPanel() (100ms low, 100ms recovery) -- bumped up from this function's original
+// 1ms low pulse (calibrated only against Inkplate6COLOR's own resetPanel() spec,
+// docs/REFACTOR-PLAN.md Phase 9 step 30) since a longer low pulse can't hurt a panel
+// that only needed 1ms, but 1ms could plausibly be too short for one (Inkplate2) whose
+// own spec asks for 100ms. Recovery delay kept at 200ms (already >= both panels'
+// real specs) rather than also raised, since neither reference driver asks for more.
+// Not independently re-verified via HIL on Inkplate6COLOR after this change -- flag if
+// regression suspected there.
 void epd_spi_reset(const spi_panel_config_t *cfg);
 
 // Directly drives RST -- used to hold it low while the panel is in deep sleep (matches

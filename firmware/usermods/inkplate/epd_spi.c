@@ -50,10 +50,14 @@ void epd_spi_init(const spi_panel_config_t *cfg)
     };
     gpio_config(&out_conf);
 
+    // Pull-up enabled: matches Inkplate2's real Arduino reference driver
+    // (pinMode(EPAPER_BUSY_PIN, INPUT_PULLUP)) -- harmless for Inkplate6COLOR even
+    // though its own reference doesn't ask for one, since a pull-up is a no-op once
+    // the panel's controller actively drives the line.
     gpio_config_t busy_conf = {
         .pin_bit_mask = (1ULL << cfg->pin_busy),
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
@@ -96,7 +100,7 @@ void epd_spi_deinit(const spi_panel_config_t *cfg)
 void epd_spi_reset(const spi_panel_config_t *cfg)
 {
     gpio_set_level(cfg->pin_rst, 0);
-    esp_rom_delay_us(1000);
+    esp_rom_delay_us(100000);
     gpio_set_level(cfg->pin_rst, 1);
     esp_rom_delay_us(200000);
 }

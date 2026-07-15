@@ -206,10 +206,11 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gs_display_obj, inkplate_gs_display);
 
-// spi_panel_* bindings (docs/REFACTOR-PLAN.md Phase 9 step 30): the SPI-controller-panel
-// family (Inkplate6COLOR now, Inkplate2/Inkplate13SPECTRA later) is architecturally
-// separate from the parallel-bus board_config_t/active_board above -- a different static
-// selection slot, mirroring the same select-once-then-call-by-name pattern.
+// spi_panel_* bindings (docs/REFACTOR-PLAN.md Phase 9 steps 30-31): the SPI-controller-
+// panel family (Inkplate6COLOR, Inkplate2 now, Inkplate13SPECTRA later) is
+// architecturally separate from the parallel-bus board_config_t/active_board above -- a
+// different static selection slot, mirroring the same select-once-then-call-by-name
+// pattern.
 static const spi_panel_config_t *active_spi_panel = NULL;
 
 static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
@@ -217,6 +218,8 @@ static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
     const char *name = mp_obj_str_get_str(name_obj);
     if (strcmp(name, "inkplate6color") == 0) {
         active_spi_panel = &spi_panel_config_inkplate6color;
+    } else if (strcmp(name, "inkplate2") == 0) {
+        active_spi_panel = &spi_panel_config_inkplate2;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown spi panel"));
     }

@@ -42,5 +42,6 @@ typedef struct {
 } spi_panel_config_t;
 
 extern const spi_panel_config_t spi_panel_config_inkplate6color;
+extern const spi_panel_config_t spi_panel_config_inkplate2;
 
 #endif // INKPLATE_SPI_PANEL_CONFIG_H
