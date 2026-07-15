@@ -78,6 +78,7 @@ extern const board_config_t board_config_inkplate6v2;
 extern const board_config_t board_config_inkplate5v2;
 extern const board_config_t board_config_inkplate6flick;
 extern const board_config_t board_config_inkplate6plusv2;
+extern const board_config_t board_config_inkplate4tempera;
 
 // board_config_row_bytes: bytes needed for one row of 2-bit-per-pixel wire codes --
 // driven only by panel width, since the wire format is always 2 bits/pixel regardless

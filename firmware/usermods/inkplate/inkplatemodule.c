@@ -60,6 +60,8 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
         active_board = &board_config_inkplate6flick;
     } else if (strcmp(name, "inkplate6plusv2") == 0) {
         active_board = &board_config_inkplate6plusv2;
+    } else if (strcmp(name, "inkplate4tempera") == 0) {
+        active_board = &board_config_inkplate4tempera;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown board"));
     }
@@ -162,7 +164,15 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
         inkplate_gen_mono_wave_white_first(repeat_phases, mono_luts);
         num_phases = repeat_phases + 1;
     } else {
-        uint8_t black_phases = (cfg == &board_config_inkplate6flick) ? 4 : 5;
+        // Inkplate4TEMPERA's real display1b() uses 10 black-push phases, not the usual 5
+        // -- confirmed NOT a copy-paste artifact: its own GraphicsDefs.h LUTB/LUT2 arrays
+        // are byte-for-byte identical to this function's standard op_blk/op_bw output
+        // (test_waveform.c's expected_blk/expected_bw), so it's the standard scheme run
+        // 10 times, not a reversed-role variant like Inkplate6PLUSV2 (docs/REFACTOR-PLAN.md
+        // Phase 8 step 26).
+        uint8_t black_phases = (cfg == &board_config_inkplate6flick)     ? 4
+                               : (cfg == &board_config_inkplate4tempera) ? 10
+                                                                         : 5;
         inkplate_gen_mono_wave(black_phases, mono_luts);
         num_phases = black_phases + 1;
     }

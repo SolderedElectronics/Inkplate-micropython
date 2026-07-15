@@ -323,3 +323,73 @@ const board_config_t board_config_inkplate6plusv2 = {
     .has_touch = 0,
     .has_frontlight = 0,
 };
+
+// Real 3-bit/8-level waveform for Inkplate4TEMPERA, transcribed from the Arduino reference
+// driver's waveforms.h WAVEFORM3BIT macro (user-supplied full 9-column version,
+// superseding an earlier 8-column paste that turned out truncated). Standard bookend
+// pattern like every other wired board: phase 0 and phase 8 are both all-zero
+// (discharge/park) rows, transposed from waveform3Bit[color][phase] to this struct's
+// [phase][color] convention. display3b()'s hardware push loop is for(k<8) -- one short
+// of this table's 9 rows -- but phase 8 is all-zero (no-op/discharge for every gray
+// level), so pushing it as a harmless extra pass keeps .phases=9 consistent with every
+// other board's convention instead of a one-off .phases=8.
+static const waveform_table_t wave_3b_inkplate4tempera = {
+    .levels = 8,
+    .phases = 9,
+    .table =
+        {
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 1, 2, 0, 2, 1, 1, 0},
+            {0, 1, 1, 0, 1, 2, 1, 0},
+            {1, 1, 1, 0, 1, 1, 1, 0},
+            {1, 2, 0, 1, 2, 1, 2, 0},
+            {1, 1, 2, 1, 1, 2, 1, 0},
+            {1, 1, 1, 1, 1, 1, 2, 2},
+            {1, 0, 1, 2, 2, 2, 2, 2},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+// INKPLATE4TEMPERA (600x600, first square panel wired): same classic-ESP32 parallel-bus
+// pin/expander layout as every other board (PCAL6416A @ 0x20 for OE/GMODE/SPV, TPS65186
+// assumed @ 0x48 -- not given in the pasted pins.h, same assumption made for every prior
+// board). display1b() uses 10 black-push phases (not the usual 5) -- confirmed NOT a
+// copy-paste artifact: this board's own GraphicsDefs.h LUTB/LUT2 arrays are byte-for-byte
+// identical to inkplate_gen_mono_wave's standard op_blk/op_bw output (same bytes as
+// test_waveform.c's expected_blk/expected_bw), so it's the standard scheme run 10 times,
+// not a reversed-role variant like Inkplate6PLUSV2. See inkplatemodule.c's
+// inkplate_mono_display board check. display3b() loops for(k<8); waveform.phases=9 (see
+// above) pushes one harmless extra all-zero phase for consistency with every other
+// board. partialUpdate() loops for(k<9) -> partial_reps=9. SD wired this pass (user
+// request): SD_PMOS_PIN on the internal expander (pin 11), same P-MOS-gated pattern as
+// Inkplate6/6FLICK/6PLUSV2, SPI pins (miso=12/mosi=13/sck=14/cs=15) match those boards'
+// own already-verified numbers exactly. Touch/frontlight/battery/BME688/APDS9960/
+// accelerometer/buzzer/VCOM-EEPROM out of scope this pass, same precedent as
+// Inkplate6FLICK/6PLUSV2's first pass (docs/REFACTOR-PLAN.md Phase 8 step 26).
+const board_config_t board_config_inkplate4tempera = {
+    .name = "inkplate4tempera",
+
+    .width = 600,
+    .height = 600,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate4tempera,
+
+    .partial_reps = 9,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};

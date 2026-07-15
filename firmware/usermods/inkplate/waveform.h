@@ -39,8 +39,11 @@ void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases
 // but black_phases is NOT: every wired board's Arduino reference driver uses 5 except
 // Inkplate6FLICK's display1b(), which uses 4 (then does its own separate discharge pass,
 // pushed from Python via i2s_push_frame(0)/clean(2,...) -- see docs/REFACTOR-PLAN.md
-// Phase 8 step 24). out must have room for black_phases+1 rows of 16 bytes each.
-#define INKPLATE_MONO_WAVE_MAX_PHASES 6
+// Phase 8 step 24), and Inkplate4TEMPERA's, which uses 10 (its own GraphicsDefs.h
+// LUTB/LUT2 confirmed byte-identical to the standard op_blk/op_bw scheme despite the
+// unusually high count -- see docs/REFACTOR-PLAN.md Phase 8 step 26). out must have room
+// for black_phases+1 rows of 16 bytes each.
+#define INKPLATE_MONO_WAVE_MAX_PHASES 11
 void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16]);
 
 // Mono (1bpp) display waveform, reversed-role variant: `repeat_phases` "push toward white"

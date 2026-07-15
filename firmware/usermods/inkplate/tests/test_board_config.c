@@ -212,6 +212,48 @@ int main(void)
     assert(c6plusv2->has_touch == 0);
     assert(c6plusv2->has_frontlight == 0);
 
+    // INKPLATE4TEMPERA: same pin/data-bus layout, own 600x600 resolution, and -- unlike
+    // every board above -- only 8 real waveform phases (display3b() loops for(k<8), not
+    // for(k<9)).
+    const board_config_t *c4t = &board_config_inkplate4tempera;
+
+    assert(strcmp(c4t->name, "inkplate4tempera") == 0);
+
+    assert(c4t->width == 600);
+    assert(c4t->height == 600);
+
+    assert(memcmp(c4t->data_pins, expected_data_pins, sizeof(expected_data_pins)) == 0);
+    assert(c4t->data_mask == 0x0E8C0030);
+
+    assert(c4t->pin_cl == 0);
+    assert(c4t->pin_le == 2);
+    assert(c4t->pin_ckv == 32);
+    assert(c4t->pin_sph == 33);
+
+    assert(c4t->pin_oe.expander_addr == 0x20 && c4t->pin_oe.pin == 0);
+    assert(c4t->pin_gmode.expander_addr == 0x20 && c4t->pin_gmode.pin == 1);
+    assert(c4t->pin_spv.expander_addr == 0x20 && c4t->pin_spv.pin == 2);
+
+    assert(c4t->pmic_i2c_addr == 0x48);
+
+    assert(c4t->waveform != NULL);
+    assert(c4t->waveform->levels == 8);
+    assert(c4t->waveform->phases == 9);
+    // Phase 4 row, cross-checked against the real Arduino waveform3Bit[color][phase=4]
+    // column (user-supplied full 9-column waveforms.h macro): color0=1, color1=2,
+    // color2=0, color3=1, color4=2, color5=1, color6=2, color7=0.
+    const uint8_t expected_wave_4t_row4[MAX_WAVE_LEVELS] = {1, 2, 0, 1, 2, 1, 2, 0};
+    assert(memcmp(c4t->waveform->table[4], expected_wave_4t_row4, MAX_WAVE_LEVELS) == 0);
+    // Both phase 0 and phase 8 are the all-discharge/park row (standard bookend
+    // convention, same as every other board).
+    assert(memcmp(c4t->waveform->table[0], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
+    assert(memcmp(c4t->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
+
+    assert(c4t->partial_reps == 9);
+
+    assert(c4t->has_touch == 0);
+    assert(c4t->has_frontlight == 0);
+
     printf("board_config: all assertions passed\n");
     return 0;
 }

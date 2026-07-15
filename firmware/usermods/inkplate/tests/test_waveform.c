@@ -118,12 +118,36 @@ static void test_mono_wave_white_first_parity(void)
     printf("test_mono_wave_white_first_parity: passed\n");
 }
 
+static void test_mono_wave_10phase_parity(void)
+{
+    // Inkplate4TEMPERA-only phase count: standard op_blk/op_bw scheme (same bytes as
+    // test_mono_wave_parity's expected_blk/expected_bw -- cross-checked directly against
+    // the board's own pasted GraphicsDefs.h LUTB/LUT2 arrays, byte-for-byte identical),
+    // just run for 10 repeats instead of 5. Confirms this board is NOT a reversed-role
+    // variant like Inkplate6PLUSV2 despite its unusually high phase count.
+    static const uint8_t expected_blk[16] = {255, 253, 247, 245, 223, 221, 215, 213,
+                                             127, 125, 119, 117, 95,  93,  87,  85};
+    static const uint8_t expected_bw[16] = {170, 169, 166, 165, 154, 153, 150, 149,
+                                            106, 105, 102, 101, 90,  89,  86,  85};
+
+    uint8_t wave[INKPLATE_MONO_WAVE_MAX_PHASES][16];
+    inkplate_gen_mono_wave(10, wave);
+
+    for (int phase = 0; phase < 10; phase++) {
+        assert(memcmp(wave[phase], expected_blk, 16) == 0);
+    }
+    assert(memcmp(wave[10], expected_bw, 16) == 0);
+
+    printf("test_mono_wave_10phase_parity: passed\n");
+}
+
 int main(void)
 {
     test_synthetic_nibble_lut();
     test_3bit_wave_parity();
     test_mono_wave_parity();
     test_mono_wave_white_first_parity();
+    test_mono_wave_10phase_parity();
     printf("test_waveform: all assertions passed\n");
     return 0;
 }
