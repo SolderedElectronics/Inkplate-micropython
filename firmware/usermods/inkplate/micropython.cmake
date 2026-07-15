@@ -18,6 +18,7 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/png_decode.c
     ${CMAKE_CURRENT_LIST_DIR}/png_draw.c
     ${CMAKE_CURRENT_LIST_DIR}/spi_panel_config.c
+    ${CMAKE_CURRENT_LIST_DIR}/spi_panel_palette.c
     ${CMAKE_CURRENT_LIST_DIR}/epd_spi.c
 )
 

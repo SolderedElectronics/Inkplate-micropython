@@ -145,3 +145,141 @@ int png_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
     *out_height = height;
     return 0;
 }
+
+// Buffer dims are the caller-supplied max_width/max_height, not a fixed constant --
+// see jpeg_draw.c's identical param for the full HIL-informed history and why it's
+// stored as RGB565 (dither_pack_rgb565/dither_unpack_rgb565) rather than RGB888.
+typedef struct {
+    int invert;
+    int dither;
+    int kernel_type;
+    const dither_palette_entry_t *palette;
+    int palette_n;
+    png_draw_palette_cb write_pixel;
+    void *cb_ctx;
+    int max_width;
+    int max_height;
+    uint16_t *rgb; // [y * max_width + x], RGB565, only allocated when dither is set
+    int oversized; // set if a pixel ever falls outside the max_width/max_height cap
+} png_draw_palette_ctx_t;
+
+static void png_draw_palette_pixel_cb(void *ctx_, uint32_t x, uint32_t y, const uint8_t rgba[4])
+{
+    png_draw_palette_ctx_t *ctx = (png_draw_palette_ctx_t *)ctx_;
+
+    if (!ctx->dither) {
+        int recon_r, recon_g, recon_b;
+        int value = dither_quantize_palette(rgba[0], rgba[1], rgba[2], ctx->palette,
+                                            ctx->palette_n, &recon_r, &recon_g, &recon_b);
+        if (ctx->invert) {
+            value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
+        }
+        ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
+        return;
+    }
+
+    if (x >= (uint32_t)ctx->max_width || y >= (uint32_t)ctx->max_height) {
+        ctx->oversized = 1;
+        return;
+    }
+    size_t off = (size_t)y * (uint32_t)ctx->max_width + x;
+    ctx->rgb[off] = dither_pack_rgb565(rgba[0], rgba[1], rgba[2]);
+}
+
+static void png_palette_dither_pass(png_draw_palette_ctx_t *ctx, uint32_t w, uint32_t h)
+{
+    dither_rgb_ctx_t dctx;
+    int have_dctx = dither_rgb_ctx_init(&dctx, (int)w, ctx->kernel_type) == 0;
+
+    for (uint32_t y = 0; y < h; y++) {
+        for (uint32_t x = 0; x < w; x++) {
+            size_t off = (size_t)y * (uint32_t)ctx->max_width + x;
+            int r, g, b;
+            dither_unpack_rgb565(ctx->rgb[off], &r, &g, &b);
+            int value, recon_r, recon_g, recon_b;
+            if (have_dctx) {
+                dither_apply_error_rgb(&dctx, (int)x, &r, &g, &b);
+                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
+                                                &recon_g, &recon_b);
+                dither_diffuse_error_rgb(&dctx, (int)x, (int)y, (int)w, (int)h, r - recon_r,
+                                         g - recon_g, b - recon_b);
+            } else {
+                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
+                                                &recon_g, &recon_b);
+            }
+            if (ctx->invert) {
+                value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
+            }
+            ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
+        }
+        if (have_dctx) {
+            dither_row_advance_rgb(&dctx);
+        }
+    }
+    if (have_dctx) {
+        dither_rgb_ctx_free(&dctx);
+    }
+}
+
+int png_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
+                     const dither_palette_entry_t *palette, int palette_n,
+                     png_draw_palette_cb write_pixel, void *cb_ctx, int max_width, int max_height,
+                     uint32_t *out_width, uint32_t *out_height)
+{
+    png_draw_palette_ctx_t ctx = {.invert = invert,
+                                  .dither = dither,
+                                  .kernel_type = kernel_type,
+                                  .palette = palette,
+                                  .palette_n = palette_n,
+                                  .write_pixel = write_pixel,
+                                  .cb_ctx = cb_ctx,
+                                  .max_width = max_width,
+                                  .max_height = max_height,
+                                  .rgb = NULL,
+                                  .oversized = 0};
+
+    if (dither) {
+        ctx.rgb = heap_caps_malloc((size_t)max_width * (size_t)max_height * sizeof(uint16_t),
+                                   MALLOC_CAP_SPIRAM);
+        if (ctx.rgb == NULL) {
+            // Same graceful degrade as jpeg_draw_palette -- see its identical comment
+            // for the HIL-confirmed PSRAM-fragmentation reasoning.
+            dither = 0;
+            ctx.dither = 0;
+        }
+    }
+
+    uint32_t width = 0, height = 0;
+    int res = png_decode(buf, len, png_draw_palette_pixel_cb, &ctx, &width, &height);
+
+    if (res == 0 && ctx.oversized && dither) {
+        // Source image is bigger than max_width/max_height (typically the panel's
+        // own physical size -- see inkplatemodule.c's caller), so the dither buffer
+        // never held the whole image. Retry the whole decode from scratch with
+        // dithering off instead of failing outright -- png_decode has no state that
+        // survives across calls, so this is a clean full redo, not a half-drawn
+        // image (same reasoning as jpeg_draw_palette's identical retry).
+        heap_caps_free(ctx.rgb);
+        ctx.rgb = NULL;
+        dither = 0;
+        ctx.dither = 0;
+        ctx.oversized = 0;
+        width = 0;
+        height = 0;
+        res = png_decode(buf, len, png_draw_palette_pixel_cb, &ctx, &width, &height);
+    }
+
+    if (res == 0 && dither) {
+        png_palette_dither_pass(&ctx, width, height);
+    }
+    if (dither) {
+        heap_caps_free(ctx.rgb);
+    }
+    if (res != 0) {
+        return -1;
+    }
+
+    *out_width = width;
+    *out_height = height;
+    return 0;
+}

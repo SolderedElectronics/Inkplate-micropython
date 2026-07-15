@@ -83,3 +83,76 @@ int bmp_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
     *out_height = hdr.height;
     return 0;
 }
+
+int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
+                     const dither_palette_entry_t *palette, int palette_n,
+                     bmp_draw_palette_cb write_pixel, void *cb_ctx, uint32_t *out_width,
+                     uint32_t *out_height)
+{
+    bmp_header_t hdr;
+    if (bmp_parse_header(buf, len, &hdr) != 0) {
+        return -1;
+    }
+    if (hdr.width > BMP_DRAW_MAX_WIDTH) {
+        return -1;
+    }
+
+    if (hdr.bpp <= 8) {
+        size_t palette_bytes = (size_t)hdr.palette_count * 4;
+        if ((size_t)hdr.palette_offset + palette_bytes > len ||
+            bmp_parse_palette(&hdr, buf + hdr.palette_offset, palette_bytes) != 0) {
+            return -1;
+        }
+    } else if (hdr.bpp == 16 && hdr.bitfield_offset != 0) {
+        if ((size_t)hdr.bitfield_offset + 12 > len ||
+            bmp_parse_bitfields(&hdr, buf + hdr.bitfield_offset, 12) != 0) {
+            return -1;
+        }
+    }
+
+    if ((size_t)hdr.data_offset + (size_t)hdr.row_size * hdr.height > len) {
+        return -1;
+    }
+
+    dither_rgb_ctx_t dctx;
+    if (dither && dither_rgb_ctx_init(&dctx, (int)hdr.width, kernel_type) != 0) {
+        return -1;
+    }
+
+    for (uint32_t file_row = 0; file_row < hdr.height; file_row++) {
+        const uint8_t *raw_row = buf + hdr.data_offset + (size_t)file_row * hdr.row_size;
+        bmp_decode_row(&hdr, raw_row, bmp_draw_row_rgb);
+
+        uint32_t y = hdr.flip_y ? (hdr.height - 1 - file_row) : file_row;
+        for (uint32_t x = 0; x < hdr.width; x++) {
+            const uint8_t *px = bmp_draw_row_rgb + x * 3;
+            int r = px[0], g = px[1], b = px[2];
+
+            int value, recon_r, recon_g, recon_b;
+            if (dither) {
+                dither_apply_error_rgb(&dctx, (int)x, &r, &g, &b);
+                value = dither_quantize_palette(r, g, b, palette, palette_n, &recon_r, &recon_g,
+                                                &recon_b);
+                dither_diffuse_error_rgb(&dctx, (int)x, (int)y, (int)hdr.width, (int)hdr.height,
+                                         r - recon_r, g - recon_g, b - recon_b);
+            } else {
+                value = dither_quantize_palette(r, g, b, palette, palette_n, &recon_r, &recon_g,
+                                                &recon_b);
+            }
+            if (invert) {
+                value = dither_invert_palette_bw(value, palette, palette_n);
+            }
+            write_pixel(cb_ctx, (int)x, (int)y, value);
+        }
+        if (dither) {
+            dither_row_advance_rgb(&dctx);
+        }
+    }
+    if (dither) {
+        dither_rgb_ctx_free(&dctx);
+    }
+
+    *out_width = hdr.width;
+    *out_height = hdr.height;
+    return 0;
+}

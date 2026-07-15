@@ -21,6 +21,7 @@ jobs:
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_draw.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/dither.c -o /dev/null
           gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/spi_panel_config.c -o /dev/null
+          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/spi_panel_palette.c -o /dev/null
 
   format:
     runs-on: ubuntu-latest
@@ -81,3 +82,16 @@ jobs:
             firmware/usermods/inkplate/spi_panel_config.c \
             -o /tmp/test_spi_panel_config
           /tmp/test_spi_panel_config
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_spi_panel_palette.c \
+            firmware/usermods/inkplate/spi_panel_palette.c \
+            -o /tmp/test_spi_panel_palette
+          /tmp/test_spi_panel_palette
+          gcc -Wall -Wextra -I firmware/usermods/inkplate \
+            firmware/usermods/inkplate/tests/test_bmp_draw_palette.c \
+            firmware/usermods/inkplate/bmp_draw.c \
+            firmware/usermods/inkplate/bmp_decode.c \
+            firmware/usermods/inkplate/dither.c \
+            firmware/usermods/inkplate/gfx.c \
+            -o /tmp/test_bmp_draw_palette
+          /tmp/test_bmp_draw_palette

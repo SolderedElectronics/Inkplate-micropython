@@ -68,4 +68,65 @@ void dither_diffuse_error(dither_ctx_t *ctx, int x, int y, int draw_width, int d
 // after all dither_apply_error/dither_diffuse_error calls for that row.
 void dither_row_advance(dither_ctx_t *ctx);
 
+// docs/REFACTOR-PLAN.md Phase 10 step 32: general N-color RGB palette path for the
+// SPI color/BWR panels (Inkplate2, 6COLOR, 13SPECTRA), completing the engine above
+// (mono/GS3-only) with full-RGB nearest-color search + 3-channel error diffusion.
+
+// One palette entry: `r/g/b` is the reference color used for nearest-match search
+// and (pre-invert) error-diffusion reconstruction; `value` is the raw pixel value
+// written to the framebuffer for this entry. `value` is NOT always the entry's
+// array index -- e.g. Inkplate13SPECTRA's controller skips register value 4, so
+// its table is {0,1,2,3,5,6}, not {0,1,2,3,4,5}.
+typedef struct {
+    uint8_t r, g, b;
+    uint8_t value;
+} dither_palette_entry_t;
+
+// Brute-force nearest-color search (squared RGB distance) over `palette` (n
+// entries, n is small -- 3 to 7 across today's boards -- so brute force is cheap).
+// Returns the matched entry's `value`; *out_recon_{r,g,b} receive that entry's own
+// r/g/b, always computed pre-invert -- same invariant as dither_quantize/this
+// file's module comment, so invert never corrupts the diffused error.
+int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *palette, int n,
+                            int *out_recon_r, int *out_recon_g, int *out_recon_b);
+
+// Applies invert to an already-quantized palette `value`: swaps strictly between a
+// pure-black (0,0,0) and pure-white (255,255,255) palette entry if `value` matches
+// either one's `value`, otherwise returns `value` unchanged -- chromatic entries
+// (red, blue, ...) are deliberately left untouched. Replaces each color board's
+// current invert attempt (XOR-ing the whole nibble against the palette's index
+// range), which produces out-of-palette values whenever the entry count isn't a
+// full 16 (true for every board in scope: 3/6/7 entries).
+int dither_invert_palette_bw(int value, const dither_palette_entry_t *palette, int n);
+
+// Three-channel (RGB) counterpart of dither_ctx_t/dither_apply_error/
+// dither_diffuse_error/dither_row_advance above -- palette mode diffuses the full
+// RGB error vector, not a single luma channel. error_current/next are width*3
+// entries, interleaved r,g,b per column. Reuses the same kernel tables (dither.c).
+typedef struct {
+    int width;
+    int kernel_type;
+    int16_t *error_current;
+    int16_t *error_next;
+} dither_rgb_ctx_t;
+
+int dither_rgb_ctx_init(dither_rgb_ctx_t *ctx, int width, int kernel_type);
+void dither_rgb_ctx_free(dither_rgb_ctx_t *ctx);
+void dither_apply_error_rgb(const dither_rgb_ctx_t *ctx, int x, int *r, int *g, int *b);
+void dither_diffuse_error_rgb(dither_rgb_ctx_t *ctx, int x, int y, int draw_width,
+                              int draw_height, int dr, int dg, int db);
+void dither_row_advance_rgb(dither_rgb_ctx_t *ctx);
+
+// RGB565 pack/unpack for callers that buffer a full decoded image before dithering
+// (jpeg_draw.c/png_draw.c's palette-mode scratch buffers) -- storing RGB565 (2
+// bytes/pixel) instead of RGB888 (3 bytes/pixel) cuts that buffer's PSRAM footprint
+// by a third, same bit-expansion convention already used elsewhere in this codebase
+// (e.g. boards/inkplate6color/inkplate6_color.py's old RGB565->RGB888 unpack:
+// replicate the component's top bits into the low bits it's missing, rather than
+// zero-filling, so full black/white stay exact and the ramp between them stays
+// smooth). This is a lossy round-trip (5/6/5 bits vs. 8/8/8) -- fine for dithering
+// scratch storage, which is already approximating a limited palette.
+uint16_t dither_pack_rgb565(int r, int g, int b);
+void dither_unpack_rgb565(uint16_t rgb565, int *out_r, int *out_g, int *out_b);
+
 #endif // INKPLATE_DITHER_H

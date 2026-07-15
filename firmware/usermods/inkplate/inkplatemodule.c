@@ -11,6 +11,7 @@
 #include "png_draw.h"
 #include "bmp_draw.h"
 #include "spi_panel_config.h"
+#include "spi_panel_palette.h"
 #include "epd_spi.h"
 #include <stdbool.h>
 #include <string.h>
@@ -629,6 +630,129 @@ static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_gs4_obj, 11, 11,
                                            inkplate_bmp_draw_gs4);
 
+// *_draw_palette bindings (docs/REFACTOR-PLAN.md Phase 10 steps 32-33): shared with
+// the SPI color-panel family (Inkplate6COLOR/Inkplate2/Inkplate13SPECTRA), which
+// panel/palette/packing to use is resolved from the already-selected
+// active_spi_panel (select_spi_panel() must be called first, same as the
+// spi_panel_* bindings above) rather than passed explicitly. args: framebuf,
+// framebuf2 (Inkplate2's red plane, or None for the other two boards), rotation,
+// x0, y0, invert, dither, kernel_type, image_bytes. Returns (width, height) of the
+// decoded image.
+static void inkplate_palette_ctx_init(spi_panel_palette_ctx_t *ctx, const mp_obj_t *args,
+                                      mp_buffer_info_t *fb_buf, mp_buffer_info_t *fb2_buf)
+{
+    const spi_panel_config_t *panel = require_spi_panel();
+    int panel_id = spi_panel_palette_id_for_name(panel->name);
+    if (panel_id < 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("no palette for this spi panel"));
+    }
+
+    ctx->panel = panel_id;
+    ctx->fb = gfx_writable_buf(args[0], fb_buf);
+    ctx->fb2 = (args[1] == mp_const_none) ? NULL : gfx_writable_buf(args[1], fb2_buf);
+    ctx->width = panel->width;
+    ctx->height = panel->height;
+    ctx->rotation = mp_obj_get_int(args[2]);
+    ctx->x0 = mp_obj_get_int(args[3]);
+    ctx->y0 = mp_obj_get_int(args[4]);
+}
+
+static mp_obj_t inkplate_bmp_draw_palette(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t fb_buf, fb2_buf, img_buf;
+    spi_panel_palette_ctx_t ctx;
+    inkplate_palette_ctx_init(&ctx, args, &fb_buf, &fb2_buf);
+
+    int n = 0;
+    const dither_palette_entry_t *palette = spi_panel_palette_table(ctx.panel, &n);
+    mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
+
+    uint32_t width = 0, height = 0;
+    int res = bmp_draw_palette((const uint8_t *)img_buf.buf, img_buf.len, mp_obj_is_true(args[5]),
+                               mp_obj_is_true(args[6]), mp_obj_get_int(args[7]), palette, n,
+                               spi_panel_palette_write_pixel, &ctx, &width, &height);
+    if (res != 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("BMP decode failed"));
+    }
+
+    mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
+    return mp_obj_new_tuple(2, dims);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_palette_obj, 9, 9,
+                                           inkplate_bmp_draw_palette);
+
+static mp_obj_t inkplate_jpeg_draw_palette(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t fb_buf, fb2_buf, img_buf;
+    spi_panel_palette_ctx_t ctx;
+    inkplate_palette_ctx_init(&ctx, args, &fb_buf, &fb2_buf);
+
+    int n = 0;
+    const dither_palette_entry_t *palette = spi_panel_palette_table(ctx.panel, &n);
+    mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
+
+    // Cap at the larger of this panel's own physical size and a "typical photo"
+    // floor (1200x825, matching the grayscale JPEG/PNG path's existing
+    // JPEG_DRAW_MAX_WIDTH/HEIGHT) -- affordable now that jpeg_draw_palette stores
+    // this buffer as RGB565 rather than RGB888 (dither.h's dither_pack_rgb565): at
+    // 2 bytes/pixel this floor costs ~1.98MB even at 1200x825, which HIL on real
+    // Inkplate6COLOR hardware confirmed fits its ~2.8MB largest-contiguous-free-
+    // PSRAM-block ceiling (the RGB888 version of this same floor, ~2.97MB, did
+    // not). A too-small cap (this panel's own size alone, no floor) was tried and
+    // rejected too -- it made ordinary source photos bigger than the panel lose
+    // dithering unconditionally, even on boards with PSRAM to spare, when the
+    // real goal is just to bound worst-case memory, not to punish every board for
+    // Inkplate6COLOR's specific constraint. jpeg_draw_palette's retry-without-
+    // dither and malloc-failure fallbacks still cover the rare case where even
+    // this doesn't fit.
+    int max_w = ctx.width > 1200 ? ctx.width : 1200;
+    int max_h = ctx.height > 825 ? ctx.height : 825;
+    uint32_t width = 0, height = 0;
+    int res =
+        jpeg_draw_palette((const uint8_t *)img_buf.buf, img_buf.len, mp_obj_is_true(args[5]),
+                          mp_obj_is_true(args[6]), mp_obj_get_int(args[7]), palette, n,
+                          spi_panel_palette_write_pixel, &ctx, max_w, max_h, &width, &height);
+    if (res != 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("JPEG decode failed"));
+    }
+
+    mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
+    return mp_obj_new_tuple(2, dims);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_palette_obj, 9, 9,
+                                           inkplate_jpeg_draw_palette);
+
+static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t fb_buf, fb2_buf, img_buf;
+    spi_panel_palette_ctx_t ctx;
+    inkplate_palette_ctx_init(&ctx, args, &fb_buf, &fb2_buf);
+
+    int n = 0;
+    const dither_palette_entry_t *palette = spi_panel_palette_table(ctx.panel, &n);
+    mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
+
+    // Same panel-size-vs-photo-floor cap reasoning as jpeg_draw_palette above.
+    int max_w = ctx.width > 1200 ? ctx.width : 1200;
+    int max_h = ctx.height > 825 ? ctx.height : 825;
+    uint32_t width = 0, height = 0;
+    int res =
+        png_draw_palette((const uint8_t *)img_buf.buf, img_buf.len, mp_obj_is_true(args[5]),
+                         mp_obj_is_true(args[6]), mp_obj_get_int(args[7]), palette, n,
+                         spi_panel_palette_write_pixel, &ctx, max_w, max_h, &width, &height);
+    if (res != 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("PNG decode failed"));
+    }
+
+    mp_obj_t dims[2] = {mp_obj_new_int(width), mp_obj_new_int(height)};
+    return mp_obj_new_tuple(2, dims);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_png_draw_palette_obj, 9, 9,
+                                           inkplate_png_draw_palette);
+
 static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_inkplate)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&inkplate_version_obj)},
@@ -679,6 +803,9 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_jpeg_draw_gs4), MP_ROM_PTR(&inkplate_jpeg_draw_gs4_obj)},
     {MP_ROM_QSTR(MP_QSTR_png_draw_gs4), MP_ROM_PTR(&inkplate_png_draw_gs4_obj)},
     {MP_ROM_QSTR(MP_QSTR_bmp_draw_gs4), MP_ROM_PTR(&inkplate_bmp_draw_gs4_obj)},
+    {MP_ROM_QSTR(MP_QSTR_bmp_draw_palette), MP_ROM_PTR(&inkplate_bmp_draw_palette_obj)},
+    {MP_ROM_QSTR(MP_QSTR_jpeg_draw_palette), MP_ROM_PTR(&inkplate_jpeg_draw_palette_obj)},
+    {MP_ROM_QSTR(MP_QSTR_png_draw_palette), MP_ROM_PTR(&inkplate_png_draw_palette_obj)},
 };
 static MP_DEFINE_CONST_DICT(inkplate_module_globals, inkplate_module_globals_table);
 

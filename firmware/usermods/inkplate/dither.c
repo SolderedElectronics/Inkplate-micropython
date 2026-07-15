@@ -112,3 +112,128 @@ void dither_row_advance(dither_ctx_t *ctx)
         ctx->error_next[i] = 0;
     }
 }
+
+int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *palette, int n,
+                            int *out_recon_r, int *out_recon_g, int *out_recon_b)
+{
+    int best = 0;
+    int dr = r - palette[0].r, dg = g - palette[0].g, db = b - palette[0].b;
+    int best_dist = dr * dr + dg * dg + db * db;
+    for (int i = 1; i < n; i++) {
+        dr = r - palette[i].r;
+        dg = g - palette[i].g;
+        db = b - palette[i].b;
+        int dist = dr * dr + dg * dg + db * db;
+        if (dist < best_dist) {
+            best_dist = dist;
+            best = i;
+        }
+    }
+    *out_recon_r = palette[best].r;
+    *out_recon_g = palette[best].g;
+    *out_recon_b = palette[best].b;
+    return palette[best].value;
+}
+
+int dither_invert_palette_bw(int value, const dither_palette_entry_t *palette, int n)
+{
+    int black_value = -1, white_value = -1;
+    for (int i = 0; i < n; i++) {
+        if (palette[i].r == 0 && palette[i].g == 0 && palette[i].b == 0) {
+            black_value = palette[i].value;
+        } else if (palette[i].r == 255 && palette[i].g == 255 && palette[i].b == 255) {
+            white_value = palette[i].value;
+        }
+    }
+    if (value == black_value && white_value >= 0) {
+        return white_value;
+    }
+    if (value == white_value && black_value >= 0) {
+        return black_value;
+    }
+    return value;
+}
+
+static int dither_clamp255(int v)
+{
+    return v < 0 ? 0 : (v > 255 ? 255 : v);
+}
+
+int dither_rgb_ctx_init(dither_rgb_ctx_t *ctx, int width, int kernel_type)
+{
+    ctx->width = width;
+    ctx->kernel_type = kernel_type;
+    ctx->error_current = calloc((size_t)width * 3, sizeof(int16_t));
+    ctx->error_next = calloc((size_t)width * 3, sizeof(int16_t));
+    if (ctx->error_current == NULL || ctx->error_next == NULL) {
+        dither_rgb_ctx_free(ctx);
+        return -1;
+    }
+    return 0;
+}
+
+void dither_rgb_ctx_free(dither_rgb_ctx_t *ctx)
+{
+    free(ctx->error_current);
+    free(ctx->error_next);
+    ctx->error_current = NULL;
+    ctx->error_next = NULL;
+}
+
+void dither_apply_error_rgb(const dither_rgb_ctx_t *ctx, int x, int *r, int *g, int *b)
+{
+    int pos = x * 3;
+    *r = dither_clamp255(*r + ctx->error_current[pos]);
+    *g = dither_clamp255(*g + ctx->error_current[pos + 1]);
+    *b = dither_clamp255(*b + ctx->error_current[pos + 2]);
+}
+
+void dither_diffuse_error_rgb(dither_rgb_ctx_t *ctx, int x, int y, int draw_width,
+                              int draw_height, int dr, int dg, int db)
+{
+    const dither_kernel_t *k = &kernels[ctx->kernel_type];
+    for (int i = 0; i < k->length; i++) {
+        int nx = x + k->dx[i];
+        if (nx < 0 || nx >= draw_width) {
+            continue;
+        }
+        int pos = nx * 3;
+        if (k->dy[i] == 0) {
+            ctx->error_current[pos] += (int16_t)((dr * k->weight[i]) / k->divisor);
+            ctx->error_current[pos + 1] += (int16_t)((dg * k->weight[i]) / k->divisor);
+            ctx->error_current[pos + 2] += (int16_t)((db * k->weight[i]) / k->divisor);
+        } else if (y + k->dy[i] < draw_height) {
+            ctx->error_next[pos] += (int16_t)((dr * k->weight[i]) / k->divisor);
+            ctx->error_next[pos + 1] += (int16_t)((dg * k->weight[i]) / k->divisor);
+            ctx->error_next[pos + 2] += (int16_t)((db * k->weight[i]) / k->divisor);
+        }
+    }
+}
+
+void dither_row_advance_rgb(dither_rgb_ctx_t *ctx)
+{
+    int16_t *tmp = ctx->error_current;
+    ctx->error_current = ctx->error_next;
+    ctx->error_next = tmp;
+    for (int i = 0; i < ctx->width * 3; i++) {
+        ctx->error_next[i] = 0;
+    }
+}
+
+uint16_t dither_pack_rgb565(int r, int g, int b)
+{
+    uint16_t r5 = (uint16_t)((r >> 3) & 0x1F);
+    uint16_t g6 = (uint16_t)((g >> 2) & 0x3F);
+    uint16_t b5 = (uint16_t)((b >> 3) & 0x1F);
+    return (uint16_t)((r5 << 11) | (g6 << 5) | b5);
+}
+
+void dither_unpack_rgb565(uint16_t rgb565, int *out_r, int *out_g, int *out_b)
+{
+    int r5 = (rgb565 >> 11) & 0x1F;
+    int g6 = (rgb565 >> 5) & 0x3F;
+    int b5 = rgb565 & 0x1F;
+    *out_r = (r5 << 3) | (r5 >> 2);
+    *out_g = (g6 << 2) | (g6 >> 4);
+    *out_b = (b5 << 3) | (b5 >> 2);
+}
