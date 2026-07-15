@@ -73,6 +73,7 @@ typedef struct {
 } board_config_t;
 
 extern const board_config_t board_config_inkplate10;
+extern const board_config_t board_config_inkplate10v2;
 extern const board_config_t board_config_inkplate6;
 extern const board_config_t board_config_inkplate6v2;
 extern const board_config_t board_config_inkplate5v2;

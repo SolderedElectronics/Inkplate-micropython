@@ -24,8 +24,48 @@ static const waveform_table_t wave_3b_inkplate10 = {
         },
 };
 
+// INKPLATE10 (classic v1): MCP23017 internal expander @ 0x20 (V2 uses PCAL6416A there
+// instead), MCP23017 external expander @ 0x22 (V2's is @ 0x21), onboard touchpad wired
+// (boards/inkplate10/inkplate10.py TOUCH1/2/3 -- pure GPIO read via the internal
+// expander, no C-side hook needed, same precedent as Inkplate6 classic). Real Arduino
+// reference driver's pins.h: IO_INT_ADDR=0x20 both variants, IO_EXT_ADDR differs
+// (0x21 V2, 0x22 classic) -- same split as Inkplate6/6V2. OE/GMODE/SPV/WAKEUP/PWRUP/VCOM
+// pin numbers are identical between variants (no #ifdef branch touches them), so only
+// name/has_touch differ here; partial_reps stays 5 for both (partialUpdate()/display1b()
+// both hardcode _repeat=5 unconditionally in the real driver, no per-variant branch).
 const board_config_t board_config_inkplate10 = {
     .name = "inkplate10",
+
+    .width = 1200,
+    .height = 825,
+
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
+
+    .pin_cl = 0,
+    .pin_le = 2,
+    .pin_ckv = 32,
+    .pin_sph = 33,
+
+    .pin_oe = {.expander_addr = 0x20, .pin = 0},
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
+    .pin_spv = {.expander_addr = 0x20, .pin = 2},
+
+    .pmic_i2c_addr = 0x48,
+
+    .waveform = &wave_3b_inkplate10,
+
+    .partial_reps = 5,
+
+    .has_touch = 1,
+    .has_frontlight = 0,
+};
+
+// INKPLATE10V2: PCAL6416A external expander @ 0x21, no touchpad (same expander pins
+// 10/11/12 repurposed for SD_ENABLE in the Python driver instead, same precedent as
+// Inkplate6V2). Otherwise identical to classic INKPLATE10 above.
+const board_config_t board_config_inkplate10v2 = {
+    .name = "inkplate10v2",
 
     .width = 1200,
     .height = 825,
