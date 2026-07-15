@@ -10,6 +10,8 @@
 #include "jpeg_draw.h"
 #include "png_draw.h"
 #include "bmp_draw.h"
+#include "spi_panel_config.h"
+#include "epd_spi.h"
 #include <stdbool.h>
 #include <string.h>
 
@@ -203,6 +205,86 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gs_display_obj, inkplate_gs_display);
+
+// spi_panel_* bindings (docs/REFACTOR-PLAN.md Phase 9 step 30): the SPI-controller-panel
+// family (Inkplate6COLOR now, Inkplate2/Inkplate13SPECTRA later) is architecturally
+// separate from the parallel-bus board_config_t/active_board above -- a different static
+// selection slot, mirroring the same select-once-then-call-by-name pattern.
+static const spi_panel_config_t *active_spi_panel = NULL;
+
+static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
+{
+    const char *name = mp_obj_str_get_str(name_obj);
+    if (strcmp(name, "inkplate6color") == 0) {
+        active_spi_panel = &spi_panel_config_inkplate6color;
+    } else {
+        mp_raise_ValueError(MP_ERROR_TEXT("unknown spi panel"));
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_select_spi_panel_obj, inkplate_select_spi_panel);
+
+static const spi_panel_config_t *require_spi_panel(void)
+{
+    if (active_spi_panel == NULL) {
+        mp_raise_msg(&mp_type_RuntimeError,
+                     MP_ERROR_TEXT("no spi panel selected, call select_spi_panel() first"));
+    }
+    return active_spi_panel;
+}
+
+static mp_obj_t inkplate_spi_panel_init(void)
+{
+    epd_spi_init(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_init_obj, inkplate_spi_panel_init);
+
+static mp_obj_t inkplate_spi_panel_deinit(void)
+{
+    epd_spi_deinit(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_deinit_obj, inkplate_spi_panel_deinit);
+
+static mp_obj_t inkplate_spi_panel_reset(void)
+{
+    epd_spi_reset(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_reset_obj, inkplate_spi_panel_reset);
+
+static mp_obj_t inkplate_spi_panel_set_rst(mp_obj_t level_obj)
+{
+    epd_spi_set_rst(require_spi_panel(), mp_obj_get_int(level_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_set_rst_obj, inkplate_spi_panel_set_rst);
+
+static mp_obj_t inkplate_spi_panel_wait_busy(mp_obj_t level_obj, mp_obj_t timeout_ms_obj)
+{
+    int observed = epd_spi_wait_busy(require_spi_panel(), mp_obj_get_int(level_obj),
+                                     (uint32_t)mp_obj_get_int(timeout_ms_obj));
+    return mp_obj_new_bool(observed);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_spi_panel_wait_busy_obj, inkplate_spi_panel_wait_busy);
+
+static mp_obj_t inkplate_spi_panel_send_command(mp_obj_t command_obj)
+{
+    epd_spi_send_command(require_spi_panel(), (uint8_t)mp_obj_get_int(command_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_send_command_obj,
+                                 inkplate_spi_panel_send_command);
+
+static mp_obj_t inkplate_spi_panel_send_data(mp_obj_t data_obj)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data_obj, &bufinfo, MP_BUFFER_READ);
+    epd_spi_send_data(require_spi_panel(), (const uint8_t *)bufinfo.buf, bufinfo.len);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_send_data_obj, inkplate_spi_panel_send_data);
 
 static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_obj)
 {
@@ -499,6 +581,15 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_mono_display), MP_ROM_PTR(&inkplate_mono_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_gs_display), MP_ROM_PTR(&inkplate_gs_display_obj)},
     {MP_ROM_QSTR(MP_QSTR_partial_display), MP_ROM_PTR(&inkplate_partial_display_obj)},
+    {MP_ROM_QSTR(MP_QSTR_select_spi_panel), MP_ROM_PTR(&inkplate_select_spi_panel_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_init), MP_ROM_PTR(&inkplate_spi_panel_init_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_deinit), MP_ROM_PTR(&inkplate_spi_panel_deinit_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_reset), MP_ROM_PTR(&inkplate_spi_panel_reset_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_set_rst), MP_ROM_PTR(&inkplate_spi_panel_set_rst_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_wait_busy), MP_ROM_PTR(&inkplate_spi_panel_wait_busy_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_send_command),
+     MP_ROM_PTR(&inkplate_spi_panel_send_command_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_panel_send_data), MP_ROM_PTR(&inkplate_spi_panel_send_data_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_set_mirror_x), MP_ROM_PTR(&inkplate_gfx_set_mirror_x_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_hline), MP_ROM_PTR(&inkplate_gfx_hline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_vline), MP_ROM_PTR(&inkplate_gfx_vline_obj)},

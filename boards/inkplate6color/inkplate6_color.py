@@ -2,22 +2,18 @@
 
 import time
 import os
-from machine import ADC, I2C, SPI, Pin, SDCard
+from machine import ADC, I2C, Pin, SDCard
 from micropython import const
 from pcal6416a import *
 from gfx import GFX
 import machine
+import inkplate
 
 machine.freq(240000000)
 # ===== Constants that change between the Inkplate 6 and 10
 
-# Connections between ESP32 and color Epaper
-EPAPER_RST_PIN = const(19)
-EPAPER_DC_PIN = const(33)
-EPAPER_CS_PIN = const(27)
-EPAPER_BUSY_PIN = const(32)
-EPAPER_CLK = const(18)
-EPAPER_DIN = const(23)
+# RST/DC/CS/BUSY/CLK/DIN pins are owned by the C spi_panel transport now (see
+# firmware/usermods/inkplate/spi_panel_config.c) -- no Python-side pin constants needed.
 VBAT_PIN = const(35)
 
 # Timeout for init of epaper(1.5 sec in this case)
@@ -26,27 +22,27 @@ VBAT_PIN = const(35)
 pixel_mask_glut = [0xF, 0xF0]
 
 # Epaper registers
-PANEL_SET_REGISTER = "\x00"
-POWER_SET_REGISTER = "\x01"
-POWER_OFF_SEQ_SET_REGISTER = "\x03"
-POWER_OFF_REGISTER = "\x04"
-BOOSTER_SOFTSTART_REGISTER = "\x06"
-DEEP_SLEEP_REGISTER = "\x07"
-DATA_START_TRANS_REGISTER = "\x10"
-DATA_STOP_REGISTER = "\x11"
-DISPLAY_REF_REGISTER = "\x12"
-IMAGE_PROCESS_REGISTER = "\x13"
-PLL_CONTROL_REGISTER = "\x30"
-TEMP_SENSOR_REGISTER = "\x40"
-TEMP_SENSOR_EN_REGISTER = "\x41"
-TEMP_SENSOR_WR_REGISTER = "\x42"
-TEMP_SENSOR_RD_REGISTER = "\x43"
-VCOM_DATA_INTERVAL_REGISTER = "\x50"
-LOW_POWER_DETECT_REGISTER = "\x51"
-RESOLUTION_SET_REGISTER = "\x61"
-STATUS_REGISTER = "\x71"
-VCOM_VALUE_REGISTER = "\x81"
-VCM_DC_SET_REGISTER = "\x02"
+PANEL_SET_REGISTER = 0x00
+POWER_SET_REGISTER = 0x01
+POWER_OFF_SEQ_SET_REGISTER = 0x03
+POWER_OFF_REGISTER = 0x04
+BOOSTER_SOFTSTART_REGISTER = 0x06
+DEEP_SLEEP_REGISTER = 0x07
+DATA_START_TRANS_REGISTER = 0x10
+DATA_STOP_REGISTER = 0x11
+DISPLAY_REF_REGISTER = 0x12
+IMAGE_PROCESS_REGISTER = 0x13
+PLL_CONTROL_REGISTER = 0x30
+TEMP_SENSOR_REGISTER = 0x40
+TEMP_SENSOR_EN_REGISTER = 0x41
+TEMP_SENSOR_WR_REGISTER = 0x42
+TEMP_SENSOR_RD_REGISTER = 0x43
+VCOM_DATA_INTERVAL_REGISTER = 0x50
+LOW_POWER_DETECT_REGISTER = 0x51
+RESOLUTION_SET_REGISTER = 0x61
+STATUS_REGISTER = 0x71
+VCOM_VALUE_REGISTER = 0x81
+VCM_DC_SET_REGISTER = 0x02
 
 # Epaper resolution and colors
 D_COLS = const(600)
@@ -106,14 +102,13 @@ class Inkplate:
         cls.wire = I2C(0, scl=Pin(22), sda=Pin(21))
         cls._PCAL6416A = PCAL6416A(cls.wire)
 
-        cls.spi = SPI(2)
+        # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
+        # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
+        # docs/REFACTOR-PLAN.md Phase 9 step 30) -- no more machine.SPI/Pin objects for
+        # the panel itself.
+        inkplate.select_spi_panel("inkplate6color")
+        inkplate.spi_panel_init()
 
-        cls.spi.init(baudrate=20000000, firstbit=SPI.MSB, polarity=0, phase=0)
-
-        cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-        cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
-        cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
-        cls.EPAPER_CS_PIN = Pin(EPAPER_CS_PIN, Pin.OUT)
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
@@ -143,11 +138,7 @@ class Inkplate:
 
         cls.reset_panel()
 
-        _timeout = time.ticks_ms()
-        while not cls.EPAPER_BUSY_PIN.value() and (time.ticks_ms() - _timeout) < 10000:
-            pass
-
-        if not cls.EPAPER_BUSY_PIN.value():
+        if not inkplate.spi_panel_wait_busy(1, 10000):
             return False
 
         cls.send_command(PANEL_SET_REGISTER)
@@ -164,16 +155,16 @@ class Inkplate:
         cls.send_data(b"\x00")
         cls.send_command(VCOM_DATA_INTERVAL_REGISTER)
         cls.send_data(b"\x37")
-        cls.send_command(b"\x60")
+        cls.send_command(0x60)
         cls.send_data(b"\x20")
         cls.send_command(RESOLUTION_SET_REGISTER)
         cls.send_data(b"\x02\x58\x01\xc0")
-        cls.send_command(b"\xe3")
+        cls.send_command(0xE3)
         cls.send_data(b"\xaa")
 
         time.sleep_ms(100)
 
-        cls.send_command(b"\x50")
+        cls.send_command(0x50)
         cls.send_data(b"\x37")
 
         cls.set_pcal_for_low_power()
@@ -220,49 +211,28 @@ class Inkplate:
     @classmethod
     def set_panel_deep_sleep(cls, state: bool) -> bool:
         if not state:
-            # Wake the panel from deep sleep
-
-            # Configure pins (cls.EPAPER_* are assumed to be Pin objects)
-            cls.EPAPER_BUSY_PIN.init(cls.EPAPER_BUSY_PIN.IN)
-            cls.EPAPER_RST_PIN.init(cls.EPAPER_RST_PIN.OUT)
-            cls.EPAPER_DC_PIN.init(cls.EPAPER_DC_PIN.OUT)
-            cls.EPAPER_CS_PIN.init(cls.EPAPER_CS_PIN.OUT)
-
-            # De-select epaper to charge capacitors
-            cls.EPAPER_DC_PIN.value(1)
-            cls.EPAPER_CS_PIN.value(1)
-
-            # Wait a little
+            # Wake the panel from deep sleep. Pin config/CS+DC idle levels are owned by
+            # the C spi_panel transport (epd_spi_init(), already called from begin()) --
+            # only the reset+reinit sequence needs repeating here.
             time.sleep_ms(100)
 
-            # Reset epaper
             cls.reset_panel()
 
-            # Wait until panel is ready
-            start_time = time.ticks_ms()
-            while (not cls.EPAPER_BUSY_PIN.value()) and (
-                time.ticks_diff(time.ticks_ms(), start_time) < 1500
-            ):
-                pass
-
-            if not cls.EPAPER_BUSY_PIN.value():
+            if not inkplate.spi_panel_wait_busy(1, 1500):
                 return False
 
             # Send initialization commands
-            panel_set_data = bytearray([0xEF, 0x08])
             cls.send_command(PANEL_SET_REGISTER)
-            cls.send_data(panel_set_data)
+            cls.send_data(bytearray([0xEF, 0x08]))
 
-            power_set_data = bytearray([0x37, 0x00, 0x05, 0x05])
             cls.send_command(POWER_SET_REGISTER)
-            cls.send_data(power_set_data)
+            cls.send_data(bytearray([0x37, 0x00, 0x05, 0x05]))
 
             cls.send_command(POWER_OFF_SEQ_SET_REGISTER)
             cls.send_data(bytearray([0x00]))
 
-            booster_softstart_data = bytearray([0xC7, 0xC7, 0x1D])
             cls.send_command(BOOSTER_SOFTSTART_REGISTER)
-            cls.send_data(booster_softstart_data)
+            cls.send_data(bytearray([0xC7, 0xC7, 0x1D]))
 
             cls.send_command(TEMP_SENSOR_EN_REGISTER)
             cls.send_data(bytearray([0x00]))
@@ -270,14 +240,13 @@ class Inkplate:
             cls.send_command(VCOM_DATA_INTERVAL_REGISTER)
             cls.send_data(bytearray([0x37]))
 
-            cls.send_command("\x60")
+            cls.send_command(0x60)
             cls.send_data(bytearray([0x20]))
 
-            res_set_data = bytearray([0x02, 0x58, 0x01, 0xC0])
             cls.send_command(RESOLUTION_SET_REGISTER)
-            cls.send_data(res_set_data)
+            cls.send_data(bytearray([0x02, 0x58, 0x01, 0xC0]))
 
-            cls.send_command("\xe3")
+            cls.send_command(0xE3)
             cls.send_data(bytearray([0xAA]))
 
             time.sleep_ms(100)
@@ -292,45 +261,24 @@ class Inkplate:
             cls.send_data(bytearray([0xA5]))
             time.sleep_ms(100)
 
-            cls.EPAPER_RST_PIN.value(0)
-            time.sleep_ms(100)
-            cls.EPAPER_DC_PIN.value(0)
-            cls.EPAPER_CS_PIN.value(0)
-
-            # SPI deinit removed per instructions
-
-            # Set SPI pins low
-            # cls.EPAPER_CLK.init(cls.EPAPER_CLK.OUT)
-            # cls.EPAPER_DIN.init(cls.EPAPER_DIN.OUT)
-            # cls.EPAPER_CLK.value(0)
-            # cls.EPAPER_DIN.value(0)
+            # Hold RST asserted low while asleep (matches the real Arduino reference
+            # driver's setPanelDeepSleep(true) -- lower power than leaving it floating
+            # or driven high).
+            inkplate.spi_panel_set_rst(0)
 
             return True
 
     @classmethod
     def reset_panel(cls):
-        cls.EPAPER_RST_PIN.value(0)
-        time.sleep_ms(1)
-        cls.EPAPER_RST_PIN.value(1)
-        time.sleep_ms(1)
+        inkplate.spi_panel_reset()
 
     @classmethod
     def send_command(cls, command):
-        cls.EPAPER_DC_PIN.value(0)
-        cls.EPAPER_CS_PIN.value(0)
-
-        cls.spi.write(command)
-
-        cls.EPAPER_CS_PIN.value(1)
+        inkplate.spi_panel_send_command(command)
 
     @classmethod
     def send_data(cls, data):
-        cls.EPAPER_DC_PIN.value(1)
-        cls.EPAPER_CS_PIN.value(0)
-
-        cls.spi.write(data)
-
-        cls.EPAPER_CS_PIN.value(1)
+        inkplate.spi_panel_send_data(data)
 
     @classmethod
     def clear_display(cls):
@@ -341,29 +289,20 @@ class Inkplate:
     def display(cls):
         cls.set_panel_deep_sleep(False)
 
-        cls.send_command(b"\x61")
+        cls.send_command(0x61)
         cls.send_data(b"\x02\x58\x01\xc0")
 
-        cls.send_command(b"\x10")
-
-        cls.EPAPER_DC_PIN.value(1)
-        cls.EPAPER_CS_PIN.value(0)
-
-        cls.spi.write(cls._framebuf)
-
-        cls.EPAPER_CS_PIN.value(1)
+        cls.send_command(0x10)
+        cls.send_data(cls._framebuf)
 
         cls.send_command(POWER_OFF_REGISTER)
-        while not cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(1, 0)
 
         cls.send_command(DISPLAY_REF_REGISTER)
-        while not cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(1, 0)
 
         cls.send_command(POWER_OFF_REGISTER)
-        while cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(0, 0)
 
         time.sleep_ms(200)
 
@@ -448,29 +387,20 @@ class Inkplate:
         if not cls._panel_state:
             return
 
-        cls.send_command(b"\x61")
+        cls.send_command(0x61)
         cls.send_data(b"\x02\x58\x01\xc0")
 
-        cls.send_command(b"\x10")
-
-        cls.EPAPER_DC_PIN.value(1)
-        cls.EPAPER_CS_PIN.value(0)
-
-        cls.spi.write(bytearray(0x11 for x in range(D_COLS * D_ROWS // 2)))
-
-        cls.EPAPER_CS_PIN.value(1)
+        cls.send_command(0x10)
+        cls.send_data(bytearray(0x11 for x in range(D_COLS * D_ROWS // 2)))
 
         cls.send_command(POWER_OFF_REGISTER)
-        while not cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(1, 0)
 
         cls.send_command(DISPLAY_REF_REGISTER)
-        while not cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(1, 0)
 
         cls.send_command(POWER_OFF_REGISTER)
-        while cls.EPAPER_BUSY_PIN.value():
-            pass
+        inkplate.spi_panel_wait_busy(0, 0)
 
         time.sleep_ms(200)
 
