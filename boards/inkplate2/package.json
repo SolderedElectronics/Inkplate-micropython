@@ -11,10 +11,6 @@
     [
       "gfx_standard_font_01.py",
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate2/gfx_standard_font_01.py"
-    ],
-    [
-      "shapes.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/shapes.py"
     ]
   ],
   "deps": [],

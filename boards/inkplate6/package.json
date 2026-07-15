@@ -23,6 +23,22 @@
     [
       "pcal6416a.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
+    ],
+    [
+      "mcp23017.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/mcp23017.py"
+    ],
+    [
+      "tps65186.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/tps65186.py"
+    ],
+    [
+      "rtc.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/rtc.py"
+    ],
+    [
+      "epd_power_pins.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/epd_power_pins.py"
     ]
   ],
   "deps": [],

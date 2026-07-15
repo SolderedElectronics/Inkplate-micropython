@@ -14,6 +14,9 @@ import inkplate
 from machine import I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
+from tps65186 import TPS65186
+from rtc import RTC
+from epd_power_pins import tristate_display_pins, restore_display_pins
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -33,10 +36,6 @@ D_COLS = const(600)
 # from this board's own GraphicsDefs.h/driver source, not copied from a sibling board.
 pixel_mask_glut = bytearray(b"\x0f\xf0")
 
-# PMIC (TPS65186) I2C address -- not given in the pasted pins.h for this board, assumed
-# 0x48 (TPS65186 default), same assumption already flagged for every other board in this
-# project (board_config.c's board_config_inkplate4tempera comment).
-TPS65186_addr = const(0x48)  # I2C address
 
 # IO_EXT_ADDR straight from the pasted Inkplate4TEMPERA pins.h -- only used for touch on
 # real hardware (TOUCHSCREEN_IO_EXPANDER), out of scope this pass. The expander object
@@ -123,33 +122,40 @@ class _Inkplate:
     def begin(cls):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
 
+        cls._tps = TPS65186(cls._i2c, cls.TPS_WAKEUP, cls.TPS_PWRUP, cls.TPS_VCOM)
+        cls._tps.begin()
+        cls._rtc = RTC(cls._i2c)
+
         cls.ipg = InkplateGS2()
         cls.ipm = InkplateMono()
         cls.ipp = InkplatePartial(cls.ipm)
 
-    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE) --
-    # carried over from Inkplate6/Inkplate5v2/Inkplate6PLUSV2's own precedent
-    # (docs/REFACTOR-PLAN.md Phase 8 steps 22/23/25), NOT independently confirmed against
-    # this board's real TPS65186 library (the pasted Inkplate4TEMPERADriver.cpp's
-    # einkOn() delegates to pmic.powerUp(), whose internals weren't pasted). Flag for HIL
-    # verification before relying on this to bring the panel up from a genuine cold boot.
+    # Read panel temperature via the TPS65186's internal sensor. Varies +- 1-2 degree.
+    @classmethod
+    def read_temperature(cls):
+        return cls._tps.read_temperature()
+
+    @classmethod
+    def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
+        cls._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
+
+    @classmethod
+    def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
+        cls._rtc.set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
+
+    @classmethod
+    def rtc_get_rtc_data(cls):
+        return cls._rtc.get_data()
+
+    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
     @classmethod
     def power_on(cls):
         if cls._on:
             return
         cls._on = True
-        # turn on power regulator
-
-        cls.TPS_WAKEUP.digital_write(1)
-        cls.TPS_PWRUP.digital_write(1)
-        cls.TPS_VCOM.digital_write(1)
-
-        # enable all rails
-        cls._tps65186_write(0x01, 0x3F)
-        time.sleep_ms(40)
-        cls._tps65186_write(0x0D, 0x80)
-        time.sleep_ms(2)
-        cls._temperature = cls._tps65186_read(1)
+        restore_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
+        if not cls._tps.power_up():
+            raise RuntimeError("TPS65186 power-up timed out (PWR_GOOD not OK)")
         # wake-up display
         cls.EPD_GMODE.digital_write(1)
         cls.EPD_OE.digital_write(1)
@@ -166,20 +172,10 @@ class _Inkplate:
         cls.EPD_GMODE.digital_write(0)
         cls.EPD_OE.digital_write(0)
 
-        # turn off power regulator
-        cls.TPS_PWRUP.digital_write(0)
-        cls.TPS_WAKEUP.digital_write(0)
-        cls.TPS_VCOM.digital_write(0)
-
-    # _tps65186_write writes an 8-bit value to a register
-    @classmethod
-    def _tps65186_write(cls, reg, v):
-        cls._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
-
-    # _tps65186_read reads an 8-bit value from a register
-    @classmethod
-    def _tps65186_read(cls, reg):
-        return cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+        cls._tps.power_down()
+        # Tri-state the bit-banged control/data bus to stop current leakage during deep
+        # sleep -- ported from the real Arduino reference driver's pinsZstate().
+        tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
 
     # ===== Methods that are independent of pixel bit depth
 
@@ -280,6 +276,12 @@ class Inkplate:
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+
+        _Inkplate._tps = TPS65186(
+            _Inkplate._i2c, _Inkplate.TPS_WAKEUP, _Inkplate.TPS_PWRUP, _Inkplate.TPS_VCOM
+        )
+        _Inkplate._tps.begin()
+        _Inkplate._rtc = RTC(_Inkplate._i2c)
 
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
@@ -385,6 +387,18 @@ class Inkplate:
 
     def eink_off(self):
         _Inkplate.power_off()
+
+    def read_temperature(self):
+        return _Inkplate.read_temperature()
+
+    def rtc_set_time(self, rtc_hour, rtc_minute, rtc_second):
+        return _Inkplate.rtc_set_time(rtc_hour, rtc_minute, rtc_second)
+
+    def rtc_set_date(self, rtc_weekday, rtc_day, rtc_month, rtc_yr):
+        return _Inkplate.rtc_set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
+
+    def rtc_get_data(self):
+        return _Inkplate.rtc_get_rtc_data()
 
     def width(self):
         return self._width

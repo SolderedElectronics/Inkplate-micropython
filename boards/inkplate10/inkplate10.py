@@ -7,6 +7,9 @@ import inkplate
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
+from tps65186 import TPS65186, read_battery_voltage
+from rtc import RTC
+from epd_power_pins import tristate_display_pins, restore_display_pins
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -40,8 +43,6 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
 # {{0,0,0,0,0,0,1,0},{0,0,2,2,2,1,1,0},{0,2,1,1,2,2,1,0},{1,2,2,1,2,2,1,0},
 #  {0,2,1,2,2,2,1,0},{2,2,2,2,2,2,1,0},{0,0,0,0,2,1,2,0},{0,0,2,2,2,2,2,0}};
 
-TPS65186_addr = const(0x48)  # I2C address
-
 # Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
 # pulse sequencing itself now lives in C (firmware/usermods/inkplate/epd_bitbang.c),
 # selected via inkplate.select_board() below.
@@ -50,11 +51,6 @@ EPD_CL = const(0x00000001)  # in W1Tx0
 
 # Inkplate provides access to the pins of the Inkplate 10 as well as to low-level display
 # functions.
-
-RTC_I2C_ADDR = 0x51
-RTC_RAM_by = 0x03
-RTC_DAY_ADDR = 0x07
-RTC_SECOND_ADDR = 0x04
 
 
 class _Inkplate:
@@ -137,6 +133,10 @@ class _Inkplate:
     def begin(cls):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
 
+        cls._tps = TPS65186(cls._i2c, cls.TPS_WAKEUP, cls.TPS_PWRUP, cls.TPS_VCOM)
+        cls._tps.begin()
+        cls._rtc = RTC(cls._i2c)
+
         cls.ipg = InkplateGS2()
         cls.ipm = InkplateMono()
         cls.ipp = InkplatePartial(cls.ipm)
@@ -145,42 +145,12 @@ class _Inkplate:
     # calibration, and be a bit off.
     @classmethod
     def read_battery(cls):
-        cls.VBAT_EN.digital_write(1)
-        # Probably don't need to delay since Micropython is slow, but we do it anyway
-        time.sleep_ms(1)
-        value = cls.VBAT.read()
-        cls.VBAT_EN.digital_write(0)
-        result = (value / 4095.0) * 1.1 * 3.548133892 * 2
-        return result
+        return read_battery_voltage(cls.VBAT, cls.VBAT_EN)
 
-    # Read panel temperature. I varies +- 2 degree
+    # Read panel temperature via the TPS65186's internal sensor. Varies +- 1-2 degree.
     @classmethod
     def read_temperature(cls):
-        cls.TPS_WAKEUP.digital_write(1)
-        cls.TPS_PWRUP.digital_write(1)
-        # start temperature measurement and wait 5 ms
-        cls._i2c.writeto_mem(TPS65186_addr, 0x0D, bytes((0x80,)))
-        time.sleep_ms(5)
-
-        # request temperature data from panel
-        cls._i2c.writeto(TPS65186_addr, bytearray((0x00,)))
-        cls._temperature = cls._i2c.readfrom(TPS65186_addr, 1)
-
-        cls.TPS_WAKEUP.digital_write(0)
-        cls.TPS_PWRUP.digital_write(0)
-        # convert data from bytes to integer
-        cls.temperatureInt = int.from_bytes(cls._temperature, "big", True)
-        return cls.temperatureInt
-
-    # _tps65186_write writes an 8-bit value to a register
-    @classmethod
-    def _tps65186_write(cls, reg, v):
-        cls._i2c.writeto_mem(TPS65186_addr, reg, bytes((v,)))
-
-    # _tps65186_read reads an 8-bit value from a register
-    @classmethod
-    def _tps65186_read(cls, reg):
-        cls._i2c.readfrom_mem(TPS65186_addr, reg, 1)[0]
+        return cls._tps.read_temperature()
 
     # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
     @classmethod
@@ -188,18 +158,9 @@ class _Inkplate:
         if cls._on:
             return
         cls._on = True
-        # turn on power regulator
-
-        cls.TPS_WAKEUP.digital_write(1)
-        cls.TPS_PWRUP.digital_write(1)
-        cls.TPS_VCOM.digital_write(1)
-
-        # enable all rails
-        cls._tps65186_write(0x01, 0x3F)  # ???
-        time.sleep_ms(40)
-        cls._tps65186_write(0x0D, 0x80)  # ???
-        time.sleep_ms(2)
-        cls._temperature = cls._tps65186_read(1)
+        restore_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
+        if not cls._tps.power_up():
+            raise RuntimeError("TPS65186 power-up timed out (PWR_GOOD not OK)")
         # wake-up display
         cls.EPD_GMODE.digital_write(1)
         cls.EPD_OE.digital_write(1)
@@ -216,10 +177,10 @@ class _Inkplate:
         cls.EPD_GMODE.digital_write(0)
         cls.EPD_OE.digital_write(0)
 
-        # turn off power regulator
-        cls.TPS_PWRUP.digital_write(0)
-        cls.TPS_WAKEUP.digital_write(0)
-        cls.TPS_VCOM.digital_write(0)
+        cls._tps.power_down()
+        # Tri-state the bit-banged control/data bus to stop current leakage during deep
+        # sleep -- ported from the real Arduino reference driver's pinsZstate().
+        tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
 
     # ===== Methods that are independent of pixel bit depth
 
@@ -290,74 +251,16 @@ class _Inkplate:
             inkplate.i2s_push_frame(c)
 
     @classmethod
-    def rtc_dec_to_bcd(cls, val):
-        return (val // 10 * 16) + (val % 10)
-
-    @classmethod
-    def rtc_bcd_to_dec(cls, val):
-        return (val // 16 * 10) + (val % 16)
-
-    @classmethod
     def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
-        data = bytearray(
-            [
-                RTC_RAM_by,
-                170,  # Write in RAM 170 to know that RTC is set
-                cls.rtc_dec_to_bcd(rtc_second),
-                cls.rtc_dec_to_bcd(rtc_minute),
-                cls.rtc_dec_to_bcd(rtc_hour),
-            ]
-        )
-
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
+        cls._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
 
     @classmethod
     def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
-        rtc_year = rtc_yr - 2000
-
-        data = bytearray(
-            [
-                RTC_RAM_by,
-                170,  # Write in RAM 170 to know that RTC is set
-            ]
-        )
-
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
-
-        data = bytearray(
-            [
-                RTC_DAY_ADDR,
-                cls.rtc_dec_to_bcd(rtc_day),
-                cls.rtc_dec_to_bcd(rtc_weekday),
-                cls.rtc_dec_to_bcd(rtc_month),
-                cls.rtc_dec_to_bcd(rtc_year),
-            ]
-        )
-
-        cls._i2c.writeto(RTC_I2C_ADDR, data)
+        cls._rtc.set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
 
     @classmethod
     def rtc_get_rtc_data(cls):
-        cls._i2c.writeto(RTC_I2C_ADDR, bytearray([RTC_SECOND_ADDR]))
-        data = cls._i2c.readfrom(RTC_I2C_ADDR, 7)
-
-        rtc_second = cls.rtc_bcd_to_dec(data[0] & 0x7F)  # Ignore bit 7
-        rtc_minute = cls.rtc_bcd_to_dec(data[1] & 0x7F)
-        rtc_hour = cls.rtc_bcd_to_dec(data[2] & 0x3F)  # Ignore bits 7 & 6
-        rtc_day = cls.rtc_bcd_to_dec(data[3] & 0x3F)
-        rtc_weekday = cls.rtc_bcd_to_dec(data[4] & 0x07)  # Ignore bits 7,6,5,4 & 3
-        rtc_month = cls.rtc_bcd_to_dec(data[5] & 0x1F)  # Ignore bits 7,6 & 5
-        rtc_year = cls.rtc_bcd_to_dec(data[6]) + 2000
-
-        return {
-            "second": rtc_second,
-            "minute": rtc_minute,
-            "hour": rtc_hour,
-            "day": rtc_day,
-            "weekday": rtc_weekday,
-            "month": rtc_month,
-            "year": rtc_year,
-        }
+        return cls._rtc.get_data()
 
 
 from inkplate_partial import *
@@ -391,6 +294,12 @@ class Inkplate:
 
     def begin(self):
         _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+
+        _Inkplate._tps = TPS65186(
+            _Inkplate._i2c, _Inkplate.TPS_WAKEUP, _Inkplate.TPS_PWRUP, _Inkplate.TPS_VCOM
+        )
+        _Inkplate._tps.begin()
+        _Inkplate._rtc = RTC(_Inkplate._i2c)
 
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()

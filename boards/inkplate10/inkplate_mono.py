@@ -28,8 +28,6 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
 # {{0,1,1,0,0,1,1,0},{0,1,2,1,1,2,1,0},{1,1,1,2,2,1,0,0},{0,0,0,1,1,1,2,0},
 #  {2,1,1,1,2,1,2,0},{2,2,1,1,2,1,2,0},{1,1,1,2,1,2,2,0},{0,0,0,0,0,0,2,0}};
 
-TPS65186_addr = const(0x48)  # I2C address
-
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
 

@@ -14,8 +14,6 @@ from inkplate5v2 import _Inkplate
 D_ROWS = const(720)
 D_COLS = const(1280)
 
-TPS65186_addr = const(0x48)  # I2C address
-
 # Inkplate provides access to the pins of the Inkplate 5V2 as well as to low-level display
 # functions.
 

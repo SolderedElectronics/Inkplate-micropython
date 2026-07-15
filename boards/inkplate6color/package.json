@@ -15,10 +15,6 @@
     [
       "pcal6416a.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
-    ],
-    [
-      "shapes.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/shapes.py"
     ]
   ],
   "deps": [],

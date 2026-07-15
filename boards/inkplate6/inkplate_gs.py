@@ -14,8 +14,6 @@ from inkplate6 import _Inkplate
 D_ROWS = const(600)
 D_COLS = const(800)
 
-TPS65186_addr = const(0x48)  # I2C address
-
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
 
