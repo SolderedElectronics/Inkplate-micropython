@@ -402,8 +402,9 @@ class Inkplate:
         elif expander == 2:
             if _Inkplate._expander2 is None:
                 raise RuntimeError(
-                    "external user-GPIO expander (addr {:#x}) not present on this "
-                    "board".format(_EXPANDER2_ADDR)
+                    "external user-GPIO expander (addr {:#x}) not present on this board".format(
+                        _EXPANDER2_ADDR
+                    )
                 )
             return GpioPin(_Inkplate._expander2, pin, mode)
 
