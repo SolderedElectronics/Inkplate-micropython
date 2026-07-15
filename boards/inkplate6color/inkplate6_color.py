@@ -115,6 +115,11 @@ class Inkplate:
         cls.VBAT_EN = GpioPin(cls._PCAL6416A, 9, mode_output)
         cls.VBAT_EN.digital_write(0)
 
+        # SD_PMOS_PIN (pins.h) -- internal-expander pin 10, active-low P-MOS gate, same
+        # pin/polarity/expander-vs-external split every parallel-bus board already uses
+        # for its own SD_ENABLE (e.g. boards/inkplate10/inkplate10.py).
+        cls.SD_ENABLE = GpioPin(cls._PCAL6416A, IO_PIN_B2, mode_output)
+
         cls.cursor = [0, 0]
 
         cls.textColor = 0
@@ -174,10 +179,27 @@ class Inkplate:
         return True
 
     def init_sd_card(self, fast_boot=False):
-        # self.SD_ENABLE.digital_write(0)
+        # SD's machine.SDCard(slot=3) runs on HSPI/SPI2_HOST; the panel (epd_spi.c) runs
+        # on VSPI/SPI3_HOST -- two genuinely separate ESP32 SPI peripherals, so no claim/
+        # release dance is needed here (see epd_spi.c's EPD_SPI_HOST comment for how this
+        # was confirmed against the real ports/esp32/machine_sdcard.c source, after an
+        # earlier misreading of that same source wrongly concluded the two collided).
+        self.SD_ENABLE.digital_write(0)
         try:
             os.mount(
-                SDCard(slot=3, miso=Pin(12), mosi=Pin(13), sck=Pin(14), cs=Pin(15)),
+                SDCard(
+                    slot=3,
+                    miso=Pin(12),
+                    mosi=Pin(13),
+                    sck=Pin(14),
+                    cs=Pin(15),
+                    # 4MHz, same value every parallel-bus board settled on after hitting
+                    # real hangs/mount failures at higher speeds on this same SPI-mode SD
+                    # driver (docs/REFACTOR-PLAN.md Phase 7 step 21/Phase 8 step 26) --
+                    # not independently reverified on Inkplate6COLOR, but there's no
+                    # reason to expect this board's SD wiring to behave differently.
+                    freq=4000000,
+                ),
                 "/sd",
             )
             if fast_boot is True:
@@ -191,11 +213,11 @@ class Inkplate:
             print("Sd card could not be read")
 
     def sd_card_sleep(self):
-        # self.SD_ENABLE.digital_write(1)
+        self.SD_ENABLE.digital_write(1)
         time.sleep_ms(5)
 
     def sd_card_wake(self):
-        # self.SD_ENABLE.digital_write(0)
+        self.SD_ENABLE.digital_write(0)
         time.sleep_ms(5)
 
     @classmethod

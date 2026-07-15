@@ -4,7 +4,9 @@
 // driver (Inkplate6COLORDriver.cpp/.h, pins.h -- user-supplied directly, docs/
 // REFACTOR-PLAN.md Phase 9 step 30). Single SPI-controller chip, VSPI-native pins
 // (clk=18, din=23 match the ESP32's default VSPI SCK/MOSI, same bus the pre-refactor
-// Python driver already claimed via machine.SPI(2)).
+// Python driver already claimed via machine.SPI(2)). See epd_spi.c's own comment on
+// EPD_SPI_HOST for why this doesn't collide with machine.SDCard(slot=3), which is on
+// HSPI, not VSPI.
 const spi_panel_config_t spi_panel_config_inkplate6color = {
     .name = "inkplate6color",
 

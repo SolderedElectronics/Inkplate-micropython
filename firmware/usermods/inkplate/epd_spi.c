@@ -6,7 +6,29 @@
 
 // VSPI/SPI3_HOST -- matches the pre-refactor Python driver's machine.SPI(2) choice,
 // whose default pins (sck=18, mosi=23) are this panel's own pin_clk/pin_din.
+//
+// A prior version of this comment claimed machine.SDCard(slot=3) also uses VSPI_HOST,
+// citing spi_dev_defaults[1] in ports/esp32/machine_sdcard.c -- that was a misread: the
+// VSPI_HOST entry is spi_dev_defaults[0] (real slot=2, never used by this driver).
+// spi_dev_defaults[1] (real slot=3, after that file's `slot_num -= 2`) is
+// SDSPI_DEVICE_CONFIG_DEFAULT(), whose SDSPI_DEFAULT_HOST on classic ESP32 is SPI2_HOST
+// (confirmed in esp_driver_sdspi/include/driver/sdspi_host.h) -- i.e. HSPI, not VSPI.
+// So this panel (VSPI) and SD's slot=3 (HSPI) were never actually sharing a peripheral;
+// an earlier session briefly moved this panel to SPI2_HOST on the wrong theory that it
+// needed separating from SD, which instead created a real collision with SD's own HSPI
+// claim. Reverted back to VSPI here, which is correct and always was.
 #define EPD_SPI_HOST SPI3_HOST
+
+// Classic ESP32 has only 2 SPI-capable DMA channels total. machine.SDCard(slot=3)
+// hardcodes DMA channel 1 for its own HSPI/SPI2_HOST bus (ports/esp32/machine_sdcard.c's
+// spi_dma_channel_defaults[1] == 1) -- letting this panel's own spi_bus_initialize()
+// auto-pick a channel (SPI_DMA_CH_AUTO) risked it grabbing channel 1 first (this panel's
+// begin() runs before SD ever inits), leaving none free for SD and breaking its mount
+// with an opaque ESP_ERR_NOT_FOUND, confirmed via HIL. Pin this panel to channel 2
+// explicitly instead -- the same channel that table's own slot=2/VSPI entry already
+// uses, so the two boards' DMA channel choices can never collide regardless of init
+// order.
+#define EPD_SPI_DMA_CHAN 2
 
 // ESP-IDF's spi_master driver caps a single spi_device_transmit() transaction at
 // max_transfer_sz bytes (4092 by default) -- far smaller than a full framebuffer (600x448
@@ -50,7 +72,7 @@ void epd_spi_init(const spi_panel_config_t *cfg)
         .quadhd_io_num = -1,
         .max_transfer_sz = EPD_SPI_CHUNK_BYTES,
     };
-    spi_bus_initialize(EPD_SPI_HOST, &bus_conf, SPI_DMA_CH_AUTO);
+    spi_bus_initialize(EPD_SPI_HOST, &bus_conf, EPD_SPI_DMA_CHAN);
 
     spi_device_interface_config_t dev_conf = {
         .clock_speed_hz = (int)cfg->spi_freq_hz,
