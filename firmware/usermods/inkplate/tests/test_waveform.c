@@ -50,7 +50,7 @@ static void test_3bit_wave_parity(void)
     // inkplate_gen_nibble_lut a direct pass-through: out[nibble] == op[nibble] for
     // nibble 0-15, so the generated LUT's first 8 entries equal the table row verbatim and
     // entries 8-15 are the zero-padding inkplate_gen_wave_3bit fills unused nibbles with.
-    const board_config_t *cfg = &board_config_inkplate10;
+    const board_config_t *cfg = &board_config_inkplate10v1;
     assert(cfg->waveform->levels == 8);
     assert(cfg->waveform->phases == 9);
 

@@ -16,6 +16,8 @@ soldered_logo = bytearray(
 )
 
 # Create Inkplate object in 2-bit grayscale mode
+# Defaults to the V2 board revision. If you have the original (classic, non-V2) board,
+# pass variant="inkplate6v1" instead: Inkplate(Inkplate.INKPLATE_2BIT, variant="inkplate6v1")
 inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
 
 

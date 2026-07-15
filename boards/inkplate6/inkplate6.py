@@ -26,18 +26,18 @@ D_COLS = const(800)
 # Lookup mask to clear just that pixel's 4 bits (GS4_HMSB, 2 pixels/byte)
 pixel_mask_glut = bytearray(b"\xf0\x0f")  # precomputed masks
 
-# This driver targets the INKPLATE6V2 hardware revision by default -- confirmed from this
-# repo's own pre-refactor driver, which already used external-expander address 0x21
-# (INKPLATE6V2's IO_EXT_ADDR per the Arduino reference driver). INKPLATE6V2's internal
-# expander (OE/GMODE/SPV/TPS_*/etc, addr 0x20) is a PCAL6416A; classic INKPLATE6's
-# same-role expander is an MCP23017 (confirmed against the real Arduino reference driver
-# + this repo's own pre-refactor tve-authored driver). External expander addr also
-# differs (classic=0x22, V2=0x21). Flip to "inkplate6" below if your board is the
-# original (non-V2) revision -- that also enables TOUCH1/2/3 (classic-only, same
-# expander pins 10/11/12 that V2 repurposes for SD_ENABLE).
-_BOARD_VARIANT = "inkplate6"
-_IS_CLASSIC = _BOARD_VARIANT != "inkplate6v2"
-_EXPANDER2_ADDR = 0x21 if _BOARD_VARIANT == "inkplate6v2" else 0x22
+# Valid hardware variants for this driver -- confirmed from this repo's own
+# pre-refactor driver, which already used external-expander address 0x21 (INKPLATE6V2's
+# IO_EXT_ADDR per the Arduino reference driver). INKPLATE6V2's internal expander
+# (OE/GMODE/SPV/TPS_*/etc, addr 0x20) is a PCAL6416A; classic INKPLATE6V1's same-role
+# expander is an MCP23017 (confirmed against the real Arduino reference driver + this
+# repo's own pre-refactor tve-authored driver). External expander addr also differs
+# (v1=0x22, V2=0x21). Pass variant="inkplate6v1" to Inkplate() if your board is the
+# original (non-V2) revision -- that also enables TOUCH1/2/3 (v1-only, same expander
+# pins 10/11/12 that V2 repurposes for SD_ENABLE). Can't be auto-detected: neither
+# expander chip exposes an ID/WHOAMI register to probe for which one is present.
+_DEFAULT_VARIANT = "inkplate6v2"
+_VALID_VARIANTS = ("inkplate6v1", "inkplate6v2")
 
 # Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
 # pulse sequencing itself now lives in C (firmware/usermods/inkplate/epd_bitbang.c),
@@ -51,31 +51,39 @@ EPD_CL = const(0x00000001)  # in W1Tx0
 
 class _Inkplate:
     @classmethod
-    def init(cls, i2c):
+    def init(cls, i2c, variant=_DEFAULT_VARIANT):
+        if variant not in _VALID_VARIANTS:
+            raise ValueError(
+                "unknown Inkplate6 variant {!r}, must be one of {}".format(variant, _VALID_VARIANTS)
+            )
+        cls._variant = variant
+        cls._is_classic = variant != "inkplate6v2"
+        cls._expander2_addr = 0x22 if cls._is_classic else 0x21
+
         cls._i2c = i2c
         # External user-GPIO expander is a separate chip from the required internal one
         # (0x20, drives EPD_OE/GMODE/SPV/TPS_*) and some boards ship without it due to
         # chip shortages -- scan first so a missing chip disables gpio_expander_pin(2, ...)
         # instead of NACKing the eager MCP23017.__init__ I2C write and crashing begin().
         detected = i2c.scan()
-        expander2_present = _EXPANDER2_ADDR in detected
-        if _IS_CLASSIC:
+        expander2_present = cls._expander2_addr in detected
+        if cls._is_classic:
             cls._expander1 = MCP23017(i2c)
-            cls._expander2 = MCP23017(i2c, _EXPANDER2_ADDR) if expander2_present else None
+            cls._expander2 = MCP23017(i2c, cls._expander2_addr) if expander2_present else None
         else:
             cls._expander1 = PCAL6416A(i2c)
-            cls._expander2 = PCAL6416A(i2c, _EXPANDER2_ADDR) if expander2_present else None
+            cls._expander2 = PCAL6416A(i2c, cls._expander2_addr) if expander2_present else None
         if not expander2_present:
             print(
                 "WARNING: external user-GPIO expander (addr {:#x}) not detected on I2C "
-                "bus -- gpio_expander_pin(2, ...) disabled".format(_EXPANDER2_ADDR)
+                "bus -- gpio_expander_pin(2, ...) disabled".format(cls._expander2_addr)
             )
         # Display control lines -- pin mode/initial level only; toggling happens in C.
         Pin(0, Pin.OUT, value=0)  # EPD_CL
         Pin(2, Pin.OUT, value=0)  # EPD_LE
         Pin(32, Pin.OUT, value=0)  # EPD_CKV
         Pin(33, Pin.OUT, value=1)  # EPD_SPH
-        inkplate.select_board(_BOARD_VARIANT)
+        inkplate.select_board(variant)
         inkplate.set_expander_write_cb(cls._expander_write_cb)
 
         cls.EPD_OE = GpioPin(cls._expander1, 0, mode_output)
@@ -124,7 +132,7 @@ class _Inkplate:
         # Pin 10 (and 11/12) is classic-only touchpads vs V2-only SD_ENABLE -- the real
         # Arduino reference driver puts both on the same expander pin per variant, they
         # aren't simultaneously present on either board.
-        if _IS_CLASSIC:
+        if cls._is_classic:
             cls.TOUCH1 = GpioPin(cls._expander1, 10, mode_input)
             cls.TOUCH2 = GpioPin(cls._expander1, 11, mode_input)
             cls.TOUCH3 = GpioPin(cls._expander1, 12, mode_input)
@@ -150,8 +158,8 @@ class _Inkplate:
             raise ValueError("no expander at addr {:#x}".format(addr))
 
     @classmethod
-    def begin(cls):
-        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+    def begin(cls, variant=_DEFAULT_VARIANT):
+        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)), variant)
 
         cls._tps = TPS65186(cls._i2c, cls.TPS_WAKEUP, cls.TPS_PWRUP, cls.TPS_VCOM)
         cls._tps.begin()
@@ -309,11 +317,12 @@ class Inkplate:
     KERNEL_STUCKI = 2
     KERNEL_BURKES = 3
 
-    def __init__(self, mode):
+    def __init__(self, mode, variant=_DEFAULT_VARIANT):
         self.display_mode = mode
+        self._variant = variant
 
     def begin(self):
-        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)), self._variant)
 
         _Inkplate._tps = TPS65186(
             _Inkplate._i2c, _Inkplate.TPS_WAKEUP, _Inkplate.TPS_PWRUP, _Inkplate.TPS_VCOM
@@ -345,7 +354,7 @@ class Inkplate:
     def init_sd_card(self, fast_boot=False):
         # Classic v1 has no SD-card power MOSFET (confirmed against real hardware) --
         # SD is always powered, nothing to enable.
-        if not _IS_CLASSIC:
+        if not _Inkplate._is_classic:
             _Inkplate.SD_ENABLE.digital_write(0)
         try:
             os.mount(
@@ -378,12 +387,12 @@ class Inkplate:
             print("Sd card could not be read")
 
     def sd_card_sleep(self):
-        if not _IS_CLASSIC:
+        if not _Inkplate._is_classic:
             _Inkplate.SD_ENABLE.digital_write(1)
         time.sleep_ms(5)
 
     def sd_card_wake(self):
-        if not _IS_CLASSIC:
+        if not _Inkplate._is_classic:
             _Inkplate.SD_ENABLE.digital_write(0)
         time.sleep_ms(5)
 
@@ -403,7 +412,7 @@ class Inkplate:
             if _Inkplate._expander2 is None:
                 raise RuntimeError(
                     "external user-GPIO expander (addr {:#x}) not present on this board".format(
-                        _EXPANDER2_ADDR
+                        _Inkplate._expander2_addr
                     )
                 )
             return GpioPin(_Inkplate._expander2, pin, mode)

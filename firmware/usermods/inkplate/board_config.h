@@ -72,9 +72,9 @@ typedef struct {
     uint8_t has_frontlight;
 } board_config_t;
 
-extern const board_config_t board_config_inkplate10;
+extern const board_config_t board_config_inkplate10v1;
 extern const board_config_t board_config_inkplate10v2;
-extern const board_config_t board_config_inkplate6;
+extern const board_config_t board_config_inkplate6v1;
 extern const board_config_t board_config_inkplate6v2;
 extern const board_config_t board_config_inkplate5v2;
 extern const board_config_t board_config_inkplate6flick;

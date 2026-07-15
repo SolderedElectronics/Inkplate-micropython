@@ -33,8 +33,8 @@ static const waveform_table_t wave_3b_inkplate10 = {
 // pin numbers are identical between variants (no #ifdef branch touches them), so only
 // name/has_touch differ here; partial_reps stays 5 for both (partialUpdate()/display1b()
 // both hardcode _repeat=5 unconditionally in the real driver, no per-variant branch).
-const board_config_t board_config_inkplate10 = {
-    .name = "inkplate10",
+const board_config_t board_config_inkplate10v1 = {
+    .name = "inkplate10v1",
 
     .width = 1200,
     .height = 825,
@@ -118,8 +118,8 @@ static const waveform_table_t wave_3b_inkplate6 = {
 // (boards/inkplate6/inkplate6.py TOUCH1/2/3 -- pure GPIO read via the internal expander,
 // no C-side hook needed), 4 clean-cycle reps in display1b's full update (hardcoded in C,
 // same precedent as Inkplate10), 5 reps for partial update.
-const board_config_t board_config_inkplate6 = {
-    .name = "inkplate6",
+const board_config_t board_config_inkplate6v1 = {
+    .name = "inkplate6v1",
 
     .width = 800,
     .height = 600,

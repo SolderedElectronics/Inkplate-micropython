@@ -16,9 +16,9 @@ int main(void)
     // below. Unlike that pair, partial_reps stays 5 for both here: the real Arduino
     // reference driver's partialUpdate()/display1b() both hardcode _repeat=5
     // unconditionally, with no #ifdef branch for INKPLATE10 vs INKPLATE10V2.
-    const board_config_t *ink10_variants[2] = {&board_config_inkplate10,
+    const board_config_t *ink10_variants[2] = {&board_config_inkplate10v1,
                                                &board_config_inkplate10v2};
-    const char *ink10_expected_names[2] = {"inkplate10", "inkplate10v2"};
+    const char *ink10_expected_names[2] = {"inkplate10v1", "inkplate10v2"};
     const uint8_t ink10_expected_has_touch[2] = {1, 0};
 
     for (int i = 0; i < 2; ++i) {
@@ -62,8 +62,8 @@ int main(void)
 
     // INKPLATE6 and INKPLATE6V2 share pins/waveform with each other and with Inkplate10
     // (same reference schematic) -- only name and partial_reps differ between the two.
-    const board_config_t *variants[2] = {&board_config_inkplate6, &board_config_inkplate6v2};
-    const char *expected_names[2] = {"inkplate6", "inkplate6v2"};
+    const board_config_t *variants[2] = {&board_config_inkplate6v1, &board_config_inkplate6v2};
+    const char *expected_names[2] = {"inkplate6v1", "inkplate6v2"};
     const uint8_t expected_partial_reps[2] = {5, 6};
     // INKPLATE6 (classic) has onboard touchpads (MCP23017-driven, no C-side hook);
     // INKPLATE6V2 doesn't (same expander pins repurposed for SD_ENABLE instead).
