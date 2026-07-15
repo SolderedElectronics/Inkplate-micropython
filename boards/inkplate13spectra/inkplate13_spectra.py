@@ -5,26 +5,19 @@ Ported from the Arduino Inkplate13Driver implementation.
 
 import time
 import os
-from machine import ADC, I2C, SPI, Pin, SDCard
+from machine import ADC, I2C, SDCard, Pin
 from micropython import const
 from pcal6416a import *
 from gfx import GFX
 import machine
+import inkplate
 
 machine.freq(240000000)
 
-# Connections between ESP32-S3 and Spectra133 Epaper
-EPAPER_RST_PIN = const(4)
-EPAPER_DC_PIN = const(14)
-EPAPER_CS_M_PIN = const(42)  # Master chip select
-EPAPER_CS_S_PIN = const(39)  # Slave chip select
-EPAPER_BUSY_PIN = const(7)
-EPAPER_SPI_MOSI = const(40)
-EPAPER_SPI_MISO = const(41)
-EPAPER_SPI_SCK = const(38)
-EPAPER_PWR_EN = const(21)
-EPAPER_BS0 = const(6)
-EPAPER_BS1 = const(5)
+# RST/DC/CS_M/CS_S/BUSY/CLK/DIN, PWR_EN, BS0/BS1 and the SPI peripheral itself are owned
+# by the C dual-chip spi transport (firmware/usermods/inkplate/epd_spi.c's epd_spi_dual_*
+# functions, docs/REFACTOR-PLAN.md Phase 9 step 31) -- no Python-side pin constants
+# needed for the panel.
 
 pixel_mask_glut = [0xF, 0xF0]
 
@@ -140,27 +133,16 @@ class Inkplate:
         cls.wire = I2C(0)
         cls._PCAL6416A = PCAL6416A(cls.wire)
 
-        # Initialize SPI with Spectra133 pins at 10MHz
-        cls.spi = SPI(
-            2,
-            baudrate=10000000,
-            polarity=0,
-            phase=0,
-            firstbit=SPI.MSB,
-            sck=Pin(EPAPER_SPI_SCK),
-            mosi=Pin(EPAPER_SPI_MOSI),
-            miso=Pin(EPAPER_SPI_MISO),
-        )
+        # RST/DC/CS_M/CS_S/BUSY/CLK/DIN/PWR_EN/BS0/BS1 + the SPI peripheral itself are
+        # owned by the C dual-chip spi transport from here on
+        # (firmware/usermods/inkplate/epd_spi.c, docs/REFACTOR-PLAN.md Phase 9 step 31)
+        # -- no more machine.SPI/Pin objects for the panel itself.
+        inkplate.select_spi_panel("inkplate13spectra")
 
-        # Initialize panel control pins
-        cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-        cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT)
-        cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT)
-        cls.EPAPER_CS_M_PIN = Pin(EPAPER_CS_M_PIN, Pin.OUT)
-        cls.EPAPER_CS_S_PIN = Pin(EPAPER_CS_S_PIN, Pin.OUT)
-        cls.EPAPER_PWR_EN = Pin(EPAPER_PWR_EN, Pin.OUT)
-        cls.EPAPER_BS0 = Pin(EPAPER_BS0, Pin.OUT)
-        cls.EPAPER_BS1 = Pin(EPAPER_BS1, Pin.OUT)
+        # Discharge panel capacitors first, matching the real Arduino reference driver's
+        # initDriver() -- setIO() (which brings up the SPI bus itself) only runs later,
+        # on the first set_panel_state(True).
+        cls.set_panel_pins_to_low()
 
         cls.VBAT = ADC(Pin(1))
         cls.VBAT.atten(ADC.ATTN_11DB)
@@ -173,9 +155,6 @@ class Inkplate:
         cls.textWrapping = 1
 
         cls.SD_ENABLE = GpioPin(cls._PCAL6416A, 10, mode_output)
-
-        # Discharge panel capacitors first
-        cls.set_panel_pins_to_low()
 
         # Allocate framebuffer (4bpp, 2 pixels per byte)
         # Single C-level bytes multiply + bytearray copy - no Python loop
@@ -247,52 +226,29 @@ class Inkplate:
     @classmethod
     def set_panel_pins_to_low(cls):
         """Discharge panel capacitors by driving all pins low."""
-        cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT, value=0)
-        cls.EPAPER_CS_M_PIN = Pin(EPAPER_CS_M_PIN, Pin.OUT, value=0)
-        cls.EPAPER_CS_S_PIN = Pin(EPAPER_CS_S_PIN, Pin.OUT, value=0)
-        cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT, value=0)
-        cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.OUT, value=0)
-        cls.EPAPER_PWR_EN = Pin(EPAPER_PWR_EN, Pin.OUT, value=0)
-        cls.EPAPER_BS0 = Pin(EPAPER_BS0, Pin.OUT, value=0)
-        cls.EPAPER_BS1 = Pin(EPAPER_BS1, Pin.OUT, value=0)
+        inkplate.spi_dual_pins_low()
 
     @classmethod
     def set_io(cls):
         """Configure GPIOs and SPI for panel communication."""
-        cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.OUT, value=1)
-        cls.EPAPER_CS_M_PIN = Pin(EPAPER_CS_M_PIN, Pin.OUT, value=1)
-        cls.EPAPER_CS_S_PIN = Pin(EPAPER_CS_S_PIN, Pin.OUT, value=1)
-        cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.OUT, value=0)
-        cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN, Pin.PULL_UP)
-        cls.EPAPER_PWR_EN = Pin(EPAPER_PWR_EN, Pin.OUT, value=0)
-        cls.EPAPER_BS0 = Pin(EPAPER_BS0, Pin.OUT, value=0)
-        cls.EPAPER_BS1 = Pin(EPAPER_BS1, Pin.OUT, value=1)
-
-        # Re-init SPI after pin reconfiguration
-        cls.spi = SPI(
-            2,
-            baudrate=10000000,
-            polarity=0,
-            phase=0,
-            firstbit=SPI.MSB,
-            sck=Pin(EPAPER_SPI_SCK),
-            mosi=Pin(EPAPER_SPI_MOSI),
-            miso=Pin(EPAPER_SPI_MISO),
-        )
+        inkplate.spi_dual_power_up_io()
 
     @classmethod
     def reset_panel(cls):
-        """Hardware reset of the panel."""
-        cls.EPAPER_RST_PIN.value(0)
-        time.sleep_ms(100)
-        cls.EPAPER_RST_PIN.value(1)
-        time.sleep_ms(100)
+        """Hardware reset of the panel.
+
+        Reuses the single-chip family's epd_spi_reset() (100ms low / 200ms recovery)
+        rather than a dual-chip-specific 100ms/100ms pulse -- the real Arduino reference
+        driver's own resetPanel() only asks for 100ms/100ms, and a longer recovery delay
+        can't hurt, same reasoning already applied to Inkplate2's reset pulse width
+        (docs/REFACTOR-PLAN.md Phase 9 step 31).
+        """
+        inkplate.spi_panel_reset()
 
     @classmethod
     def wait_for_busy(cls):
         """Wait until the panel signals ready (BUSY pin goes high)."""
-        while not cls.EPAPER_BUSY_PIN.value():
-            time.sleep_ms(1)
+        inkplate.spi_panel_wait_busy(1, 0)
 
     @classmethod
     def screen_init(cls):
@@ -326,11 +282,13 @@ class Inkplate:
             cls.set_panel_pins_to_low()
             time.sleep_ms(50)
 
-            # Configure GPIOs
+            # Configure GPIOs (also (re)inits the SPI bus/device, matching the real
+            # Arduino reference driver's setIO(), which reconstructs its SPI object here
+            # too -- see epd_spi_dual_power_up_io()'s own comment)
             cls.set_io()
 
             # Enable power
-            cls.EPAPER_PWR_EN.value(1)
+            inkplate.spi_dual_set_power(1)
             time.sleep_ms(100)
 
             # Hardware reset
@@ -348,40 +306,21 @@ class Inkplate:
             cls.send_command(SPECTRA133_REG_POF, REG_POF_V, CHIP_BOTH)
             cls.wait_for_busy()
 
-            # Set pins to input to save power
-            cls.EPAPER_DC_PIN = Pin(EPAPER_DC_PIN, Pin.IN)
-            cls.EPAPER_CS_M_PIN = Pin(EPAPER_CS_M_PIN, Pin.IN)
-            cls.EPAPER_CS_S_PIN = Pin(EPAPER_CS_S_PIN, Pin.IN)
-            cls.EPAPER_RST_PIN = Pin(EPAPER_RST_PIN, Pin.IN)
-            cls.EPAPER_BUSY_PIN = Pin(EPAPER_BUSY_PIN, Pin.IN)
-            cls.EPAPER_PWR_EN = Pin(EPAPER_PWR_EN, Pin.IN)
-
-            # Disable power
-            Pin(EPAPER_PWR_EN, Pin.OUT, value=0)
+            # Float DC/CS_M/CS_S/RST/BUSY/PWR_EN to save power (BS0/BS1 deliberately left
+            # alone, matching the real Arduino reference driver -- see
+            # epd_spi_dual_power_down_io()'s own comment).
+            inkplate.spi_dual_power_down_io()
 
         cls._panel_state = state
 
     @classmethod
     def send_command(cls, cmd, data=None, chip_id=CHIP_BOTH):
         """Send a command (and optional data) to master, slave, or both chips."""
-        # Assert chip select(s)
-        if chip_id & CHIP_SLAVE:
-            cls.EPAPER_CS_S_PIN.value(0)
-        if chip_id & CHIP_MASTER:
-            cls.EPAPER_CS_M_PIN.value(0)
-
-        # Send command byte
-        cls.spi.write(bytes([cmd]))
-
-        # Send data bytes if provided
+        inkplate.spi_dual_select(chip_id)
+        inkplate.spi_dual_write(bytes([cmd]))
         if data is not None:
-            cls.spi.write(data)
-
-        # Release chip select(s)
-        if chip_id & CHIP_SLAVE:
-            cls.EPAPER_CS_S_PIN.value(1)
-        if chip_id & CHIP_MASTER:
-            cls.EPAPER_CS_M_PIN.value(1)
+            inkplate.spi_dual_write(data)
+        inkplate.spi_dual_deselect(chip_id)
 
     @classmethod
     def clear_display(cls):
@@ -400,27 +339,22 @@ class Inkplate:
         half_row = D_COLS // 4  # 300 bytes per half-row
 
         # Send data to master chip (left side of screen)
-        cls.EPAPER_CS_M_PIN.value(0)
-        cls.EPAPER_CS_S_PIN.value(1)
-        cls.spi.write(bytes([SPECTRA133_REG_DTM]))
+        inkplate.spi_dual_select(CHIP_MASTER)
+        inkplate.spi_dual_write(bytes([SPECTRA133_REG_DTM]))
         for i in range(D_ROWS):
             row_start = i * (D_COLS // 2)
-            cls.spi.write(mv[row_start : row_start + half_row])
-        cls.EPAPER_CS_M_PIN.value(1)
+            inkplate.spi_dual_write(mv[row_start : row_start + half_row])
+        inkplate.spi_dual_deselect(CHIP_MASTER)
 
         # Send data to slave chip (right side of screen)
-        cls.EPAPER_CS_M_PIN.value(1)
-        cls.EPAPER_CS_S_PIN.value(0)
         cls.wait_for_busy()
-        cls.spi.write(bytes([SPECTRA133_REG_DTM]))
+        inkplate.spi_dual_select(CHIP_SLAVE)
+        inkplate.spi_dual_write(bytes([SPECTRA133_REG_DTM]))
         for i in range(D_ROWS):
             row_start = i * (D_COLS // 2) + half_row
-            cls.spi.write(mv[row_start : row_start + half_row])
-        cls.EPAPER_CS_S_PIN.value(1)
+            inkplate.spi_dual_write(mv[row_start : row_start + half_row])
+        inkplate.spi_dual_deselect(CHIP_SLAVE)
 
-        # Deselect both chips
-        cls.EPAPER_CS_S_PIN.value(1)
-        cls.EPAPER_CS_M_PIN.value(1)
         cls.wait_for_busy()
 
         # Force display refresh on both chips
@@ -514,25 +448,20 @@ class Inkplate:
         white_half = b"\x11" * half_row
 
         # Send white data to master chip (left side)
-        cls.EPAPER_CS_M_PIN.value(0)
-        cls.EPAPER_CS_S_PIN.value(1)
-        cls.spi.write(bytes([SPECTRA133_REG_DTM]))
+        inkplate.spi_dual_select(CHIP_MASTER)
+        inkplate.spi_dual_write(bytes([SPECTRA133_REG_DTM]))
         for i in range(D_ROWS):
-            cls.spi.write(white_half)
-        cls.EPAPER_CS_M_PIN.value(1)
+            inkplate.spi_dual_write(white_half)
+        inkplate.spi_dual_deselect(CHIP_MASTER)
 
         # Send white data to slave chip (right side)
-        cls.EPAPER_CS_M_PIN.value(1)
-        cls.EPAPER_CS_S_PIN.value(0)
         cls.wait_for_busy()
-        cls.spi.write(bytes([SPECTRA133_REG_DTM]))
+        inkplate.spi_dual_select(CHIP_SLAVE)
+        inkplate.spi_dual_write(bytes([SPECTRA133_REG_DTM]))
         for i in range(D_ROWS):
-            cls.spi.write(white_half)
-        cls.EPAPER_CS_S_PIN.value(1)
+            inkplate.spi_dual_write(white_half)
+        inkplate.spi_dual_deselect(CHIP_SLAVE)
 
-        # Deselect both
-        cls.EPAPER_CS_S_PIN.value(1)
-        cls.EPAPER_CS_M_PIN.value(1)
         cls.wait_for_busy()
 
         # Force display refresh

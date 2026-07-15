@@ -1,5 +1,19 @@
 #include "epd_i2s.h"
 
+#include "sdkconfig.h"
+
+// This whole file only applies to classic ESP32 -- its I2S1.out_link/lc_conf/etc fields
+// are the legacy descriptor-linked-list DMA register layout, which ESP32-S3 dropped in
+// favor of GDMA (its i2s_dev_t has no out_link/lc_conf/conf/conf1/conf2/conf_chan/
+// sample_rate_conf/clkm_conf/timing members at all -- confirmed the hard way: this file
+// failed to compile at all for Inkplate13SPECTRA's ESP32-S3 target, discovered on its
+// first real firmware build attempt, docs/REFACTOR-PLAN.md Phase 9 step 31). No board in
+// this family that ships on ESP32-S3 (Inkplate13SPECTRA) uses the parallel-bus I2S
+// transport at all -- it's SPI-only -- so on that target these functions are simply never
+// called; stub them out rather than porting classic-ESP32-only DMA register code to
+// hardware that doesn't have it.
+#if CONFIG_IDF_TARGET_ESP32
+
 #include "epd_bitbang.h"
 #include "driver/gpio.h"
 #include "esp_heap_caps.h"
@@ -435,3 +449,59 @@ void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
         esp_rom_delay_us(230);
     }
 }
+
+#else // !CONFIG_IDF_TARGET_ESP32
+
+// Unreachable on this target: no ESP32-S3 board in this repo selects a parallel-bus
+// board_config_t (select_board()), so nothing ever calls these. Bodies exist purely so
+// the usermod still links -- see this file's top comment.
+void epd_i2s_init(const board_config_t *cfg)
+{
+    (void)cfg;
+}
+
+void epd_i2s_deinit(const board_config_t *cfg)
+{
+    (void)cfg;
+}
+
+void epd_i2s_push_row(const board_config_t *cfg, uint8_t fill_byte)
+{
+    (void)cfg;
+    (void)fill_byte;
+}
+
+void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte)
+{
+    (void)cfg;
+    (void)fill_byte;
+}
+
+void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                             const uint8_t (*luts)[16], uint8_t num_phases)
+{
+    (void)cfg;
+    (void)framebuf;
+    (void)luts;
+    (void)num_phases;
+}
+
+void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
+                           const uint8_t (*luts)[16], uint8_t num_phases)
+{
+    (void)cfg;
+    (void)framebuf;
+    (void)luts;
+    (void)num_phases;
+}
+
+void epd_i2s_push_partial_frame(const board_config_t *cfg, const uint8_t *old_fb,
+                                const uint8_t *new_fb, const uint8_t lut[256])
+{
+    (void)cfg;
+    (void)old_fb;
+    (void)new_fb;
+    (void)lut;
+}
+
+#endif // CONFIG_IDF_TARGET_ESP32

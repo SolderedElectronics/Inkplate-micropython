@@ -44,5 +44,28 @@ int main(void)
     assert(cfg2->spi_freq_hz == 1000000);
     assert(cfg2->chip_count == 1);
 
+    const spi_panel_config_t *cfg3 = &spi_panel_config_inkplate13spectra;
+
+    assert(strcmp(cfg3->name, "inkplate13spectra") == 0);
+
+    assert(cfg3->width == 1200);
+    assert(cfg3->height == 1600);
+
+    // Pins from the real Arduino reference driver's pins.h.
+    assert(cfg3->pin_rst == 4);
+    assert(cfg3->pin_dc == 14);
+    assert(cfg3->pin_cs == 42);
+    assert(cfg3->pin_busy == 7);
+    assert(cfg3->pin_clk == 38);
+    assert(cfg3->pin_din == 40);
+
+    assert(cfg3->spi_freq_hz == 10000000);
+    assert(cfg3->chip_count == 2);
+
+    assert(cfg3->pin_cs2 == 39);
+    assert(cfg3->pin_pwr_en == 21);
+    assert(cfg3->pin_bs0 == 6);
+    assert(cfg3->pin_bs1 == 5);
+
     return 0;
 }

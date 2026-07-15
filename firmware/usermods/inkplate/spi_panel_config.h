@@ -34,14 +34,20 @@ typedef struct {
     uint32_t spi_freq_hz;
 
     // Number of SPI-controller chips this panel carries. Inkplate6COLOR/Inkplate2 are 1;
-    // Inkplate13SPECTRA is 2 (dual-chip, one per panel half, each with its own CS) --
-    // epd_spi.c only implements the chip_count==1 case so far. Field exists now so this
-    // struct's shape doesn't need to change again once Inkplate13SPECTRA is wired
-    // (docs/REFACTOR-PLAN.md Phase 9 step 31).
+    // Inkplate13SPECTRA is 2 (dual-chip, one per panel half, each with its own CS).
     uint8_t chip_count;
+
+    // Fields below are only read when chip_count == 2 (Inkplate13SPECTRA today) -- left
+    // as 0 (unread) for every chip_count == 1 board, same convention chip_count itself
+    // already established.
+    uint8_t pin_cs2;    // slave chip's CS (pin_cs above is the master chip's CS)
+    uint8_t pin_pwr_en; // panel power-enable GPIO
+    uint8_t pin_bs0;    // interface bus-select strap 0 (SPI vs parallel, set once at init)
+    uint8_t pin_bs1;    // interface bus-select strap 1
 } spi_panel_config_t;
 
 extern const spi_panel_config_t spi_panel_config_inkplate6color;
 extern const spi_panel_config_t spi_panel_config_inkplate2;
+extern const spi_panel_config_t spi_panel_config_inkplate13spectra;
 
 #endif // INKPLATE_SPI_PANEL_CONFIG_H

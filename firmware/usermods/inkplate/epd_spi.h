@@ -1,13 +1,16 @@
 // Generic SPI transport for the SPI-controller-panel family (docs/REFACTOR-PLAN.md
-// Phase 9 step 30). Shared by every single-chip panel in this family (Inkplate6COLOR
-// now, Inkplate2 later) -- only spi_panel_config_t's pin/timing/resolution values differ
-// per board, the transport itself (reset/command/data framing) is identical because
-// every panel in this family uses the same CS+DC-framed SPI protocol shape.
+// Phase 9 step 30). Shared by every single-chip panel in this family (Inkplate6COLOR,
+// Inkplate2) -- only spi_panel_config_t's pin/timing/resolution values differ per board,
+// the transport itself (reset/command/data framing) is identical because every panel in
+// this family uses the same CS+DC-framed SPI protocol shape.
 //
-// Inkplate13SPECTRA (2 SPI-controller chips, one per panel half) is NOT supported by
-// this file yet -- every function here assumes spi_panel_config_t.chip_count == 1.
-// Wiring a second chip needs a second CS line selected per half-frame, deferred to a
-// later pass rather than guessed here (docs/REFACTOR-PLAN.md Phase 9 step 31).
+// Inkplate13SPECTRA (2 SPI-controller chips, one per panel half) does NOT use the
+// functions below except epd_spi_reset/epd_spi_set_rst/epd_spi_wait_busy (RST/BUSY are
+// single shared lines, the framing is identical either way). Its own protocol has no DC
+// phase at all (confirmed against the real Arduino reference driver -- sendCommand()
+// never touches DC) and needs a per-call chip selection (master/slave/both), so it gets
+// its own epd_spi_dual_* functions further down rather than being force-fit onto
+// epd_spi_send_command/send_data's DC-framed shape (docs/REFACTOR-PLAN.md Phase 9 step 31).
 #ifndef INKPLATE_EPD_SPI_H
 #define INKPLATE_EPD_SPI_H
 
@@ -64,5 +67,62 @@ void epd_spi_send_command(const spi_panel_config_t *cfg, uint8_t command);
 // and the one large per-display() framebuffer write (the real hot path this port is
 // for); the 1ms trailing delay is negligible next to a multi-KB transfer.
 void epd_spi_send_data(const spi_panel_config_t *cfg, const uint8_t *data, size_t len);
+
+// --- Inkplate13SPECTRA dual-chip transport (docs/REFACTOR-PLAN.md Phase 9 step 31) ---
+// Only valid when cfg->chip_count == 2. epd_spi_reset/epd_spi_set_rst/epd_spi_wait_busy
+// above are reused unchanged (RST/BUSY are single shared lines on this panel too).
+
+// Chip-select target for the two-chip panel's per-command addressing -- mirrors the real
+// Arduino reference driver's eChipIdMaster/eChipIdSlave/eChipIdBoth bitmask exactly (both
+// CS lines share the same SCK/MOSI, so asserting both together clocks identical bytes
+// into both chips at once -- this is how "send to both" works).
+typedef enum {
+    EPD_SPI_CHIP_MASTER = 1,
+    EPD_SPI_CHIP_SLAVE = 2,
+    EPD_SPI_CHIP_BOTH = 3,
+} epd_spi_chip_t;
+
+// Drives DC/CS(both)/RST/BUSY/PWR_EN/BS0/BS1 all low as GPIO outputs -- matches the real
+// Arduino reference driver's setPanelPinsToLow(), which discharges the panel's input
+// capacitors before every power-state transition (its own comment: "without this
+// sometimes the panel refuses to refresh").
+void epd_spi_dual_pins_low(const spi_panel_config_t *cfg);
+
+// Configures pins to their functional power-on modes (DC/CS_M/CS_S/RST/PWR_EN/BS0/BS1 as
+// outputs at the reference driver's setIO() idle levels, BUSY as pulled-up input) and
+// (re)initializes the SPI bus+device at cfg->spi_freq_hz. Matches the reference driver's
+// setIO(), which reconstructs its SPI object on every power-on -- idempotent here (tears
+// down a previously-added device/bus first) since this runs once per display()-triggered
+// power cycle, not just once at boot.
+void epd_spi_dual_power_up_io(const spi_panel_config_t *cfg);
+
+// Floats DC/CS_M/CS_S/RST/BUSY/PWR_EN (GPIO input, no pull) to save power -- matches the
+// reference driver's setPanelState(false) pin-float step. BS0/BS1 are deliberately left
+// untouched (still driven from the last power_up_io() call), matching the reference,
+// which never touches them on power-down -- they're an interface-select strap, not part
+// of the power sequence.
+void epd_spi_dual_power_down_io(const spi_panel_config_t *cfg);
+
+// Drives PWR_EN directly -- matches the reference driver's digitalWrite(PWR_EN, ...)
+// calls bracketing the reset/init sequence in setPanelState(true) and the power-down tail
+// of setPanelState(false).
+void epd_spi_dual_set_power(const spi_panel_config_t *cfg, int level);
+
+// Asserts CS for the chip(s) in chip_mask -- slave then master, matching the real Arduino
+// reference driver's sendCommand() assert order exactly (both lines share SCK/MOSI, so
+// order only matters for oscilloscope-level timing, not correctness, but this is ported
+// byte-for-byte rather than reordered).
+void epd_spi_dual_select(const spi_panel_config_t *cfg, int chip_mask);
+
+// Releases CS for the chip(s) in chip_mask -- same slave-then-master order as
+// epd_spi_dual_select, matching the reference driver's release order.
+void epd_spi_dual_deselect(const spi_panel_config_t *cfg, int chip_mask);
+
+// Raw SPI write with no CS/DC framing of its own -- the caller brackets one or more of
+// these calls with epd_spi_dual_select/deselect (this is how the reference driver's
+// sendCommand() and display()'s per-row framebuffer loop both work: one CS-low window,
+// several back-to-back SPI.write()/writeBytes() calls inside it). Chunks payloads larger
+// than the SPI driver's per-transaction limit the same way epd_spi_send_data does.
+void epd_spi_dual_write(const uint8_t *data, size_t len);
 
 #endif // INKPLATE_EPD_SPI_H

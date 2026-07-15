@@ -220,6 +220,8 @@ static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
         active_spi_panel = &spi_panel_config_inkplate6color;
     } else if (strcmp(name, "inkplate2") == 0) {
         active_spi_panel = &spi_panel_config_inkplate2;
+    } else if (strcmp(name, "inkplate13spectra") == 0) {
+        active_spi_panel = &spi_panel_config_inkplate13spectra;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown spi panel"));
     }
@@ -288,6 +290,66 @@ static mp_obj_t inkplate_spi_panel_send_data(mp_obj_t data_obj)
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_send_data_obj, inkplate_spi_panel_send_data);
+
+// spi_dual_* bindings (docs/REFACTOR-PLAN.md Phase 9 step 31): Inkplate13SPECTRA's
+// dual-SPI-controller-chip transport -- distinct from the spi_panel_* bindings above
+// because this panel's protocol has no DC phase and needs a per-call chip selection
+// (master/slave/both), see epd_spi.h's own comment on why it isn't force-fit onto
+// epd_spi_send_command/send_data. Still goes through the same active_spi_panel/
+// require_spi_panel() selection slot as spi_panel_* above -- select_spi_panel() is shared.
+
+static mp_obj_t inkplate_spi_dual_pins_low(void)
+{
+    epd_spi_dual_pins_low(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_pins_low_obj, inkplate_spi_dual_pins_low);
+
+static mp_obj_t inkplate_spi_dual_power_up_io(void)
+{
+    epd_spi_dual_power_up_io(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_power_up_io_obj,
+                                 inkplate_spi_dual_power_up_io);
+
+static mp_obj_t inkplate_spi_dual_power_down_io(void)
+{
+    epd_spi_dual_power_down_io(require_spi_panel());
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_power_down_io_obj,
+                                 inkplate_spi_dual_power_down_io);
+
+static mp_obj_t inkplate_spi_dual_set_power(mp_obj_t level_obj)
+{
+    epd_spi_dual_set_power(require_spi_panel(), mp_obj_get_int(level_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_set_power_obj, inkplate_spi_dual_set_power);
+
+static mp_obj_t inkplate_spi_dual_select(mp_obj_t mask_obj)
+{
+    epd_spi_dual_select(require_spi_panel(), mp_obj_get_int(mask_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_select_obj, inkplate_spi_dual_select);
+
+static mp_obj_t inkplate_spi_dual_deselect(mp_obj_t mask_obj)
+{
+    epd_spi_dual_deselect(require_spi_panel(), mp_obj_get_int(mask_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_deselect_obj, inkplate_spi_dual_deselect);
+
+static mp_obj_t inkplate_spi_dual_write(mp_obj_t data_obj)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data_obj, &bufinfo, MP_BUFFER_READ);
+    epd_spi_dual_write((const uint8_t *)bufinfo.buf, bufinfo.len);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_write_obj, inkplate_spi_dual_write);
 
 static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_obj)
 {
@@ -593,6 +655,14 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_spi_panel_send_command),
      MP_ROM_PTR(&inkplate_spi_panel_send_command_obj)},
     {MP_ROM_QSTR(MP_QSTR_spi_panel_send_data), MP_ROM_PTR(&inkplate_spi_panel_send_data_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_pins_low), MP_ROM_PTR(&inkplate_spi_dual_pins_low_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_power_up_io), MP_ROM_PTR(&inkplate_spi_dual_power_up_io_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_power_down_io),
+     MP_ROM_PTR(&inkplate_spi_dual_power_down_io_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_set_power), MP_ROM_PTR(&inkplate_spi_dual_set_power_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_select), MP_ROM_PTR(&inkplate_spi_dual_select_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_deselect), MP_ROM_PTR(&inkplate_spi_dual_deselect_obj)},
+    {MP_ROM_QSTR(MP_QSTR_spi_dual_write), MP_ROM_PTR(&inkplate_spi_dual_write_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_set_mirror_x), MP_ROM_PTR(&inkplate_gfx_set_mirror_x_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_hline), MP_ROM_PTR(&inkplate_gfx_hline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_vline), MP_ROM_PTR(&inkplate_gfx_vline_obj)},

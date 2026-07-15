@@ -58,3 +58,45 @@ const spi_panel_config_t spi_panel_config_inkplate2 = {
 
     .chip_count = 1,
 };
+
+// Inkplate13SPECTRA (1200x1600 native controller resolution, 4bpp/6-color GDEP133C02
+// panel, dual SPI-controller chip -- one per panel half): pins from the real Arduino
+// reference driver (Inkplate13SPECTRADriver.cpp/.h, pins.h -- user-supplied directly,
+// docs/REFACTOR-PLAN.md Phase 9 step 31). ESP32-S3 board, not classic ESP32 like the
+// other two panels in this family -- built as its own firmware target, so sharing this
+// struct/API doesn't imply sharing a binary.
+//
+// width/height are the panel's native controller resolution (matches the reference
+// driver's E_INK_WIDTH/E_INK_HEIGHT), not the post-rotation width()/height() the board's
+// default rotation(1) presents to callers -- same convention as the two configs above.
+//
+// spi_freq_hz = 10MHz, from the real Arduino reference's SPISettings(10000000, MSBFIRST,
+// SPI_MODE0).
+//
+// pin_cs is the master chip's CS (left half); pin_cs2 is the slave chip's CS (right
+// half). pin_pwr_en/pin_bs0/pin_bs1 have no equivalent on the single-chip panels above --
+// pwr_en gates the panel's own power supply (absent on 6COLOR/Inkplate2, whose power
+// comes from the board's shared VBAT rail), bs0/bs1 are GDEP133C02 interface-select
+// straps (SPI vs parallel) the reference driver sets once and never toggles again.
+const spi_panel_config_t spi_panel_config_inkplate13spectra = {
+    .name = "inkplate13spectra",
+
+    .width = 1200,
+    .height = 1600,
+
+    .pin_rst = 4,
+    .pin_dc = 14,
+    .pin_cs = 42,
+    .pin_busy = 7,
+    .pin_clk = 38,
+    .pin_din = 40,
+
+    .spi_freq_hz = 10000000,
+
+    .chip_count = 2,
+
+    .pin_cs2 = 39,
+    .pin_pwr_en = 21,
+    .pin_bs0 = 6,
+    .pin_bs1 = 5,
+};
