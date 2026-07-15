@@ -53,12 +53,23 @@ class _Inkplate:
     @classmethod
     def init(cls, i2c):
         cls._i2c = i2c
+        # External user-GPIO expander is a separate chip from the required internal one
+        # (0x20, drives EPD_OE/GMODE/SPV/TPS_*) and some boards ship without it due to
+        # chip shortages -- scan first so a missing chip disables gpio_expander_pin(2, ...)
+        # instead of NACKing the eager MCP23017.__init__ I2C write and crashing begin().
+        detected = i2c.scan()
+        expander2_present = _EXPANDER2_ADDR in detected
         if _IS_CLASSIC:
             cls._expander1 = MCP23017(i2c)
-            cls._expander2 = MCP23017(i2c, _EXPANDER2_ADDR)
+            cls._expander2 = MCP23017(i2c, _EXPANDER2_ADDR) if expander2_present else None
         else:
             cls._expander1 = PCAL6416A(i2c)
-            cls._expander2 = PCAL6416A(i2c, _EXPANDER2_ADDR)
+            cls._expander2 = PCAL6416A(i2c, _EXPANDER2_ADDR) if expander2_present else None
+        if not expander2_present:
+            print(
+                "WARNING: external user-GPIO expander (addr {:#x}) not detected on I2C "
+                "bus -- gpio_expander_pin(2, ...) disabled".format(_EXPANDER2_ADDR)
+            )
         # Display control lines -- pin mode/initial level only; toggling happens in C.
         Pin(0, Pin.OUT, value=0)  # EPD_CL
         Pin(2, Pin.OUT, value=0)  # EPD_LE
@@ -133,7 +144,7 @@ class _Inkplate:
     def _expander_write_cb(cls, addr, pin, value):
         if addr == cls._expander1.addr:
             cls._expander1.digital_write(pin, value)
-        elif addr == cls._expander2.addr:
+        elif cls._expander2 is not None and addr == cls._expander2.addr:
             cls._expander2.digital_write(pin, value)
         else:
             raise ValueError("no expander at addr {:#x}".format(addr))
@@ -389,6 +400,11 @@ class Inkplate:
         if expander == 1:
             return GpioPin(_Inkplate._expander1, pin, mode)
         elif expander == 2:
+            if _Inkplate._expander2 is None:
+                raise RuntimeError(
+                    "external user-GPIO expander (addr {:#x}) not present on this "
+                    "board".format(_EXPANDER2_ADDR)
+                )
             return GpioPin(_Inkplate._expander2, pin, mode)
 
     def clear_display(self):
