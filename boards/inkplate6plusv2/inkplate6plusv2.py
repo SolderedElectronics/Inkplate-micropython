@@ -373,6 +373,12 @@ class Inkplate:
 
         self.ipp.start()  # making framebuffer copy for partial update
 
+    # CAUTION: unlike display(), this never runs a pre-clean and never resyncs ipp's reference
+    # snapshot on its own -- both only happen inside display(). Calling this as the first mono
+    # operation after a GS3 display() ghosts badly (HIL-confirmed, worse than a plain mono
+    # display() with extra_clean=False): the physical panel still shows the GS3 frame and
+    # there's no baseline to diff against. Always call display() at least once after switching
+    # away from GS mode before relying on partial_update().
     def partial_update(self):
         if self.display_mode == 1:
             return

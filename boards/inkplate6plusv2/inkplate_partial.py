@@ -25,6 +25,11 @@ class InkplatePartial:
     # Arduino reference driver's partialUpdate() for(k<5) loop), matching how mono/GS/clean
     # already work. Always walks the full frame (no region params) -- matches the real
     # Arduino reference driver's partialUpdate(), which has none either.
+    #
+    # No pre-clean here (matches the real partialUpdate(), which has none) -- this only
+    # nudges pixels that changed vs the reference snapshot. Caller must ensure the physical
+    # panel already matches that snapshot; a full mono display() must run at least once after
+    # any GS3 display() before this is safe to call, or it ghosts badly (HIL-confirmed).
     def display(self):
         ip = _Inkplate
         ip.power_on()
