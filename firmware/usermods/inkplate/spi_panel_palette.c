@@ -179,7 +179,7 @@ static void write_pixel_inkplate2(const spi_panel_palette_ctx_t *ctx, int x, int
     ctx->fb[position] |= mask;
     ctx->fb2[position] |= mask;
     if (value < 2) {
-        ctx->fb[position] &= (uint8_t)~(value << (7 - x_sub));
+        ctx->fb[position] &= (uint8_t) ~(value << (7 - x_sub));
     } else {
         ctx->fb2[position] &= (uint8_t)~mask;
     }
