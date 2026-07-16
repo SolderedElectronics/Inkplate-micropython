@@ -11,6 +11,10 @@
       [
         "pcal6416a.py",
         "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
+      ],
+      [
+        "rtc.py",
+        "github:SolderedElectronics/Inkplate-micropython/shared/rtc.py"
       ]
     ],
     "deps": [],

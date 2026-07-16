@@ -708,7 +708,7 @@ class Inkplate:
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             png_data = response.content
             response.close()
@@ -737,6 +737,7 @@ class Inkplate:
             print("Error in draw_png_from_web:", e)
             if "response" in locals():
                 response.close()
+            raise
 
     def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """Display a BMP image downloaded from the web
@@ -754,7 +755,7 @@ class Inkplate:
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             bmp_data = response.content
             response.close()
@@ -774,6 +775,7 @@ class Inkplate:
             print("Error in draw_bmp_from_web:", e)
             if "response" in locals():
                 response.close()
+            raise
 
 
 if __name__ == "__main__":

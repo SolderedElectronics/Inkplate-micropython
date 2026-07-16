@@ -10,7 +10,7 @@
 // bmp_draw_gs4 uses directly, but tjpgd's tiles still arrive in strict row-band order
 // (every tile for one MCU row-band arrives before the next band down starts), so when
 // dither is requested this buffers one row-band at a time (a small static buffer, see
-// JPEG_DRAW_BAND_MAX_W/JPEG_DRAW_MCU_MAX_H in jpeg_draw.c) instead of the whole image,
+// JPEG_DRAW_CORE_BAND_MAX_W/JPEG_DRAW_CORE_MCU_MAX_H in jpeg_draw_core.h) instead of the whole image,
 // dithering+flushing each band as the next one starts arriving.
 #ifndef INKPLATE_JPEG_DRAW_H
 #define INKPLATE_JPEG_DRAW_H
@@ -24,7 +24,7 @@
 // display_mode) at logical position (x0, y0), through the same rotation remap
 // gfx_set_pixel uses. `out_width`/`out_height` receive the JPEG's own pixel
 // dimensions on success. Needs no allocation (see jpeg_draw_palette's identical
-// comment on JPEG_DRAW_BAND_MAX_W/JPEG_DRAW_MCU_MAX_H) -- if the image is wider than
+// comment on JPEG_DRAW_CORE_BAND_MAX_W/JPEG_DRAW_CORE_MCU_MAX_H) -- if the image is wider than
 // that band buffer, dithering isn't possible: this returns -2 (checked via
 // jpeg_decode's pre_cb hook, right after header parse, before any MCU decoding) so
 // the caller can raise a clear "image too wide to dither" error instead of silently
@@ -44,7 +44,7 @@ typedef void (*jpeg_draw_palette_cb)(void *cb_ctx, int x, int y, int value);
 // entries), and calls `write_pixel(cb_ctx, x, y, value)` once per pixel with
 // image-local (x, y) and the matched palette entry's `value`. When `dither` is set,
 // buffers one MCU row-band at a time into a small static buffer (see
-// JPEG_DRAW_BAND_MAX_W/JPEG_DRAW_MCU_MAX_H in jpeg_draw.c) rather than the
+// JPEG_DRAW_CORE_BAND_MAX_W/JPEG_DRAW_CORE_MCU_MAX_H in jpeg_draw_core.h) rather than the
 // whole image -- tjpgd delivers tiles in strict row-band raster order, so only one
 // band's rows are ever live at once (unlike png_draw_palette's PNG path, which
 // genuinely needs a whole-image buffer for Adam7-interlaced sources). This needs no
@@ -52,7 +52,7 @@ typedef void (*jpeg_draw_palette_cb)(void *cb_ctx, int x, int y, int value);
 // whole-image buffer, whether heap_caps_malloc'd or a caller-supplied bytearray,
 // could still fail to fit real Inkplate6COLOR PSRAM once other allocations had
 // fragmented it -- a band this small never can). If the image is wider than
-// JPEG_DRAW_BAND_MAX_W, dithering isn't possible at this width: rather than
+// JPEG_DRAW_CORE_BAND_MAX_W, dithering isn't possible at this width: rather than
 // silently falling back to a non-dithered draw (surprising, since the caller asked
 // for dithering), this returns -2 so the caller can raise a clear "image too wide,
 // try scaling it down" error instead. That check happens right after the JPEG

@@ -5,6 +5,7 @@ import os
 from machine import ADC, I2C, Pin, SDCard
 from micropython import const
 from pcal6416a import *
+from rtc import RTC
 import gfx_standard_font_01 as montserrat_black
 import machine
 import inkplate
@@ -65,11 +66,6 @@ IO_PIN_B5 = const(13)
 IO_PIN_B6 = const(14)
 IO_PIN_B7 = const(15)
 
-RTC_I2C_ADDR = 0x51
-RTC_RAM_by = 0x03
-RTC_DAY_ADDR = 0x07
-RTC_SECOND_ADDR = 0x04
-
 
 class Inkplate:
     BLACK = const(0b00000000)  # 0
@@ -105,6 +101,7 @@ class Inkplate:
     def begin(cls):
         cls.wire = I2C(0, scl=Pin(22), sda=Pin(21))
         cls._PCAL6416A = PCAL6416A(cls.wire)
+        cls._rtc = RTC(cls.wire)
 
         # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
         # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
@@ -334,75 +331,20 @@ class Inkplate:
     def gpio_expander_pin(cls, pin, mode):
         return GpioPin(cls._PCAL6416A, pin, mode)
 
-    @classmethod
-    def rtc_dec_to_bcd(cls, val):
-        return (val // 10 * 16) + (val % 10)
-
-    @classmethod
-    def rtc_bcd_to_dec(cls, val):
-        return (val // 16 * 10) + (val % 16)
-
+    # Same PCF85263-style RTC chip every parallel-bus board wires -- delegates to
+    # shared/rtc.py instead of the hand-rolled BCD conversion/I2C read-write this used to
+    # duplicate (never backported when that shared module landed).
     @classmethod
     def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
-        data = bytearray(
-            [
-                RTC_RAM_by,
-                170,  # Write in RAM 170 to know that RTC is set
-                cls.rtc_dec_to_bcd(rtc_second),
-                cls.rtc_dec_to_bcd(rtc_minute),
-                cls.rtc_dec_to_bcd(rtc_hour),
-            ]
-        )
-
-        cls.wire.writeto(RTC_I2C_ADDR, data)
+        cls._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
 
     @classmethod
     def rtc_set_date(cls, rtc_weekday, rtc_day, rtc_month, rtc_yr):
-        rtc_year = rtc_yr - 2000
-
-        data = bytearray(
-            [
-                RTC_RAM_by,
-                170,  # Write in RAM 170 to know that RTC is set
-            ]
-        )
-
-        cls.wire.writeto(RTC_I2C_ADDR, data)
-
-        data = bytearray(
-            [
-                RTC_DAY_ADDR,
-                cls.rtc_dec_to_bcd(rtc_day),
-                cls.rtc_dec_to_bcd(rtc_weekday),
-                cls.rtc_dec_to_bcd(rtc_month),
-                cls.rtc_dec_to_bcd(rtc_year),
-            ]
-        )
-
-        cls.wire.writeto(RTC_I2C_ADDR, data)
+        cls._rtc.set_date(rtc_weekday, rtc_day, rtc_month, rtc_yr)
 
     @classmethod
     def rtc_get_rtc_data(cls):
-        cls.wire.writeto(RTC_I2C_ADDR, bytearray([RTC_SECOND_ADDR]))
-        data = cls.wire.readfrom(RTC_I2C_ADDR, 7)
-
-        rtc_second = cls.rtc_bcd_to_dec(data[0] & 0x7F)  # Ignore bit 7
-        rtc_minute = cls.rtc_bcd_to_dec(data[1] & 0x7F)
-        rtc_hour = cls.rtc_bcd_to_dec(data[2] & 0x3F)  # Ignore bits 7 & 6
-        rtc_day = cls.rtc_bcd_to_dec(data[3] & 0x3F)
-        rtc_weekday = cls.rtc_bcd_to_dec(data[4] & 0x07)  # Ignore bits 7,6,5,4 & 3
-        rtc_month = cls.rtc_bcd_to_dec(data[5] & 0x1F)  # Ignore bits 7,6 & 5
-        rtc_year = cls.rtc_bcd_to_dec(data[6]) + 2000
-
-        return {
-            "second": rtc_second,
-            "minute": rtc_minute,
-            "hour": rtc_hour,
-            "day": rtc_day,
-            "weekday": rtc_weekday,
-            "month": rtc_month,
-            "year": rtc_year,
-        }
+        return cls._rtc.get_data()
 
     @classmethod
     def clean(cls):
@@ -826,7 +768,7 @@ class Inkplate:
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             png_data = response.content
             response.close()
@@ -849,6 +791,7 @@ class Inkplate:
             print("Error in draw_png_from_web:", e)
             if "response" in locals():
                 response.close()
+            raise
 
     def draw_jpg_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import gc
@@ -909,7 +852,7 @@ class Inkplate:
         try:
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"HTTP Error {response.status_code}")
+                raise ValueError(f"HTTP Error {response.status_code}")
 
             bmp_data = response.content
             response.close()
@@ -931,6 +874,7 @@ class Inkplate:
             print("Error in draw_bmp_from_web:", e)
             if "response" in locals():
                 response.close()
+            raise
 
 
 if __name__ == "__main__":

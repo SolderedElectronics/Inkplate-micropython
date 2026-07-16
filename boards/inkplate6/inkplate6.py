@@ -144,18 +144,6 @@ class _Inkplate:
         else:
             raise ValueError("no expander at addr {:#x}".format(addr))
 
-    @classmethod
-    def begin(cls, variant=_DEFAULT_VARIANT):
-        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)), variant)
-
-        cls._tps = TPS65186(cls._i2c, cls.TPS_WAKEUP, cls.TPS_PWRUP, cls.TPS_VCOM)
-        cls._tps.begin()
-        cls._rtc = RTC(cls._i2c)
-
-        cls.ipg = InkplateGS2()
-        cls.ipm = InkplateMono()
-        cls.ipp = InkplatePartial(cls.ipm)
-
     # Read the battery voltage. Note that the result depends on the ADC
     # calibration, and be a bit off.
     @classmethod

@@ -145,6 +145,9 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
     mp_get_buffer_raise(framebuf_obj, &bufinfo, MP_BUFFER_READ);
 
     const board_config_t *cfg = require_board();
+    if (bufinfo.len < (size_t)cfg->height * (size_t)(cfg->width >> 3)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this board's mono resolution"));
+    }
 
     // Inkplate6FLICK's Arduino reference driver (display1b()) uses 4 black-push phases
     // instead of the 5 every other wired board uses, followed by its own discharge pass
@@ -193,13 +196,20 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
     mp_get_buffer_raise(framebuf_obj, &bufinfo, MP_BUFFER_READ);
 
     const board_config_t *cfg = require_board();
+    if (bufinfo.len < (size_t)cfg->height * (size_t)(cfg->width >> 1)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this board's GS4 resolution"));
+    }
 
+    // Keyed by which board's waveform generated it, not just a ready flag -- cfg->waveform
+    // is board-specific, so a stale cache would silently serve one board's LUTs to another
+    // if select_board() is ever called again with a different board mid-process (unlike
+    // partial_lut below, whose LUT is genuinely board-independent, this one isn't).
     static uint8_t gs_luts[MAX_WAVE_PHASES][16];
-    static bool gs_luts_ready = false;
-    if (!gs_luts_ready) {
+    static const board_config_t *gs_luts_board = NULL;
+    if (gs_luts_board != cfg) {
         inkplate_gen_wave_3bit(&cfg->waveform->table[0][0], MAX_WAVE_LEVELS,
                                cfg->waveform->phases, gs_luts);
-        gs_luts_ready = true;
+        gs_luts_board = cfg;
     }
 
     epd_i2s_push_gs_frame(cfg, (const uint8_t *)bufinfo.buf, gs_luts, cfg->waveform->phases);
@@ -359,6 +369,10 @@ static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_ob
     mp_get_buffer_raise(new_fb_obj, &new_info, MP_BUFFER_READ);
 
     const board_config_t *cfg = require_board();
+    size_t partial_needed = (size_t)cfg->height * (size_t)(cfg->width >> 3);
+    if (old_info.len < partial_needed || new_info.len < partial_needed) {
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this board's mono resolution"));
+    }
 
     static uint8_t partial_lut[256];
     static bool partial_lut_ready = false;
@@ -383,6 +397,52 @@ static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
     return (uint8_t *)bufinfo->buf;
 }
 
+// Minimum framebuffer bytes gfx_set_pixel's own packing needs for a phys_w x phys_h buffer
+// at this display_mode. Rotation doesn't change this -- rotation only remaps logical into
+// physical (px, py) coordinates (gfx.c), the buffer's own byte layout is always phys_w x
+// phys_h. Mirrors gfx.c's indexing exactly: mono is 1bpp row-major (`(py*w+px)>>3`), GS4 is
+// 4bpp/2px-per-byte using truncating `w/2` row stride (`py*(w/2)+(px>>1)`) -- same
+// assumption every other GS4 caller in this codebase already makes about even widths, not
+// a new one introduced here.
+static size_t gfx_min_buf_len(int phys_w, int phys_h, int display_mode)
+{
+    if (phys_w <= 0 || phys_h <= 0) {
+        return 0;
+    }
+    if (display_mode == 0) {
+        return ((size_t)phys_w * (size_t)phys_h + 7) / 8;
+    }
+    return (size_t)phys_h * (size_t)(phys_w / 2);
+}
+
+// Same as gfx_writable_buf, but raises a clean ValueError instead of an out-of-bounds
+// write/read when the caller's buffer is smaller than phys_w/phys_h/display_mode implies
+// (e.g. a board/buffer size mismatch) -- every gfx_* primitive and the jpeg/png/bmp_draw_gs4
+// image loaders share this same (fb, phys_w, phys_h, rotation, display_mode, ...) arg shape.
+static uint8_t *gfx_writable_buf_checked(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo, int phys_w,
+                                         int phys_h, int display_mode)
+{
+    mp_get_buffer_raise(fb_obj, bufinfo, MP_BUFFER_WRITE);
+    if (bufinfo->len < gfx_min_buf_len(phys_w, phys_h, display_mode)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for phys_w/phys_h/display_mode"));
+    }
+    return (uint8_t *)bufinfo->buf;
+}
+
+// Validates a 1bpp source bitmap (gfx_draw_bitmap's bitmap arg, gfx_draw_char's char_data
+// arg -- both row_bytes = ceil(w/8), h rows, per gfx.h's own documented format) has enough
+// bytes for its own caller-supplied w/h before gfx.c walks it.
+static void gfx_check_1bpp_len(const mp_buffer_info_t *bufinfo, int w, int h)
+{
+    if (w <= 0 || h <= 0) {
+        return;
+    }
+    size_t needed = (size_t)((w + 7) / 8) * (size_t)h;
+    if (bufinfo->len < needed) {
+        mp_raise_ValueError(MP_ERROR_TEXT("bitmap buffer too small for its own w/h"));
+    }
+}
+
 static mp_obj_t inkplate_gfx_set_mirror_x(mp_obj_t enable_obj)
 {
     gfx_set_mirror_x(mp_obj_is_true(enable_obj));
@@ -403,9 +463,11 @@ static mp_obj_t inkplate_gfx_set_pixel(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_set_pixel(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                  mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
-                  mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]));
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_set_pixel(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+                  phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
+                  mp_obj_get_int(args[6]), mp_obj_get_int(args[7]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_set_pixel_obj, 8, 8,
@@ -428,13 +490,16 @@ static mp_obj_t inkplate_gfx_draw_bitmap(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf, bmp_buf;
-    uint8_t *fb = gfx_writable_buf(args[0], &buf);
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    uint8_t *fb = gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode);
     mp_get_buffer_raise(args[7], &bmp_buf, MP_BUFFER_READ);
+    int bmp_w = mp_obj_get_int(args[8]), bmp_h = mp_obj_get_int(args[9]);
+    gfx_check_1bpp_len(&bmp_buf, bmp_w, bmp_h);
 
-    gfx_draw_bitmap(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]), mp_obj_get_int(args[3]),
-                    mp_obj_get_int(args[4]), mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
-                    (const uint8_t *)bmp_buf.buf, mp_obj_get_int(args[8]),
-                    mp_obj_get_int(args[9]), mp_obj_get_int(args[10]));
+    gfx_draw_bitmap(fb, phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
+                    mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                    (const uint8_t *)bmp_buf.buf, bmp_w, bmp_h, mp_obj_get_int(args[10]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_bitmap_obj, 11, 11,
@@ -444,8 +509,10 @@ static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_hline(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-              mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_hline(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+              phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
               mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
     return mp_const_none;
 }
@@ -455,8 +522,10 @@ static mp_obj_t inkplate_gfx_vline(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_vline(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-              mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_vline(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+              phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
               mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
     return mp_const_none;
 }
@@ -466,8 +535,10 @@ static mp_obj_t inkplate_gfx_line(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_line(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-             mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_line(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+             phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
              mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
              mp_obj_get_int(args[9]));
     return mp_const_none;
@@ -478,8 +549,10 @@ static mp_obj_t inkplate_gfx_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-             mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_rect(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+             phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
              mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
              mp_obj_get_int(args[9]));
     return mp_const_none;
@@ -490,10 +563,12 @@ static mp_obj_t inkplate_gfx_fill_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_fill_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                  mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
-                  mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
-                  mp_obj_get_int(args[8]), mp_obj_get_int(args[9]));
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_fill_rect(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+                  phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
+                  mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
+                  mp_obj_get_int(args[9]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_rect_obj, 10, 10,
@@ -503,8 +578,10 @@ static mp_obj_t inkplate_gfx_circle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_circle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-               mp_obj_get_int(args[3]), mp_obj_get_int(args[4]), mp_obj_get_int(args[5]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_circle(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+               phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
                mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
     return mp_const_none;
 }
@@ -514,10 +591,11 @@ static mp_obj_t inkplate_gfx_fill_circle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_fill_circle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                    mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
-                    mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
-                    mp_obj_get_int(args[8]));
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_fill_circle(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+                    phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
+                    mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_circle_obj, 9, 9,
@@ -527,11 +605,12 @@ static mp_obj_t inkplate_gfx_triangle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_triangle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                 mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
-                 mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
-                 mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]),
-                 mp_obj_get_int(args[11]));
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_triangle(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+                 phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
+                 mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
+                 mp_obj_get_int(args[9]), mp_obj_get_int(args[10]), mp_obj_get_int(args[11]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_triangle_obj, 12, 12,
@@ -541,8 +620,10 @@ static mp_obj_t inkplate_gfx_fill_triangle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_fill_triangle(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                      mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_fill_triangle(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode),
+                      phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
                       mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
                       mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]),
                       mp_obj_get_int(args[11]));
@@ -555,10 +636,12 @@ static mp_obj_t inkplate_gfx_round_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_round_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                   mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
-                   mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
-                   mp_obj_get_int(args[8]), mp_obj_get_int(args[9]), mp_obj_get_int(args[10]));
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_round_rect(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode), phys_w,
+                   phys_h, mp_obj_get_int(args[3]), display_mode, mp_obj_get_int(args[5]),
+                   mp_obj_get_int(args[6]), mp_obj_get_int(args[7]), mp_obj_get_int(args[8]),
+                   mp_obj_get_int(args[9]), mp_obj_get_int(args[10]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_round_rect_obj, 11, 11,
@@ -568,8 +651,10 @@ static mp_obj_t inkplate_gfx_fill_round_rect(size_t n_args, const mp_obj_t *args
 {
     (void)n_args;
     mp_buffer_info_t buf;
-    gfx_fill_round_rect(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
-                        mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    gfx_fill_round_rect(gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode),
+                        phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
                         mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]),
                         mp_obj_get_int(args[8]), mp_obj_get_int(args[9]),
                         mp_obj_get_int(args[10]));
@@ -584,13 +669,16 @@ static mp_obj_t inkplate_gfx_draw_char(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t buf, char_buf;
-    uint8_t *fb = gfx_writable_buf(args[0], &buf);
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    uint8_t *fb = gfx_writable_buf_checked(args[0], &buf, phys_w, phys_h, display_mode);
     mp_get_buffer_raise(args[7], &char_buf, MP_BUFFER_READ);
+    int char_w = mp_obj_get_int(args[8]), char_h = mp_obj_get_int(args[9]);
+    gfx_check_1bpp_len(&char_buf, char_w, char_h);
 
-    gfx_draw_char(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]), mp_obj_get_int(args[3]),
-                  mp_obj_get_int(args[4]), mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
-                  (const uint8_t *)char_buf.buf, mp_obj_get_int(args[8]), mp_obj_get_int(args[9]),
-                  mp_obj_get_int(args[10]), mp_obj_get_int(args[11]));
+    gfx_draw_char(fb, phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
+                  mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), (const uint8_t *)char_buf.buf,
+                  char_w, char_h, mp_obj_get_int(args[10]), mp_obj_get_int(args[11]));
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_char_obj, 12, 12,
@@ -605,12 +693,13 @@ static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, jpg_buf;
-    uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    uint8_t *fb = gfx_writable_buf_checked(args[0], &fb_buf, phys_w, phys_h, display_mode);
     mp_get_buffer_raise(args[7], &jpg_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res = jpeg_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                            mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+    int res = jpeg_draw_gs4(fb, phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
                             mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
                             (const uint8_t *)jpg_buf.buf, jpg_buf.len, mp_obj_is_true(args[8]),
                             mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
@@ -637,12 +726,13 @@ static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, png_buf;
-    uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    uint8_t *fb = gfx_writable_buf_checked(args[0], &fb_buf, phys_w, phys_h, display_mode);
     mp_get_buffer_raise(args[7], &png_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res = png_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                           mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+    int res = png_draw_gs4(fb, phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
                            mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
                            (const uint8_t *)png_buf.buf, png_buf.len, mp_obj_is_true(args[8]),
                            mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
@@ -665,12 +755,13 @@ static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     mp_buffer_info_t fb_buf, bmp_buf;
-    uint8_t *fb = gfx_writable_buf(args[0], &fb_buf);
+    int phys_w = mp_obj_get_int(args[1]), phys_h = mp_obj_get_int(args[2]);
+    int display_mode = mp_obj_get_int(args[4]);
+    uint8_t *fb = gfx_writable_buf_checked(args[0], &fb_buf, phys_w, phys_h, display_mode);
     mp_get_buffer_raise(args[7], &bmp_buf, MP_BUFFER_READ);
 
     uint32_t width = 0, height = 0;
-    int res = bmp_draw_gs4(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]),
-                           mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+    int res = bmp_draw_gs4(fb, phys_w, phys_h, mp_obj_get_int(args[3]), display_mode,
                            mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
                            (const uint8_t *)bmp_buf.buf, bmp_buf.len, mp_obj_is_true(args[8]),
                            mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
@@ -711,6 +802,28 @@ static void inkplate_palette_ctx_init(spi_panel_palette_ctx_t *ctx, const mp_obj
     ctx->rotation = mp_obj_get_int(args[2]);
     ctx->x0 = mp_obj_get_int(args[3]);
     ctx->y0 = mp_obj_get_int(args[4]);
+
+    // spi_panel_palette_write_pixel's packing is fixed per panel (spi_panel_palette.c) --
+    // validate the caller's buffer(s) actually match it, same reasoning as
+    // gfx_writable_buf_checked above, instead of trusting Python to have sized them right.
+    if (panel_id == SPI_PANEL_PALETTE_INKPLATE2) {
+        // write_pixel_inkplate2 unconditionally dereferences both planes (ctx->fb/fb2) --
+        // a None fb2 here would be a guaranteed NULL-pointer write, not just an OOB one.
+        if (ctx->fb2 == NULL) {
+            mp_raise_ValueError(MP_ERROR_TEXT("inkplate2 needs a red-plane framebuf, not None"));
+        }
+        size_t needed = (size_t)ctx->height * (size_t)(ctx->width / 8);
+        if (fb_buf->len < needed || fb2_buf->len < needed) {
+            mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this panel's resolution"));
+        }
+    } else {
+        // 6COLOR/13SPECTRA: single 4bpp nibble-packed buffer, fb2 unused regardless of
+        // what the caller passed for it.
+        size_t needed = (size_t)ctx->height * (size_t)(ctx->width / 2);
+        if (fb_buf->len < needed) {
+            mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this panel's resolution"));
+        }
+    }
 }
 
 static mp_obj_t inkplate_bmp_draw_palette(size_t n_args, const mp_obj_t *args)
@@ -756,7 +869,7 @@ static mp_obj_t inkplate_jpeg_draw_palette(size_t n_args, const mp_obj_t *args)
     mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
 
     // jpeg_draw_palette buffers one MCU row-band at a time (a small static buffer,
-    // see jpeg_draw.c's JPEG_DRAW_BAND_MAX_W/JPEG_DRAW_MCU_MAX_H) rather than
+    // see jpeg_draw_core.h's JPEG_DRAW_CORE_BAND_MAX_W/JPEG_DRAW_CORE_MCU_MAX_H) rather than
     // the whole image, so unlike bmp/png_draw_palette there's no panel-size-vs-
     // photo-floor cap or caller-supplied scratch buffer to compute here.
     uint32_t width = 0, height = 0;
@@ -789,13 +902,14 @@ static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
     const dither_palette_entry_t *palette = spi_panel_palette_table(ctx.panel, &n);
     mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
 
-    // Cap at the larger of this panel's own physical size and a "typical photo"
-    // floor (1200x825, matching PNG's own buffered-path cap -- png_draw.c's
-    // PNG_DRAW_MAX_WIDTH/HEIGHT -- and JPEG's band-buffer width floor,
-    // JPEG_DRAW_BAND_MAX_W) -- see png_draw_palette's own comment for why PNG
-    // (unlike jpeg_draw_palette) still needs a whole-image scratch buffer at all
-    // (Adam7 interlacing).
-    int max_w = ctx.width > 1200 ? ctx.width : 1200;
+    // Cap at the larger of this panel's own physical size and a "typical photo" floor
+    // (INKPLATE_DRAW_MAX_WIDTH x 825, matching PNG's own buffered-path cap --
+    // png_draw_core.h's PNG_DRAW_CORE_MAX_WIDTH/HEIGHT -- and JPEG's band-buffer width
+    // floor, JPEG_DRAW_CORE_BAND_MAX_W -- all three now the same shared constant, see
+    // dither.h) -- see png_draw_palette's own comment for why PNG (unlike
+    // jpeg_draw_palette) still needs a whole-image scratch buffer at all (Adam7
+    // interlacing).
+    int max_w = ctx.width > INKPLATE_DRAW_MAX_WIDTH ? ctx.width : INKPLATE_DRAW_MAX_WIDTH;
     int max_h = ctx.height > 825 ? ctx.height : 825;
 
     // Caller (Python) allocates and owns this scratch bytearray -- see

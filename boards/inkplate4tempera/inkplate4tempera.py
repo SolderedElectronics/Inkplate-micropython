@@ -139,18 +139,6 @@ class _Inkplate:
         else:
             raise ValueError("no expander at addr {:#x}".format(addr))
 
-    @classmethod
-    def begin(cls):
-        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
-
-        cls._tps = TPS65186(cls._i2c, cls.TPS_WAKEUP, cls.TPS_PWRUP, cls.TPS_VCOM)
-        cls._tps.begin()
-        cls._rtc = RTC(cls._i2c)
-
-        cls.ipg = InkplateGS2()
-        cls.ipm = InkplateMono()
-        cls.ipp = InkplatePartial(cls.ipm)
-
     # Read panel temperature via the TPS65186's internal sensor. Varies +- 1-2 degree.
     @classmethod
     def read_temperature(cls):

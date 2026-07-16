@@ -257,13 +257,28 @@ static void build_mono_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
                            const uint8_t lut[16], uint8_t *row_buf)
 {
     uint16_t out = 0;
-    for (int16_t i = (int16_t)fb_row_bytes - 1; i > 0; i -= 2) {
+    int16_t i = (int16_t)fb_row_bytes - 1;
+    for (; i > 0; i -= 2) {
         uint8_t dram1 = framebuf_row[i];     // later byte
         uint8_t dram2 = framebuf_row[i - 1]; // earlier byte
         row_buf[out++] = lut[dram2 >> 4];
         row_buf[out++] = lut[dram2 & 0x0F];
         row_buf[out++] = lut[dram1 >> 4];
         row_buf[out++] = lut[dram1 & 0x0F];
+    }
+    if (i == 0) {
+        // fb_row_bytes odd (Inkplate4TEMPERA, width=600 -> fb_row_bytes=75): one
+        // unpaired byte left at index 0, previously dropped outright (bug -- the loop's
+        // `i > 0` bound never visits it), leaving 2 stale bytes at the tail of row_buf
+        // every row/phase. No swap partner exists for a lone byte, so it's emitted as-is
+        // here. UNVERIFIED on real hardware whether tx_fifo_mod=1's reorder still needs
+        // compensation on this trailing partial chunk -- every other swap rule in this
+        // file needed a HIL correction the first time non-uniform content exercised it
+        // (see this function's own history), and no board with an odd fb_row_bytes has
+        // been HIL-tested yet.
+        uint8_t dram0 = framebuf_row[0];
+        row_buf[out++] = lut[dram0 >> 4];
+        row_buf[out++] = lut[dram0 & 0x0F];
     }
 }
 
@@ -310,7 +325,8 @@ static void build_partial_row(const uint8_t *old_row, const uint8_t *new_row,
                               uint16_t fb_row_bytes, const uint8_t lut[256], uint8_t *row_buf)
 {
     uint16_t out = 0;
-    for (int16_t i = (int16_t)fb_row_bytes - 1; i > 0; i -= 2) {
+    int16_t i = (int16_t)fb_row_bytes - 1;
+    for (; i > 0; i -= 2) {
         uint8_t old1 = old_row[i]; // later byte
         uint8_t new1 = new_row[i];
         uint8_t old2 = old_row[i - 1]; // earlier byte
@@ -319,6 +335,15 @@ static void build_partial_row(const uint8_t *old_row, const uint8_t *new_row,
         row_buf[out++] = lut[((old2 & 0x0F) << 4) | (new2 & 0x0F)];
         row_buf[out++] = lut[((old1 & 0xF0) | (new1 >> 4))];
         row_buf[out++] = lut[((old1 & 0x0F) << 4) | (new1 & 0x0F)];
+    }
+    if (i == 0) {
+        // Same odd-fb_row_bytes case build_mono_row handles (see its comment) -- one
+        // unpaired byte at index 0, previously dropped. No swap partner, emitted as-is.
+        // UNVERIFIED on real hardware for the same reason.
+        uint8_t old0 = old_row[0];
+        uint8_t new0 = new_row[0];
+        row_buf[out++] = lut[((old0 & 0xF0) | (new0 >> 4))];
+        row_buf[out++] = lut[((old0 & 0x0F) << 4) | (new0 & 0x0F)];
     }
 }
 
@@ -392,18 +417,25 @@ static inline uint8_t gs3_combine(const uint8_t lut[16], uint8_t byte1, uint8_t 
 // (Arduino-equivalent) combined bytes per chunk are written pre-swapped into row_buf here,
 // same rule, applied one level up (per-combined-byte instead of per-input-byte, since
 // gs3_combine already reduces 2 input bytes to 1 logical output byte, same shape
-// build_gs_row's input was in). Requires gs4_row_bytes % 8 == 0 (true for Inkplate10:
-// 1200>>1 = 600).
+// build_gs_row's input was in). Handles gs4_row_bytes % 8 != 0 (e.g. Inkplate4TEMPERA:
+// 600>>1 = 300, 300 % 8 == 4) via a remainder tail below -- previously this loop's
+// `i >= 7` bound silently dropped the row's first `gs4_row_bytes % 8` bytes on any board
+// that wasn't a multiple of 8 (bug, found by code review, not yet HIL-hit since
+// Inkplate4TEMPERA HIL is still pending per docs/REFACTOR-PLAN.md).
 //
 // UNVERIFIED on real hardware: every prior swap rule in this driver needed a HIL
 // correction the first time non-uniform content exercised it (see build_mono_row's and
 // the removed build_gs_row's history) -- this is a reasoned derivation, not yet confirmed
-// against a real gray ramp on the panel.
+// against a real gray ramp on the panel. The remainder tail below is doubly unverified:
+// no swap is applied to it (no swap partner for a partial chunk), which itself needs
+// confirming against real hardware once a non-multiple-of-8 board is HIL-tested.
 static void build_gs3_row(const uint8_t *gs4_row, uint16_t gs4_row_bytes, const uint8_t lut[16],
                           uint8_t *row_buf)
 {
     uint16_t out = 0;
-    for (int32_t i = (int32_t)gs4_row_bytes - 1; i >= 7; i -= 8) {
+    uint16_t rem = gs4_row_bytes % 8;
+    int32_t i;
+    for (i = (int32_t)gs4_row_bytes - 1; i >= (int32_t)rem + 7; i -= 8) {
         uint8_t l0 = gs3_combine(lut, gs4_row[i], gs4_row[i - 1]);
         uint8_t l1 = gs3_combine(lut, gs4_row[i - 2], gs4_row[i - 3]);
         uint8_t l2 = gs3_combine(lut, gs4_row[i - 4], gs4_row[i - 5]);
@@ -412,6 +444,12 @@ static void build_gs3_row(const uint8_t *gs4_row, uint16_t gs4_row_bytes, const 
         row_buf[out++] = l3;
         row_buf[out++] = l0;
         row_buf[out++] = l1;
+    }
+    // Remaining `rem` bytes at indices [0, rem-1) -- always even, since gs4_row_bytes
+    // (= width >> 1) is always even. Combined pairwise in natural (low-to-high) order,
+    // no swap (see UNVERIFIED note above).
+    for (int32_t j = (int32_t)rem - 1; j > 0; j -= 2) {
+        row_buf[out++] = gs3_combine(lut, gs4_row[j], gs4_row[j - 1]);
     }
 }
 

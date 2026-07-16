@@ -4,12 +4,12 @@
 #include "dither.h"
 #include "../display/gfx.h"
 
-// Static row-scratch buffer for bmp_decode_row's RGB888 output, sized with headroom
-// over the widest board resolution in scope today (Inkplate5v2, 1280px). Static rather
-// than a stack VLA/malloc so a draw call doesn't grow the caller's task stack or need
-// an ESP-IDF heap allocator (bmp_decode.c itself stays pure logic, no allocation).
-#define BMP_DRAW_MAX_WIDTH 1600
-static uint8_t bmp_draw_row_rgb[BMP_DRAW_MAX_WIDTH * 3];
+// Static row-scratch buffer for bmp_decode_row's RGB888 output, sized to the widest board
+// resolution in scope (dither.h's INKPLATE_DRAW_MAX_WIDTH -- shared with jpeg_draw_core.h/
+// png_draw_core.h so all three formats agree on the same cap). Static rather than a stack
+// VLA/malloc so a draw call doesn't grow the caller's task stack or need an ESP-IDF heap
+// allocator (bmp_decode.c itself stays pure logic, no allocation).
+static uint8_t bmp_draw_row_rgb[INKPLATE_DRAW_MAX_WIDTH * 3];
 
 int bmp_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                  int y0, const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
@@ -19,7 +19,7 @@ int bmp_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
     if (bmp_parse_header(buf, len, &hdr) != 0) {
         return -1;
     }
-    if (hdr.width > BMP_DRAW_MAX_WIDTH) {
+    if (hdr.width > INKPLATE_DRAW_MAX_WIDTH) {
         return -1;
     }
 
@@ -93,7 +93,7 @@ int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
     if (bmp_parse_header(buf, len, &hdr) != 0) {
         return -1;
     }
-    if (hdr.width > BMP_DRAW_MAX_WIDTH) {
+    if (hdr.width > INKPLATE_DRAW_MAX_WIDTH) {
         // Distinct from a generic parse/decode failure -- see bmp_draw.h's comment
         // above (docs/REFACTOR-PLAN.md Phase 10 step 32's followup, same reasoning
         // as jpeg/png_draw_palette's identical -2): the caller can raise a clear

@@ -23,6 +23,19 @@
 
 #include <stdint.h>
 
+// Widest board's physical width across every board this repo supports (parallel-bus and
+// SPI-controller-panel families alike) -- Inkplate5v2, 1280px (board_config.c). Single
+// source of truth for the per-format row/band/whole-image scratch-buffer width caps in
+// bmp_draw.c/jpeg_draw_core.h/png_draw_core.h -- those previously each hardcoded their own
+// number with the same stated "widest board" rationale but disagreed (1600 vs 1200),
+// meaning a real Inkplate5v2-width (1280px) image would dither fine via BMP but get
+// rejected as "too wide to dither" via the equivalent JPEG/PNG. Exactly 1280, not padded
+// with extra headroom: JPEG's cap sizes static internal-RAM buffers and PNG's sizes a
+// PSRAM allocation already found tight on real hardware at large sizes
+// (docs/REFACTOR-PLAN.md Phase 7 step 21), so this deliberately doesn't grow past what a
+// real supported board actually needs.
+#define INKPLATE_DRAW_MAX_WIDTH 1280
+
 // Matches boards/inkplate10/inkplate10.py's write_image kernel_type values.
 enum {
     DITHER_KERNEL_FLOYD_STEINBERG = 0,

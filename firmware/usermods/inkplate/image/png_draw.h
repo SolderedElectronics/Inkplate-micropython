@@ -9,14 +9,14 @@
 // pass, not across the whole decode (each pass re-sweeps the image), so a single
 // inline row-by-row dithering pass (like bmp_draw_gs4's) can't be trusted for
 // interlaced PNGs -- those still buffer the whole image's luma (capped at
-// PNG_DRAW_MAX_WIDTH x PNG_DRAW_MAX_HEIGHT, see png_draw.c) and dither it in one
+// PNG_DRAW_CORE_MAX_WIDTH x PNG_DRAW_CORE_MAX_HEIGHT, see png_draw_core.h) and dither it in one
 // guaranteed row-major pass after decode completes. But Adam7 is opt-in at PNG
 // encode time and rare in practice (most encoders default to off); png_decode.h's
 // png_peek_interlace reads that flag straight out of IHDR before any decode work
 // starts, and when it's off, pngle *is* strictly raster order over the whole image
 // (a single non-interlaced sweep), same as bmp_draw_gs4/tjpgd's MCU bands -- so
 // that (common) case dithers inline, per pixel, with no whole-image buffer and no
-// PNG_DRAW_MAX_* cap at all.
+// PNG_DRAW_CORE_MAX_* cap at all.
 #ifndef INKPLATE_PNG_DRAW_H
 #define INKPLATE_PNG_DRAW_H
 
@@ -30,7 +30,7 @@
 // gfx_set_pixel uses. `out_width`/`out_height` receive the PNG's own pixel
 // dimensions on success. Returns 0 on success, -1 on decode error, an allocation
 // failure, or (Adam7-interlaced sources only, via the buffered fallback path) a
-// size over PNG_DRAW_MAX_WIDTH/HEIGHT.
+// size over PNG_DRAW_CORE_MAX_WIDTH/HEIGHT.
 int png_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                  int y0, const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                  uint32_t *out_width, uint32_t *out_height);
