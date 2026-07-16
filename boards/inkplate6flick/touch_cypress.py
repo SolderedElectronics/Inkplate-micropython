@@ -25,16 +25,28 @@ CYPRESS_TOUCH_MAX_X = 682
 CYPRESS_TOUCH_MAX_Y = 1023
 
 TOUCHSCREEN_EN = 12
-FRONTLIGHT_ADDRESS = 0x2E
 TS_RST = 10
 TS_INT = 36
-TS_ADDR = 0x24
 
 # Screen dimensions
 E_INK_WIDTH = 1024
 E_INK_HEIGHT = 758
-D_ROWS = 1024
-D_COLS = 758
+
+
+def _bound(low, value, high):
+    return low <= value <= high
+
+
+def _arduino_map(x, in_min, in_max, out_min, out_max):
+    """Port of Arduino's map(): integer division truncates toward zero, unlike
+    Python's floor-dividing `//`, which matters for the rotation remap's
+    inverted (high-to-low) ranges below."""
+    num = (x - in_min) * (out_max - out_min)
+    den = in_max - in_min
+    q = num // den
+    if num % den != 0 and (num < 0) != (den < 0):
+        q += 1
+    return q + out_min
 
 
 # Data structures
@@ -115,23 +127,17 @@ class Touch:
     touch_x = [0, 0]
     touch_y = [0, 0]
 
-    # Variables for compatibility
-    _x_pos = [0, 0]
-    _y_pos = [0, 0]
-    xraw = [0, 0]
-    yraw = [0, 0]
-    _ts_x_resolution = 0
-    _ts_y_resolution = 0
-    rotation = 0
-
-    # I2C and GPIO
+    # I2C, GPIO and the owning Inkplate instance (read for its .rotation, same
+    # as the real driver's Touch::begin(Inkplate*) storing _inkplate).
     _i2c = None
     _PCAL6416A_1 = None
+    _inkplate = None
 
     @classmethod
-    def init(cls, i2c, pcal_instance):
+    def init(cls, i2c, pcal_instance, inkplate):
         cls._i2c = i2c
         cls._PCAL6416A_1 = pcal_instance
+        cls._inkplate = inkplate
 
     @classmethod
     def ts_int(cls, pin):
@@ -211,14 +217,6 @@ class Touch:
         return data
 
     @classmethod
-    def ts_get_xy(cls, data, i):
-        # This is a placeholder - you'll need to implement the actual XY extraction
-        # based on your specific touch controller protocol
-        offset = i * 3
-        cls.xraw[i] = (data[1 + offset] & 0xF0) << 4 | data[2 + offset]
-        cls.yraw[i] = (data[1 + offset] & 0x0F) << 8 | data[3 + offset]
-
-    @classmethod
     def ts_get_data(cls, x_pos=None, y_pos=None, z=None):
         if x_pos is None or y_pos is None:
             return 0
@@ -239,19 +237,30 @@ class Touch:
         # Scale valid data
         cls.ts_scale(touch_report, E_INK_WIDTH - 1, E_INK_HEIGHT - 1, False, True, True)
 
-        for i in range(max(touch_report.fingers, 2)):
+        for i in range(touch_report.fingers):
             x_pos[i] = touch_report.x[i]
             y_pos[i] = touch_report.y[i]
             if z is not None:
                 z[i] = touch_report.z[i]
 
-        return touch_report.fingers
+        # Rotate to match the display's current orientation -- same per-rotation
+        # remap as the real driver's getData() (rotation 0 needs no remap).
+        rotation = cls._inkplate.rotation if cls._inkplate is not None else 0
+        if rotation != 0:
+            for i in range(touch_report.fingers):
+                if rotation == 1:
+                    temp = x_pos[i]
+                    x_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT, 0, E_INK_HEIGHT)
+                    y_pos[i] = _arduino_map(temp, 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
+                elif rotation == 2:
+                    x_pos[i] = _arduino_map(x_pos[i], 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
+                    y_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
+                elif rotation == 3:
+                    temp = x_pos[i]
+                    x_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
+                    y_pos[i] = _arduino_map(temp, 0, E_INK_WIDTH - 1, 0, E_INK_WIDTH - 1)
 
-    @classmethod
-    def ts_get_resolution(cls):
-        # This is a placeholder - implement based on your specific hardware
-        cls._ts_x_resolution = 4096
-        cls._ts_y_resolution = 4096
+        return touch_report.fingers
 
     @classmethod
     def ts_set_power_state(cls, state):
@@ -480,7 +489,9 @@ class Touch:
 
         cls.ts_handshake()
 
-        fingers = regs[2]
+        # Hardware can report spurious high finger counts (e.g. palm-swipe);
+        # clamp to 2, the max both the controller and every caller's arrays support.
+        fingers = min(regs[2], 2)
         if fingers == 0:
             touch_data.fingers = 0
             return True  # tell caller "valid read, but nothing pressed"
@@ -521,11 +532,21 @@ class Touch:
                 touch_data.x[i] = touch_data.y[i]
                 touch_data.y[i] = temp
 
-            # Map X value to screen size
-            touch_data.x[i] = int((touch_data.x[i] * x_size) / CYPRESS_TOUCH_MAX_X)
-
-            # Map Y value to screen size
-            touch_data.y[i] = int((touch_data.y[i] * y_size) / CYPRESS_TOUCH_MAX_Y)
+            # Map X/Y value to screen size. When swap_xy is set, x[i]/y[i] now hold
+            # the *other* channel's raw reading (from the swap above), so the raw
+            # max used here must swap too -- else e.g. x[i] (really raw Y, native
+            # range 0-1023) gets divided by CYPRESS_TOUCH_MAX_X (682), overscaling
+            # past the panel's own width (found via real HIL testing).
+            x_raw_max = CYPRESS_TOUCH_MAX_Y if swap_xy else CYPRESS_TOUCH_MAX_X
+            y_raw_max = CYPRESS_TOUCH_MAX_X if swap_xy else CYPRESS_TOUCH_MAX_Y
+            # Clamp: real edge touches read slightly past the raw max constants
+            # (sensor overscan near the bezel, confirmed via HIL -- e.g. y read
+            # ~829 against a 757 screen max), so the un-clamped scale can run
+            # a few px past the panel's own bounds.
+            mapped_x = int((touch_data.x[i] * x_size) / x_raw_max)
+            mapped_y = int((touch_data.y[i] * y_size) / y_raw_max)
+            touch_data.x[i] = max(0, min(x_size, mapped_x))
+            touch_data.y[i] = max(0, min(y_size, mapped_y))
 
     @classmethod
     def touch_in_area(cls, x1, y1, w, h):
@@ -538,18 +559,8 @@ class Touch:
             y = [0, 0]
             n = cls.ts_get_data(x, y)
 
-            # Scale coordinates from touch controller resolution (1535x560) to
-            # display resolution (1024x758)
-            display_width = 1024
-            display_height = 758
-            touch_width = 1535
-            touch_height = 560
-
-            for i in range(n):
-                # Scale X coordinate
-                x[i] = int((x[i] * display_width) / touch_width)
-                # Scale Y coordinate
-                y[i] = int((y[i] * display_height) / touch_height)
+            # ts_get_data() already scales to display resolution and applies
+            # rotation -- no further rescale needed here.
 
             # Workaround for multiple INT events
             _ts_int_timeout = time.ticks_ms()
@@ -569,29 +580,26 @@ class Touch:
                 return
 
             # Check if this touch is in the specified area
-            def bound(low, value, high):
-                return low <= value <= high
-
-            if n == 1 and bound(x1, x[0], x2) and bound(y1, y[0], y2):
+            if n == 1 and _bound(x1, x[0], x2) and _bound(y1, y[0], y2):
                 return True
             if n == 2 and (
-                (bound(x1, x[0], x2) and bound(y1, y[0], y2))
-                or (bound(x1, x[1], x2) and bound(y1, y[1], y2))
+                (_bound(x1, x[0], x2) and _bound(y1, y[0], y2))
+                or (_bound(x1, x[1], x2) and _bound(y1, y[1], y2))
             ):
                 return True
             return False
 
         # If no new touch, check if we have a recent touch that's still valid
         elif time.ticks_diff(time.ticks_ms(), cls.touch_t) < 150:
-
-            def bound(low, value, high):
-                return low <= value <= high
-
-            if cls.touch_n == 1 and bound(x1, cls.touch_x[0], x2) and bound(y1, cls.touch_y[0], y2):
+            if (
+                cls.touch_n == 1
+                and _bound(x1, cls.touch_x[0], x2)
+                and _bound(y1, cls.touch_y[0], y2)
+            ):
                 return True
             if cls.touch_n == 2 and (
-                (bound(x1, cls.touch_x[0], x2) and bound(y1, cls.touch_y[0], y2))
-                or (bound(x1, cls.touch_x[1], x2) and bound(y1, cls.touch_y[1], y2))
+                (_bound(x1, cls.touch_x[0], x2) and _bound(y1, cls.touch_y[0], y2))
+                or (_bound(x1, cls.touch_x[1], x2) and _bound(y1, cls.touch_y[1], y2))
             ):
                 return True
 

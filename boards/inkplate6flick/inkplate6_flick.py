@@ -11,6 +11,7 @@ from tps65186 import TPS65186, read_battery_voltage_autodetect
 from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
 from micropython import const
+from touch_cypress import Touch
 import gfx_standard_font_01 as montserrat_black
 import gc
 
@@ -285,6 +286,8 @@ class Inkplate:
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
+        Touch.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, self)
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -404,6 +407,35 @@ class Inkplate:
 
     def rtc_get_data(self):
         return _Inkplate.rtc_get_rtc_data()
+
+    # Touchscreen -- thin delegation to touch_cypress.Touch, wired to this
+    # instance in begin() (so Touch can read .rotation for its coordinate remap).
+    def ts_init(self, power_state=1):
+        return Touch.ts_init(power_state)
+
+    def ts_shutdown(self):
+        Touch.ts_shutdown()
+
+    def ts_available(self):
+        return Touch.ts_available()
+
+    def ts_set_power_state(self, state):
+        Touch.ts_set_power_state(state)
+
+    def ts_get_power_state(self):
+        return Touch.ts_get_power_state()
+
+    def ts_get_data(self, x_pos, y_pos, z=None):
+        return Touch.ts_get_data(x_pos, y_pos, z)
+
+    def ts_get_raw_data(self):
+        return Touch.ts_get_raw_data()
+
+    def ts_handshake(self):
+        Touch.ts_handshake()
+
+    def touch_in_area(self, x1, y1, w, h):
+        return Touch.touch_in_area(x1, y1, w, h)
 
     def width(self):
         return self._width
