@@ -79,3 +79,17 @@ int png_peek_dimensions(const uint8_t *buf, size_t len, uint32_t *out_width, uin
                   ((uint32_t)buf[22] << 8) | buf[23];
     return 0;
 }
+
+// IHDR's data (after the 16-byte signature+chunk-header prefix png_peek_dimensions
+// already explains) is width(4) height(4) bit depth(1) color type(1) compression
+// method(1) filter method(1) interlace method(1) -- so the interlace byte sits at a
+// fixed offset (28) right after the two fields png_peek_dimensions reads, same
+// no-pngle fast-path peek.
+int png_peek_interlace(const uint8_t *buf, size_t len, uint8_t *out_interlace)
+{
+    if (len < 29) {
+        return -1;
+    }
+    *out_interlace = buf[28];
+    return 0;
+}

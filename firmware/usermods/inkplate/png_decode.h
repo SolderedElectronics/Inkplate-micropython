@@ -30,4 +30,15 @@ int png_decode(const uint8_t *buf, size_t len, png_pixel_cb_t cb, void *ctx, uin
 int png_peek_dimensions(const uint8_t *buf, size_t len, uint32_t *out_width,
                         uint32_t *out_height);
 
+// Reads the interlace method byte directly out of the PNG's IHDR chunk (same fixed
+// offset every valid PNG shares, right after width/height/bit depth/color type/
+// compression method/filter method) without touching pngle -- 0 means no
+// interlacing (pngle's draw callback then delivers pixels in strict raster order,
+// top-to-bottom/left-to-right, over one single pass), 1 means Adam7 (7 passes, each
+// re-sweeping the whole image in a different sub-sampling pattern, so per-pixel
+// order isn't monotonic across the full decode). See png_draw.c for how this
+// selects between the streamed (no interlacing) and buffered (Adam7) draw paths.
+// Returns 0 on success, -1 if `buf` is too short to contain that byte.
+int png_peek_interlace(const uint8_t *buf, size_t len, uint8_t *out_interlace);
+
 #endif // INKPLATE_PNG_DECODE_H

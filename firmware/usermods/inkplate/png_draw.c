@@ -8,15 +8,18 @@
 #include "gfx.h"
 #include "png_decode.h"
 
-// Matches Inkplate10's physical resolution -- the only board this repo supports today
-// (Phase 8 hasn't landed). Unlike bmp_draw.c's row-only scratch buffer, this is a full
-// W*H image buffer, so headroom for boards not yet in this repo (e.g. Inkplate5v2's
-// wider 1280px) would nearly double the allocation -- confirmed via HIL
+// Whole-image buffered path -- only reachable for Adam7-interlaced PNGs (see
+// png_draw.h and the interlace check in png_draw_gs4 below); the streamed path
+// used for the common non-interlaced case has no cap. Matches Inkplate10's
+// physical resolution -- the only board this repo supports today (Phase 8 hasn't
+// landed). Unlike bmp_draw.c's row-only scratch buffer, this is a full W*H image
+// buffer, so headroom for boards not yet in this repo (e.g. Inkplate5v2's wider
+// 1280px) would nearly double the allocation -- confirmed via HIL
 // (docs/REFACTOR-PLAN.md Phase 7 step 21) that PSRAM is already tight enough for this
 // exact size to matter (a 1600x1200 buffer failed to allocate alongside the framebuffer
 // + MicroPython's own PSRAM-backed heap + the decoded file's Python-side buffer).
 // Revisit this cap (and where it should live) when Phase 8 adds bigger boards. Only
-// allocated when dithering is requested.
+// allocated when dithering is requested for an interlaced source.
 #define PNG_DRAW_MAX_WIDTH 1200
 #define PNG_DRAW_MAX_HEIGHT 825
 
@@ -97,10 +100,112 @@ static void png_dither_pass(png_draw_ctx_t *ctx, uint32_t w, uint32_t h)
     }
 }
 
+// Streamed path for the common case (dither requested, source not Adam7-interlaced):
+// pngle then delivers every pixel in one strictly raster-order sweep, so error
+// diffusion can run inline per pixel exactly like bmp_draw_gs4 -- no whole-image (or
+// even whole-row) buffer, and no PNG_DRAW_MAX_* cap. `width`/`height` come from
+// png_peek_dimensions (read before decode starts, see png_draw_gs4) and size the
+// diffusion error arrays + bound dither_diffuse_error's edge cutoff; the real
+// png_decode() call below is still the authority on the image's actual dimensions --
+// `oversized` catches the two ever disagreeing, same safety-net role as
+// png_draw_palette_pixel_cb's identical check.
+typedef struct {
+    uint8_t *fb;
+    int phys_w, phys_h, rotation, display_mode;
+    int x0, y0;
+    int invert;
+    uint32_t width, height;
+    dither_ctx_t dctx;
+    int have_dctx;
+    int cur_row;   // -1 until the first pixel is seen
+    int oversized; // set if a pixel ever falls outside width/height
+} png_draw_stream_ctx_t;
+
+static void png_draw_pixel_cb_stream(void *ctx_, uint32_t x, uint32_t y, const uint8_t rgba[4])
+{
+    png_draw_stream_ctx_t *ctx = (png_draw_stream_ctx_t *)ctx_;
+
+    if (x >= ctx->width || y >= ctx->height) {
+        ctx->oversized = 1;
+        return;
+    }
+
+    if (ctx->have_dctx && (int)y != ctx->cur_row) {
+        if (ctx->cur_row >= 0) {
+            dither_row_advance(&ctx->dctx);
+        }
+        ctx->cur_row = (int)y;
+    }
+
+    int inv_mask = ctx->display_mode == 0 ? 1 : 7;
+    int gray = rgba_to_luma(rgba);
+    int level, recon;
+    if (ctx->have_dctx) {
+        gray = dither_apply_error(&ctx->dctx, (int)x, gray);
+        level = dither_quantize(gray, ctx->display_mode, &recon);
+        dither_diffuse_error(&ctx->dctx, (int)x, (int)y, (int)ctx->width, (int)ctx->height,
+                             gray - recon);
+    } else {
+        level = dither_quantize(gray, ctx->display_mode, &recon);
+    }
+    if (ctx->invert) {
+        level ^= inv_mask;
+    }
+    gfx_set_pixel(ctx->fb, ctx->phys_w, ctx->phys_h, ctx->rotation, ctx->display_mode,
+                  ctx->x0 + (int)x, ctx->y0 + (int)y, level);
+}
+
 int png_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                  int y0, const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                  uint32_t *out_width, uint32_t *out_height)
 {
+    if (dither) {
+        uint32_t peek_w = 0, peek_h = 0;
+        uint8_t peek_interlace = 0;
+        // A failed peek (buf too short) or an interlaced source falls through to the
+        // buffered path below, same "trust the real decode(), this is only a
+        // fast-path peek" reasoning as png_peek_dimensions' own comment.
+        if (png_peek_dimensions(buf, len, &peek_w, &peek_h) == 0 &&
+            png_peek_interlace(buf, len, &peek_interlace) == 0 && peek_interlace == 0) {
+            png_draw_stream_ctx_t ctx = {.fb = fb,
+                                         .phys_w = phys_w,
+                                         .phys_h = phys_h,
+                                         .rotation = rotation,
+                                         .display_mode = display_mode,
+                                         .x0 = x0,
+                                         .y0 = y0,
+                                         .invert = invert,
+                                         .width = peek_w,
+                                         .height = peek_h,
+                                         .have_dctx = 0,
+                                         .cur_row = -1,
+                                         .oversized = 0};
+            // Falls back to plain (non-diffused) quantization if the error-diffusion
+            // context can't be allocated -- same degrade-not-fail behavior as
+            // png_dither_pass's have_dctx handling below.
+            ctx.have_dctx = dither_ctx_init(&ctx.dctx, (int)peek_w, kernel_type) == 0;
+
+            uint32_t width = 0, height = 0;
+            int res = png_decode(buf, len, png_draw_pixel_cb_stream, &ctx, &width, &height);
+            if (ctx.have_dctx) {
+                dither_ctx_free(&ctx.dctx);
+            }
+            if (res == 0 && ctx.oversized) {
+                res = -1;
+            }
+            if (res != 0) {
+                return -1;
+            }
+            *out_width = width;
+            *out_height = height;
+            return 0;
+        }
+    }
+
+    // Buffered path: dither==0 (order-independent, no diffusion state carried
+    // between pixels, so this streams pixel-by-pixel below regardless of
+    // interlacing), or dither==1 with an Adam7-interlaced source (or a peek that
+    // couldn't even determine that).
     png_draw_ctx_t ctx = {.fb = fb,
                           .phys_w = phys_w,
                           .phys_h = phys_h,
@@ -224,12 +329,116 @@ static void png_palette_dither_pass(png_draw_palette_ctx_t *ctx, uint32_t w, uin
     }
 }
 
+// Streamed path for the common case (dither requested, source not Adam7-interlaced) --
+// same reasoning as png_draw_gs4's stream path above: pngle delivers every pixel in
+// one strictly raster-order sweep when there's no interlacing, so RGB error diffusion
+// can run inline per pixel -- no whole-image scratch buffer, and unlike the buffered
+// path below, no max_width/max_height cap or caller-supplied scratch_rgb needed at
+// all. `width`/`height` come from png_peek_dimensions (read before decode starts) and
+// only size the diffusion error arrays + bound the edge cutoff; `oversized` is the
+// same disagreement safety net as png_draw_palette_pixel_cb's identical check.
+typedef struct {
+    int invert;
+    int kernel_type;
+    const dither_palette_entry_t *palette;
+    int palette_n;
+    png_draw_palette_cb write_pixel;
+    void *cb_ctx;
+    uint32_t width, height;
+    dither_rgb_ctx_t dctx;
+    int have_dctx;
+    int cur_row; // -1 until the first pixel is seen
+    int oversized;
+} png_draw_palette_stream_ctx_t;
+
+static void png_draw_palette_pixel_cb_stream(void *ctx_, uint32_t x, uint32_t y,
+                                             const uint8_t rgba[4])
+{
+    png_draw_palette_stream_ctx_t *ctx = (png_draw_palette_stream_ctx_t *)ctx_;
+
+    if (x >= ctx->width || y >= ctx->height) {
+        ctx->oversized = 1;
+        return;
+    }
+
+    if (ctx->have_dctx && (int)y != ctx->cur_row) {
+        if (ctx->cur_row >= 0) {
+            dither_row_advance_rgb(&ctx->dctx);
+        }
+        ctx->cur_row = (int)y;
+    }
+
+    int r = rgba[0], g = rgba[1], b = rgba[2];
+    int value, recon_r, recon_g, recon_b;
+    if (ctx->have_dctx) {
+        dither_apply_error_rgb(&ctx->dctx, (int)x, &r, &g, &b);
+        value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r, &recon_g,
+                                        &recon_b);
+        dither_diffuse_error_rgb(&ctx->dctx, (int)x, (int)y, (int)ctx->width, (int)ctx->height,
+                                 r - recon_r, g - recon_g, b - recon_b);
+    } else {
+        value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r, &recon_g,
+                                        &recon_b);
+    }
+    if (ctx->invert) {
+        value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
+    }
+    ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
+}
+
 int png_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                      const dither_palette_entry_t *palette, int palette_n,
                      png_draw_palette_cb write_pixel, void *cb_ctx, int max_width, int max_height,
                      uint16_t *scratch_rgb, size_t scratch_cap, uint32_t *out_width,
                      uint32_t *out_height)
 {
+    if (dither) {
+        uint32_t peek_w = 0, peek_h = 0;
+        uint8_t peek_interlace = 0;
+        // A failed peek (buf too short) or an interlaced source falls through to the
+        // buffered path below, same "trust the real decode(), this is only a
+        // fast-path peek" reasoning as png_peek_dimensions' own comment.
+        if (png_peek_dimensions(buf, len, &peek_w, &peek_h) == 0 &&
+            png_peek_interlace(buf, len, &peek_interlace) == 0 && peek_interlace == 0) {
+            png_draw_palette_stream_ctx_t ctx = {.invert = invert,
+                                                 .kernel_type = kernel_type,
+                                                 .palette = palette,
+                                                 .palette_n = palette_n,
+                                                 .write_pixel = write_pixel,
+                                                 .cb_ctx = cb_ctx,
+                                                 .width = peek_w,
+                                                 .height = peek_h,
+                                                 .have_dctx = 0,
+                                                 .cur_row = -1,
+                                                 .oversized = 0};
+            // Falls back to plain (non-diffused) quantization if the error-diffusion
+            // context can't be allocated -- same degrade-not-fail behavior as
+            // png_palette_dither_pass's have_dctx handling below.
+            ctx.have_dctx = dither_rgb_ctx_init(&ctx.dctx, (int)peek_w, kernel_type) == 0;
+
+            uint32_t width = 0, height = 0;
+            int res =
+                png_decode(buf, len, png_draw_palette_pixel_cb_stream, &ctx, &width, &height);
+            if (ctx.have_dctx) {
+                dither_rgb_ctx_free(&ctx.dctx);
+            }
+            if (res == 0 && ctx.oversized) {
+                res = -1;
+            }
+            if (res != 0) {
+                return -1;
+            }
+            *out_width = width;
+            *out_height = height;
+            return 0;
+        }
+    }
+
+    // Buffered path: dither==0 (order-independent, streams pixel-by-pixel below via
+    // png_draw_palette_pixel_cb regardless of interlacing), or dither==1 with an
+    // Adam7-interlaced source (or a peek that couldn't even determine that) -- this
+    // is the only case that still needs max_width/max_height and a caller-supplied
+    // scratch_rgb buffer.
     png_draw_palette_ctx_t ctx = {.invert = invert,
                                   .dither = dither,
                                   .kernel_type = kernel_type,

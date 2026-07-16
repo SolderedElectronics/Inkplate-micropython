@@ -70,13 +70,6 @@ REG_TFT_VCOM_POWER_V = bytes([0x02])
 D_COLS = const(1200)
 D_ROWS = const(1600)
 
-# RGB565 scratch buffer for inkplate.jpeg_draw_palette/png_draw_palette's dithering
-# pass -- see boards/inkplate6color/inkplate6_color.py's identical constants for
-# the full reasoning (docs/REFACTOR-PLAN.md Phase 10 step 32's followup).
-_DITHER_SCRATCH_W = max(D_COLS, 1200)
-_DITHER_SCRATCH_H = max(D_ROWS, 825)
-_DITHER_SCRATCH_BYTES = _DITHER_SCRATCH_W * _DITHER_SCRATCH_H * 2
-
 # Chip select targets for dual-driver architecture
 CHIP_MASTER = const(1)
 CHIP_SLAVE = const(2)
@@ -821,7 +814,12 @@ class Inkplate:
 
         with open(path, "rb") as f:
             png_data = f.read()
-        scratch = bytearray(_DITHER_SCRATCH_BYTES) if dither else None
+        # No scratch buffer passed: png_draw_palette only needs one for a rare
+        # Adam7-interlaced source (dithers non-interlaced PNGs -- the common case --
+        # inline, per pixel, no whole-image buffer at all). Pre-allocating one here
+        # unconditionally used to reliably MemoryError on real Inkplate6COLOR
+        # hardware for completely ordinary photos (docs/REFACTOR-PLAN.md Phase 7
+        # step 21's follow-up) -- worse than the rare case this was meant to serve.
         inkplate.png_draw_palette(
             self._framebuf,
             None,
@@ -832,9 +830,8 @@ class Inkplate:
             dither,
             kernel_type,
             png_data,
-            scratch,
+            None,
         )
-        del scratch
         gc.collect()
 
     def draw_png_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
@@ -849,7 +846,7 @@ class Inkplate:
             png_data = response.content
             response.close()
 
-            scratch = bytearray(_DITHER_SCRATCH_BYTES) if dither else None
+            # See draw_png_from_sd's identical comment on why no scratch buffer.
             inkplate.png_draw_palette(
                 self._framebuf,
                 None,
@@ -860,9 +857,8 @@ class Inkplate:
                 dither,
                 kernel_type,
                 png_data,
-                scratch,
+                None,
             )
-            del scratch
             gc.collect()
         except Exception as e:
             print("Error in draw_png_from_web:", e)

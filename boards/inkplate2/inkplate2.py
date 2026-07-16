@@ -25,13 +25,6 @@ E_INK_WIDTH = 104
 E_INK_NUM_PIXELS = E_INK_HEIGHT * E_INK_WIDTH
 E_INK_BUFFER_SIZE = E_INK_NUM_PIXELS // 8
 
-# RGB565 scratch buffer for inkplate.jpeg_draw_palette/png_draw_palette's dithering
-# pass -- see boards/inkplate6color/inkplate6_color.py's identical constants for
-# the full reasoning (docs/REFACTOR-PLAN.md Phase 10 step 32's followup).
-_DITHER_SCRATCH_W = max(E_INK_WIDTH, 1200)
-_DITHER_SCRATCH_H = max(E_INK_HEIGHT, 825)
-_DITHER_SCRATCH_BYTES = _DITHER_SCRATCH_W * _DITHER_SCRATCH_H * 2
-
 # From the real Arduino reference driver's pins.h BUSY_TIMEOUT_MS -- used for the
 # init-wake (command 0x04) and sleep (command 0x02) busy-waits. display()'s own
 # post-refresh wait uses a separate, longer timeout (see DISPLAY_REFRESH_TIMEOUT_MS)
@@ -525,7 +518,13 @@ class Inkplate:
             png_data = response.content
             response.close()
 
-            scratch = bytearray(_DITHER_SCRATCH_BYTES) if dither else None
+            # No scratch buffer passed: png_draw_palette only needs one for a rare
+            # Adam7-interlaced source (dithers non-interlaced PNGs -- the common
+            # case -- inline, per pixel, no whole-image buffer at all).
+            # Pre-allocating one here unconditionally used to reliably MemoryError
+            # on real Inkplate6COLOR hardware for completely ordinary photos
+            # (docs/REFACTOR-PLAN.md Phase 7 step 21's follow-up) -- worse than the
+            # rare case this was meant to serve.
             inkplate.png_draw_palette(
                 self._framebuf_BW,
                 self._framebuf_RED,
@@ -536,9 +535,8 @@ class Inkplate:
                 dither,
                 kernel_type,
                 png_data,
-                scratch,
+                None,
             )
-            del scratch
             gc.collect()
         except Exception as e:
             print("Error in draw_png_from_web:", e)

@@ -564,6 +564,10 @@ static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
                             mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
                             (const uint8_t *)jpg_buf.buf, jpg_buf.len, mp_obj_is_true(args[8]),
                             mp_obj_is_true(args[9]), mp_obj_get_int(args[10]), &width, &height);
+    if (res == -2) {
+        mp_raise_ValueError(MP_ERROR_TEXT("Image too wide to dither -- try a "
+                                          "smaller/downscaled image, or draw with dither=False"));
+    }
     if (res != 0) {
         mp_raise_ValueError(MP_ERROR_TEXT("JPEG decode failed"));
     }
@@ -702,7 +706,7 @@ static mp_obj_t inkplate_jpeg_draw_palette(size_t n_args, const mp_obj_t *args)
     mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
 
     // jpeg_draw_palette buffers one MCU row-band at a time (a small static buffer,
-    // see jpeg_draw.c's JPEG_PALETTE_BAND_MAX_W/JPEG_PALETTE_MCU_MAX_H) rather than
+    // see jpeg_draw.c's JPEG_DRAW_BAND_MAX_W/JPEG_DRAW_MCU_MAX_H) rather than
     // the whole image, so unlike bmp/png_draw_palette there's no panel-size-vs-
     // photo-floor cap or caller-supplied scratch buffer to compute here.
     uint32_t width = 0, height = 0;
@@ -736,8 +740,9 @@ static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
     mp_get_buffer_raise(args[8], &img_buf, MP_BUFFER_READ);
 
     // Cap at the larger of this panel's own physical size and a "typical photo"
-    // floor (1200x825, matching the grayscale JPEG/PNG path's existing
-    // JPEG_DRAW_MAX_WIDTH/HEIGHT) -- see png_draw_palette's own comment for why PNG
+    // floor (1200x825, matching PNG's own buffered-path cap -- png_draw.c's
+    // PNG_DRAW_MAX_WIDTH/HEIGHT -- and JPEG's band-buffer width floor,
+    // JPEG_DRAW_BAND_MAX_W) -- see png_draw_palette's own comment for why PNG
     // (unlike jpeg_draw_palette) still needs a whole-image scratch buffer at all
     // (Adam7 interlacing).
     int max_w = ctx.width > 1200 ? ctx.width : 1200;
@@ -760,8 +765,17 @@ static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
                                spi_panel_palette_write_pixel, &ctx, max_w, max_h, scratch_rgb,
                                scratch_cap, &width, &height);
     if (res == -2) {
-        mp_raise_ValueError(MP_ERROR_TEXT("Image too wide to dither -- try a "
-                                          "smaller/downscaled image, or draw with dither=False"));
+        // Only reachable for an Adam7-interlaced source (or a header peek that
+        // couldn't even tell) -- the common non-interlaced case dithers inline, no
+        // size cap or scratch buffer needed (png_draw.c). Board `draw_png_from_*`
+        // wrappers don't pass a scratch buffer (that unconditional allocation used
+        // to reliably MemoryError on real hardware for completely ordinary
+        // non-interlaced photos, docs/REFACTOR-PLAN.md Phase 7 step 21's
+        // follow-up), so this is effectively "this PNG is Adam7-interlaced, which
+        // isn't supported for dithering right now" rather than a size complaint.
+        mp_raise_ValueError(MP_ERROR_TEXT("Image can't be dithered -- too wide, or an "
+                                          "Adam7-interlaced PNG -- try a smaller/non-interlaced "
+                                          "image, or draw with dither=False"));
     }
     if (res != 0) {
         mp_raise_ValueError(MP_ERROR_TEXT("PNG decode failed"));
