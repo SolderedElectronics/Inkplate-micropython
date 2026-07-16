@@ -3,7 +3,7 @@
 import time
 from machine import I2C, Pin
 from micropython import const
-from gfx import GFX
+import gfx_standard_font_01 as montserrat_black
 
 import machine
 import inkplate
@@ -13,9 +13,6 @@ machine.freq(240000000)
 # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C spi_panel
 # transport (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
 # -- no Python-side pin constants needed.
-
-pixel_mask_lut = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
-pixel_mask_glut = [0xF, 0xF0]
 
 # ePaper resolution
 # For Inkplate2 height and width are swapped in relation to the default rotation
@@ -49,6 +46,12 @@ class Inkplate:
     text_color = BLACK
 
     rotation = 0
+    # gfx_* calls use a rotation numbering offset by 2 from this board's own `rotation`
+    # (board rotation 0 is physically what gfx.c's rotation-remap calls rotation 2, same
+    # offset as Inkplate6COLOR) -- see set_rotation(). Recomputed there; begin() below
+    # never sets `rotation` directly, only via set_rotation(), so this default is
+    # overwritten before first use.
+    _gfx_rotation = 2
     text_size = 1
 
     _panel_state = False
@@ -71,16 +74,8 @@ class Inkplate:
         cls.text_color = 1
         cls.textWrapping = 1
 
-        cls.GFX = GFX(
-            E_INK_HEIGHT,
-            E_INK_WIDTH,
-            cls.write_pixel,
-            cls.write_fast_hline,
-            cls.write_fast_vline,
-            cls.write_fill_rect,
-            None,
-            None,
-        )
+        cls.font_family = montserrat_black
+        cls.font = cls.font_family._font
 
         # Wake the panel and init it
         if not (cls.set_panel_deep_sleep_state(False)):
@@ -206,14 +201,11 @@ class Inkplate:
     @classmethod
     def set_rotation(cls, x):
         cls.rotation = x % 4
+        cls._gfx_rotation = (cls.rotation + 2) % 4
         if cls.rotation == 0 or cls.rotation == 2:
-            cls.GFX.width = E_INK_WIDTH
-            cls.GFX.height = E_INK_HEIGHT
             cls._width = E_INK_WIDTH
             cls._height = E_INK_HEIGHT
         elif cls.rotation == 1 or cls.rotation == 3:
-            cls.GFX.width = E_INK_HEIGHT
-            cls.GFX.height = E_INK_WIDTH
             cls._width = E_INK_HEIGHT
             cls._height = E_INK_WIDTH
 
@@ -225,62 +217,81 @@ class Inkplate:
     def draw_pixel(cls, x, y, c):
         cls.write_pixel(x, y, c)
 
+    # Maps a user color (WHITE=0/BLACK=1/RED=2) to independent 1bpp draw values for the
+    # BW and RED planes -- this board's own pre-refactor write_pixel forced both planes'
+    # bits high, then cleared exactly one plane's bit depending on c (BLACK clears BW,
+    # RED clears RED, WHITE clears neither). Returns None if c is out of range (mirrors
+    # the original per-pixel bounds check).
     @classmethod
-    @micropython.native
-    def write_pixel(cls, x, y, c):
-        # Bounds check
-        if not (0 <= x < cls.width() and 0 <= y < cls.height()):
-            return
+    def _plane_colors(cls, c):
         if c > 2:
+            return None
+        return (0 if c == 1 else 1), (0 if c == 2 else 1)
+
+    @classmethod
+    def write_pixel(cls, x, y, c):
+        colors = cls._plane_colors(c)
+        if colors is None:
             return
-
-        # Rotate coordinates
-        if cls.rotation == 3:
-            x, y = y, cls.width() - x - 1
-        elif cls.rotation == 0:
-            x, y = cls.width() - x - 1, cls.height() - y - 1
-        elif cls.rotation == 1:
-            x, y = cls.height() - y - 1, x
-
-        # Compute position in frame buffer
-        _x_sub = x % 8
-        _x = x // 8
-        _position = (E_INK_WIDTH // 8) * y + _x
-
-        # Precompute LUT mask
-        mask = pixel_mask_lut[7 - _x_sub]
-
-        # Clear the bits in both buffers
-        cls._framebuf_BW[_position] |= mask
-        cls._framebuf_RED[_position] |= mask
-
-        # Apply color
-        if c < 2:
-            # Black or white: clear bit in BW buffer accordingly
-            cls._framebuf_BW[_position] &= ~(c << (7 - _x_sub))
-        else:
-            # Red pixel: clear bit in RED buffer
-            cls._framebuf_RED[_position] &= ~mask
+        bw, red = colors
+        inkplate.gfx_set_pixel(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, bw
+        )
+        inkplate.gfx_set_pixel(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, red
+        )
 
     @classmethod
     def write_fill_rect(cls, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                cls.write_pixel(x + j, y + i, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_fill_rect(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, bw
+        )
+        inkplate.gfx_fill_rect(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, red
+        )
 
     @classmethod
     def write_fast_vline(cls, x, y, h, c):
-        for i in range(h):
-            cls.write_pixel(x, y + i, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_vline(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, h, bw
+        )
+        inkplate.gfx_vline(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, h, red
+        )
 
     @classmethod
     def write_fast_hline(cls, x, y, w, c):
-        for i in range(w):
-            cls.write_pixel(x + i, y, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_hline(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, bw
+        )
+        inkplate.gfx_hline(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, red
+        )
 
     @classmethod
     def write_line(cls, x0, y0, x1, y1, c):
-        cls.GFX.line(x0, y0, x1, y1, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_line(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x0, y0, x1, y1, bw
+        )
+        inkplate.gfx_line(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x0, y0, x1, y1, red
+        )
 
     @classmethod
     def end_write(cls):
@@ -308,31 +319,138 @@ class Inkplate:
 
     @classmethod
     def draw_rect(cls, x, y, w, h, c):
-        cls.GFX.rect(x, y, w, h, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_rect(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, bw
+        )
+        inkplate.gfx_rect(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, red
+        )
 
     @classmethod
     def draw_circle(cls, x, y, r, c):
-        cls.GFX.circle(x, y, r, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_circle(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, bw
+        )
+        inkplate.gfx_circle(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, red
+        )
 
     @classmethod
     def fill_circle(cls, x, y, r, c):
-        cls.GFX.fill_circle(x, y, r, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_fill_circle(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, bw
+        )
+        inkplate.gfx_fill_circle(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, red
+        )
 
     @classmethod
     def draw_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_triangle(
+            cls._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            cls._gfx_rotation,
+            0,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            bw,
+        )
+        inkplate.gfx_triangle(
+            cls._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            cls._gfx_rotation,
+            0,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            red,
+        )
 
     @classmethod
     def fill_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_fill_triangle(
+            cls._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            cls._gfx_rotation,
+            0,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            bw,
+        )
+        inkplate.gfx_fill_triangle(
+            cls._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            cls._gfx_rotation,
+            0,
+            x0,
+            y0,
+            x1,
+            y1,
+            x2,
+            y2,
+            red,
+        )
 
     @classmethod
     def draw_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.round_rect(x, y, q, h, r, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_round_rect(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, bw
+        )
+        inkplate.gfx_round_rect(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, red
+        )
 
     @classmethod
     def fill_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.fill_round_rect(x, y, q, h, r, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_fill_round_rect(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, bw
+        )
+        inkplate.gfx_fill_round_rect(
+            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, red
+        )
 
     @classmethod
     def set_text_color(cls, c):
@@ -344,8 +462,8 @@ class Inkplate:
 
     @classmethod
     def set_font(cls, f):
-        cls.GFX.font_family = f
-        cls.GFX.font = cls.GFX.font_family._font
+        cls.font_family = f
+        cls.font = cls.font_family._font
 
     def set_cursor(self, x, y):
         self.cursor = [x, y]
@@ -353,42 +471,110 @@ class Inkplate:
     def set_text_wrapping(self, state: bool):
         self.textWrapping = state
 
+    # Ported from this board's own gfx.py GFX._print_text/_draw_char_dual_buf, with the
+    # per-char blit routed through inkplate.gfx_draw_char (once per plane, like every
+    # other gfx_* wrapper on this board) instead of a write_pixel-per-subpixel Python
+    # loop. Color clamps to 0-2 rather than rejecting out of range, matching the
+    # original gfx.py behavior (unlike write_pixel/_plane_colors, which reject).
+    def _print_text(self, x0, y0, string, size, color, text_wrap=False):
+        display_width = self._width
+        color = min(max(color, 0), 2)
+        bw = 0 if color == 1 else 1
+        red = 0 if color == 2 else 1
+
+        x = int(x0)
+        y = int(y0)
+        line_height = 0
+
+        def blit(cx, cy, char_data, ch_w, ch_h):
+            inkplate.gfx_draw_char(
+                self._framebuf_BW,
+                E_INK_WIDTH,
+                E_INK_HEIGHT,
+                self._gfx_rotation,
+                0,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                bw,
+            )
+            inkplate.gfx_draw_char(
+                self._framebuf_RED,
+                E_INK_WIDTH,
+                E_INK_HEIGHT,
+                self._gfx_rotation,
+                0,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                red,
+            )
+
+        for chunk in string.split("__"):
+            try:
+                char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
+                line_height = max(line_height, ch_h * size)
+
+                if text_wrap is True and x + ch_w * size > display_width:
+                    x = 0
+                    y += line_height
+                    line_height = ch_h * size
+
+                blit(x, y, char_data, ch_w, ch_h)
+                x += ch_w * size
+            except (ValueError, TypeError):
+                for char in chunk:
+                    if char == "\n":
+                        x = x0
+                        y += line_height
+                        line_height = 0
+                        continue
+
+                    try:
+                        char_data, ch_h, ch_w = self.font_family.get_ch(char)
+                    except (ValueError, TypeError):
+                        char_data, ch_h, ch_w = self.font_family.get_ch("?")
+
+                    line_height = max(line_height, ch_h * size)
+
+                    if text_wrap is True and x + ch_w * size > display_width:
+                        x = 0
+                        y += line_height
+                        line_height = ch_h * size
+
+                    blit(x, y, char_data, ch_w, ch_h)
+                    x += ch_w * size
+        return [x, y], line_height
+
     def print_text(self, x, y, s, c=1):
-        self.GFX._print_text(
-            self._framebuf_BW,
-            x,
-            y,
-            s,
-            self.text_size,
-            c,
-            text_wrap=self.textWrapping,
-            bpp=1,
-        )
+        self._print_text(x, y, s, self.text_size, c, text_wrap=self.textWrapping)
 
     def println(self, text):
-        self.cursor, line_height = self.GFX._print_text(
-            self._framebuf_BW,
+        self.cursor, line_height = self._print_text(
             self.cursor[0],
             self.cursor[1],
             text,
             self.text_size,
             self.text_color,
             text_wrap=self.textWrapping,
-            bpp=1,
         )
         self.cursor[1] += line_height
         self.cursor[0] = 0
 
     def print(self, text):
-        self.cursor, _ = self.GFX._print_text(
-            self._framebuf_BW,
+        self.cursor, _ = self._print_text(
             self.cursor[0],
             self.cursor[1],
             text,
             self.text_size,
             self.text_color,
             text_wrap=self.textWrapping,
-            bpp=1,
         )
 
     def wrap_text(self, text, max_chars):
@@ -427,17 +613,26 @@ class Inkplate:
 
     @classmethod
     def draw_bitmap(cls, x, y, data, w, h, c=BLACK):
-        byte_width = (w + 7) // 8
-        byte = 0
-
-        for j in range(h):
-            for i in range(w):
-                if i & 7:
-                    byte <<= 1
-                else:
-                    byte = data[j * byte_width + i // 8]
-                if byte & 0x80:
-                    cls.write_pixel(x + i, y + j, c)
+        colors = cls._plane_colors(c)
+        if colors is None:
+            return
+        bw, red = colors
+        inkplate.gfx_draw_bitmap(
+            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, data, w, h, bw
+        )
+        inkplate.gfx_draw_bitmap(
+            cls._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            cls._gfx_rotation,
+            0,
+            x,
+            y,
+            data,
+            w,
+            h,
+            red,
+        )
 
     @classmethod
     def draw_color_bitmap(cls, x, y, w, h, buf):

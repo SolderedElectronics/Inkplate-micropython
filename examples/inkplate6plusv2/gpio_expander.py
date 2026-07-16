@@ -3,7 +3,7 @@
 # Include needed libraries
 import time
 from pcal6416a import *
-from inkplate6 import Inkplate
+from inkplate6plusv2 import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 2-bit grayscale, see basic_grayscale.py
@@ -14,19 +14,19 @@ inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 inkplate.begin()
 
 # pin = inkplate.gpio_expander_pin(gpioExpander,pin,mode)
-# Supported gpio expanders on Inkplate 6: 1, 2 (internal, external)
+# Supported gpio expanders on Inkplate 6PLUSV2: 1, 2 (internal, external)
 # Supported modes: mode_input, mode_input_pullup, mode_input_pulldown, mode_output
-# Supported pins on Inkplate 6 are listed below
+# Supported pins on Inkplate 6PLUSV2 are listed below
 #
-# NOTE: expander 1 pin 10 is reserved for SD_ENABLE (uSD card power) -- not
-# available for general use.
+# NOTE: expander 1 pin 13 is reserved for SD_ENABLE (uSD card power) -- not
+# available for general use (unlike Inkplate6/10/5v2, where it's pin 10).
 
 # Declare all the available pins as output:
 
 expander1_p1_1 = inkplate.gpio_expander_pin(1, 9, mode_output)
+expander1_p1_2 = inkplate.gpio_expander_pin(1, 10, mode_output)
 expander1_p1_3 = inkplate.gpio_expander_pin(1, 11, mode_output)
 expander1_p1_4 = inkplate.gpio_expander_pin(1, 12, mode_output)
-expander1_p1_5 = inkplate.gpio_expander_pin(1, 13, mode_output)
 expander1_p1_6 = inkplate.gpio_expander_pin(1, 14, mode_output)
 expander1_p1_7 = inkplate.gpio_expander_pin(1, 15, mode_output)
 

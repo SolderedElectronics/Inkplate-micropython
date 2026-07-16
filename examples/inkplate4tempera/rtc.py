@@ -1,8 +1,7 @@
 """Use the onboard RTC to preserve time across reboots."""
 
 # Include all the required libraries
-from inkplate6 import Inkplate
-import time
+from inkplate4tempera import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 2-bit grayscale, see basic_grayscale.py
@@ -12,11 +11,8 @@ inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
-# Clear the frame buffer
 inkplate.clear_display()
 
-# This has to be called every time you want to update the screen
-# Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
 inkplate.set_text_size(3)
@@ -44,7 +40,7 @@ while True:
     if second < 10:
         second = "0" + str(second)
 
-    inkplate.set_cursor(280, 300)
+    inkplate.set_cursor(190, 320)
     current_time = str(hour) + ":" + str(minute) + ":" + str(second)
     inkplate.print(current_time)
     inkplate.partial_update()

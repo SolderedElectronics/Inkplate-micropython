@@ -10,6 +10,8 @@ inkplate = Inkplate()
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
+inkplate.set_text_size(3)
+
 # This is how to set the RTC's time
 # Arguments are hour, minute, seconds
 inkplate.rtc_set_time(9, 39, 10)
@@ -19,8 +21,26 @@ inkplate.rtc_set_date(5, 9, 2, 2024)
 
 # Infinite loop
 while True:
-    # Show the set time
-    print(inkplate.rtc_get_data())
+    inkplate.clear_display()
+    rtc_data = inkplate.rtc_get_data()
+
+    hour = rtc_data["hour"]
+    minute = rtc_data["minute"]
+    second = rtc_data["second"]
+
+    if hour < 10:
+        hour = "0" + str(hour)
+    if minute < 10:
+        minute = "0" + str(minute)
+    if second < 10:
+        second = "0" + str(second)
+
+    inkplate.set_cursor(200, 200)
+    current_time = str(hour) + ":" + str(minute) + ":" + str(second)
+    inkplate.print(current_time)
+
+    # No partial_update() on this board -- display() is the only refresh path
+    inkplate.display()
 
     # Let's wait 10 seconds
     time.sleep(10)

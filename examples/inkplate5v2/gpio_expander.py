@@ -14,11 +14,13 @@ display.begin()
 # pin = display.gpio_expander_pin(gpioExpander,pin,mode)
 # Supported modes: mode_input, mode_input_pullup, mode_input_pulldown, mode_output
 # Supported pins on Soldered Inkplate 5 are listed below
+#
+# NOTE: pin 10 is reserved for SD_ENABLE (uSD card power) -- not available for
+# general use.
 
 # Declare all the available pins as output:
 
 expander_p1_1 = display.gpio_expander_pin(1, 9, mode_output)
-expander_p1_2 = display.gpio_expander_pin(1, 10, mode_output)
 expander_p1_3 = display.gpio_expander_pin(1, 11, mode_output)
 expander_p1_4 = display.gpio_expander_pin(1, 12, mode_output)
 expander_p1_5 = display.gpio_expander_pin(1, 13, mode_output)

@@ -5,7 +5,7 @@ import os
 from machine import ADC, I2C, Pin, SDCard
 from micropython import const
 from pcal6416a import *
-from gfx import GFX
+import gfx_standard_font_01 as montserrat_black
 import machine
 import inkplate
 
@@ -18,8 +18,6 @@ VBAT_PIN = const(35)
 
 # Timeout for init of epaper(1.5 sec in this case)
 # INIT_TIMEOUT 1500
-
-pixel_mask_glut = [0xF, 0xF0]
 
 # Epaper registers
 PANEL_SET_REGISTER = 0x00
@@ -91,6 +89,12 @@ class Inkplate:
     _height = D_ROWS
 
     rotation = 0
+    # gfx_* calls use a rotation numbering offset by 2 from this board's own `rotation`
+    # (board rotation 0 is physically what gfx.c's rotation-remap calls rotation 2) --
+    # see set_rotation(). Kept separate from `rotation` itself since the SPI palette
+    # image-decode path (draw_bmp_from_web etc.) still expects this board's native
+    # rotation numbering unchanged.
+    _gfx_rotation = 2
     text_size = 1
 
     _panel_state = False
@@ -108,6 +112,12 @@ class Inkplate:
         # the panel itself.
         inkplate.select_spi_panel("inkplate6color")
         inkplate.spi_panel_init()
+
+        # This panel's 4bpp framebuffer packs even physical x into the HIGH nibble --
+        # the opposite of gfx_set_pixel's default (confirmed from this board's own
+        # pre-refactor write_pixel/pixel_mask_glut). Session-constant, set once here like
+        # Inkplate4TEMPERA's own gfx_set_gs4_nibble_swap(True) call.
+        inkplate.gfx_set_gs4_nibble_swap(True)
 
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
@@ -128,18 +138,8 @@ class Inkplate:
 
         cls.framebuf = bytearray(D_ROWS * D_COLS // 2)
 
-        cls.GFX = GFX(
-            D_COLS,
-            D_ROWS,
-            cls.write_pixel,
-            cls.write_fast_hline,
-            cls.write_fast_vline,
-            cls.write_fill_rect,
-            None,
-            None,
-        )
-        cls.GFX.phys_row_bytes = D_COLS // 2
-        cls.GFX.rotation = cls.rotation
+        cls.font_family = montserrat_black
+        cls.font = cls.font_family._font
 
         cls.reset_panel()
 
@@ -438,17 +438,13 @@ class Inkplate:
     @classmethod
     def set_rotation(cls, x):
         cls.rotation = x % 4
+        cls._gfx_rotation = (cls.rotation + 2) % 4
         if cls.rotation == 0 or cls.rotation == 2:
-            cls.GFX.width = D_COLS
-            cls.GFX.height = D_ROWS
             cls._width = D_COLS
             cls._height = D_ROWS
         elif cls.rotation == 1 or cls.rotation == 3:
-            cls.GFX.width = D_ROWS
-            cls.GFX.height = D_COLS
             cls._width = D_ROWS
             cls._height = D_COLS
-        cls.GFX.rotation = cls.rotation
 
     @classmethod
     def get_rotation(cls):
@@ -465,45 +461,20 @@ class Inkplate:
         pass
 
     @classmethod
-    @micropython.native
     def write_pixel(cls, x, y, c):
-        w = cls.width()
-        h = cls.height()
-
-        if x < 0 or y < 0 or x >= w or y >= h:
-            return
-
-        r = cls.rotation
-        if r == 0:
-            x = w - x - 1
-            y = h - y - 1
-        elif r == 1:
-            x, y = h - y - 1, x
-        elif r == 3:
-            x, y = y, w - x - 1
-        # r == 2: no change needed
-
-        idx = (D_COLS * y) >> 1
-        shift = (x & 1) * 4
-        mask = pixel_mask_glut[x & 1]
-
-        cls._framebuf[idx + (x >> 1)] = (cls._framebuf[idx + (x >> 1)] & mask) | (c << (4 - shift))
+        inkplate.gfx_set_pixel(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, c)
 
     @classmethod
     def write_fill_rect(cls, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                cls.write_pixel(x + j, y + i, c)
+        inkplate.gfx_fill_rect(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, h, c)
 
     @classmethod
     def write_fast_vline(cls, x, y, h, c):
-        for i in range(h):
-            cls.write_pixel(x, y + i, c)
+        inkplate.gfx_vline(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, h, c)
 
     @classmethod
     def write_fast_hline(cls, x, y, w, c):
-        for i in range(w):
-            cls.write_pixel(x + i, y, c)
+        inkplate.gfx_hline(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, c)
 
     @classmethod
     def set_text_color(cls, c):
@@ -511,7 +482,7 @@ class Inkplate:
 
     @classmethod
     def write_line(cls, x0, y0, x1, y1, c):
-        cls.GFX.line(x0, y0, x1, y1, c)
+        inkplate.gfx_line(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, c)
 
     @classmethod
     def end_write(cls):
@@ -547,31 +518,39 @@ class Inkplate:
 
     @classmethod
     def draw_rect(cls, x, y, w, h, c):
-        cls.GFX.rect(x, y, w, h, c)
+        inkplate.gfx_rect(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, h, c)
 
     @classmethod
     def draw_circle(cls, x, y, r, c):
-        cls.GFX.circle(x, y, r, c)
+        inkplate.gfx_circle(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, r, c)
 
     @classmethod
     def fill_circle(cls, x, y, r, c):
-        cls.GFX.fill_circle(x, y, r, c)
+        inkplate.gfx_fill_circle(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, r, c)
 
     @classmethod
     def draw_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_triangle(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, x2, y2, c
+        )
 
     @classmethod
     def fill_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+        inkplate.gfx_fill_triangle(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, x2, y2, c
+        )
 
     @classmethod
     def draw_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.round_rect(x, y, q, h, r, c)
+        inkplate.gfx_round_rect(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, q, h, r, c
+        )
 
     @classmethod
     def fill_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.fill_round_rect(x, y, q, h, r, c)
+        inkplate.gfx_fill_round_rect(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, q, h, r, c
+        )
 
     @classmethod
     def set_text_wrapping(cls, state: bool):
@@ -595,8 +574,8 @@ class Inkplate:
 
     @classmethod
     def set_font(cls, f):
-        cls.GFX.font_family = f
-        cls.GFX.font = cls.GFX.font_family._font
+        cls.font_family = f
+        cls.font = cls.font_family._font
 
     def reset_cursor(self):
         self.cursor = [0, 0]
@@ -604,8 +583,71 @@ class Inkplate:
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
+    # Ported from this board's own gfx.py GFX._print_text/_draw_char_4bpp, with the
+    # per-char blit routed through inkplate.gfx_draw_char instead (same shape as
+    # boards/inkplate6/inkplate6.py's _print_text).
+    def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
+        display_width = self._width
+        color = min(max(color, 0), 5)
+
+        x = int(x0)
+        y = int(y0)
+        line_height = 0
+
+        def blit(cx, cy, char_data, ch_w, ch_h):
+            inkplate.gfx_draw_char(
+                framebuf,
+                D_COLS,
+                D_ROWS,
+                self._gfx_rotation,
+                1,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                color,
+            )
+
+        for chunk in string.split("__"):
+            try:
+                char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
+                line_height = max(line_height, ch_h * size)
+
+                if text_wrap is True and x + ch_w * size > display_width:
+                    x = 0
+                    y += line_height
+                    line_height = ch_h * size
+
+                blit(x, y, char_data, ch_w, ch_h)
+                x += ch_w * size
+            except (ValueError, TypeError):
+                for char in chunk:
+                    if char == "\n":
+                        x = x0
+                        y += line_height
+                        line_height = 0
+                        continue
+
+                    try:
+                        char_data, ch_h, ch_w = self.font_family.get_ch(char)
+                    except (ValueError, TypeError):
+                        char_data, ch_h, ch_w = self.font_family.get_ch("?")
+
+                    line_height = max(line_height, ch_h * size)
+
+                    if text_wrap is True and x + ch_w * size > display_width:
+                        x = 0
+                        y += line_height
+                        line_height = ch_h * size
+
+                    blit(x, y, char_data, ch_w, ch_h)
+                    x += ch_w * size
+        return [x, y], line_height
+
     def print_text(self, x, y, s):
-        self.GFX._print_text(
+        self._print_text(
             self._framebuf,
             x,
             y,
@@ -616,7 +658,7 @@ class Inkplate:
         )
 
     def println(self, text):
-        self.cursor, line_height = self.GFX._print_text(
+        self.cursor, line_height = self._print_text(
             self._framebuf,
             self.cursor[0],
             self.cursor[1],
@@ -629,7 +671,7 @@ class Inkplate:
         self.cursor[0] = 0
 
     def print(self, text):
-        self.cursor, line_height = self.GFX._print_text(
+        self.cursor, line_height = self._print_text(
             self._framebuf,
             self.cursor[0],
             self.cursor[1],
@@ -685,18 +727,9 @@ class Inkplate:
 
     @classmethod
     def draw_bitmap(cls, x, y, data, w, h, c=BLACK):
-        byte_width = (w + 7) // 8
-        byte = 0
-        cls.start_write()
-        for j in range(h):
-            for i in range(w):
-                if i & 7:
-                    byte <<= 1
-                else:
-                    byte = data[j * byte_width + i // 8]
-                if byte & 0x80:
-                    cls.write_pixel(x + i, y + j, c)
-        cls.end_write()
+        inkplate.gfx_draw_bitmap(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, data, w, h, c
+        )
 
     def draw_color_image(self, x, y, width, height, image):
         for i in range(0, len(image)):

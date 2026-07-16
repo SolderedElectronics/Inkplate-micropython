@@ -8,7 +8,7 @@ import os
 from machine import ADC, I2C, SDCard, Pin
 from micropython import const
 from pcal6416a import *
-from gfx import GFX
+import gfx_standard_font_01 as montserrat_black
 import machine
 import inkplate
 
@@ -18,8 +18,6 @@ machine.freq(240000000)
 # by the C dual-chip spi transport (firmware/usermods/inkplate/epd_spi.c's epd_spi_dual_*
 # functions, docs/refactor_plan.md Phase 9 step 31) -- no Python-side pin constants
 # needed for the panel.
-
-pixel_mask_glut = [0xF, 0xF0]
 
 # Spectra133 register addresses
 SPECTRA133_REG_PSR = const(0x00)
@@ -44,6 +42,9 @@ SPECTRA133_REG_BOOST_VDDP_EN = const(0xB7)
 SPECTRA133_REG_CCSET = const(0xE0)
 SPECTRA133_REG_PWS = const(0xE3)
 SPECTRA133_REG_CMD66 = const(0xF0)
+# Partial Load Window (GDEP133C02) -- selects a sub-rectangle of the panel for
+# display_partial() instead of a full refresh.
+SPECTRA133_REG_PTLW = const(0x83)
 
 # Spectra133 register values (from manufacturer)
 REG_PSR_V = bytes([0xDF, 0x6B])
@@ -122,6 +123,13 @@ class Inkplate:
     _height = D_ROWS
 
     rotation = 0
+    # gfx_* calls use a rotation numbering mirrored from this board's own `rotation`
+    # (board rotation 0 is physically what gfx.c's rotation-remap calls rotation 2, and
+    # 1/3 swap relative to Inkplate6COLOR/Inkplate2's own +2 offset -- confirmed against
+    # this board's own pre-refactor write_pixel). Kept separate from `rotation` itself
+    # since the dual-chip palette image-decode path still expects this board's native
+    # rotation numbering unchanged. See set_rotation().
+    _gfx_rotation = 2
     text_size = 1
 
     _panel_state = False
@@ -138,6 +146,12 @@ class Inkplate:
         # (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
         # -- no more machine.SPI/Pin objects for the panel itself.
         inkplate.select_spi_panel("inkplate13spectra")
+
+        # This panel's 4bpp framebuffer packs even physical x into the HIGH nibble --
+        # the opposite of gfx_set_pixel's default (confirmed from this board's own
+        # pre-refactor write_pixel/pixel_mask_glut). Session-constant, set once here like
+        # Inkplate4TEMPERA's own gfx_set_gs4_nibble_swap(True) call.
+        inkplate.gfx_set_gs4_nibble_swap(True)
 
         # Discharge panel capacitors first, matching the real Arduino reference driver's
         # initDriver() -- setIO() (which brings up the SPI bus itself) only runs later,
@@ -162,25 +176,12 @@ class Inkplate:
 
         # Set default rotation (landscape, matching Arduino initDriver)
         cls.rotation = 1
+        cls._gfx_rotation = (2 - cls.rotation) % 4
         cls._width = D_ROWS
         cls._height = D_COLS
 
-        cls.GFX = GFX(
-            cls._width,
-            cls._height,
-            cls.write_pixel,
-            cls.write_fast_hline,
-            cls.write_fast_vline,
-            cls.write_fill_rect,
-            None,
-            None,
-        )
-        # Physical framebuffer row width for direct-write functions (text rendering)
-        cls.GFX.phys_row_bytes = D_COLS // 2
-        # Color palette for mapping user indices to panel values in text rendering
-        cls.GFX.color_palette = cls._color_palette
-        # Sync rotation so text rendering applies the correct transform
-        cls.GFX.rotation = cls.rotation
+        cls.font_family = montserrat_black
+        cls.font = cls.font_family._font
 
         cls.set_pcal_for_low_power()
 
@@ -365,6 +366,169 @@ class Inkplate:
         if not leave_on:
             cls.set_panel_state(False)
 
+    # Ported from the real Arduino reference driver's EPDDriver::displayPartial() --
+    # refreshes only a sub-rectangle of the panel via the GDEP133C02 controller's PTLW
+    # (Partial Load Window) register, instead of a full-frame refresh. Unlike
+    # Inkplate10's InkplatePartial (which diffs an old/new framebuffer pair pixel-by-
+    # pixel to suppress ghosting), this does no diffing at all -- it unconditionally
+    # re-sends the current framebuffer contents inside the given window, exactly
+    # matching the Arduino driver's own behavior. x/y/w/h are in this board's normal
+    # rotation-aware user-space coordinates (same space as draw_rect/write_pixel/etc).
+    @classmethod
+    def display_partial(cls, x, y, w, h, leave_on=False):
+        # Clip to the screen bounds for the current rotation.
+        if x < 0:
+            w += x
+            x = 0
+        if y < 0:
+            h += y
+            y = 0
+        if x + w > cls.width():
+            w = cls.width() - x
+        if y + h > cls.height():
+            h = cls.height() - y
+        if w <= 0 or h <= 0:
+            return
+
+        # Map user rectangle to panel-native rectangle (col: 0..D_COLS-1, row:
+        # 0..D_ROWS-1). Each case mirrors write_pixel's pre-gfx-port rotation
+        # transform -- this uses `cls.rotation` (this board's own Arduino-compatible
+        # numbering), NOT `_gfx_rotation` (gfx.c's offset numbering used by the
+        # drawing primitives) -- these are the same cases the real Arduino driver's
+        # displayPartial() itself switches on.
+        r = cls.rotation
+        if r == 0:
+            # User space: D_COLS x D_ROWS. panel_col = (D_COLS-1)-x, panel_row = (D_ROWS-1)-y.
+            col_start = D_COLS - x - w
+            col_end = D_COLS - 1 - x
+            row_start = D_ROWS - y - h
+            row_end = D_ROWS - 1 - y
+        elif r == 2:
+            # User space: D_COLS x D_ROWS. Identity -- no transform.
+            col_start = x
+            col_end = x + w - 1
+            row_start = y
+            row_end = y + h - 1
+        elif r == 3:
+            # User space: D_ROWS x D_COLS. panel_col = (D_COLS-1)-y, panel_row = x.
+            col_start = D_COLS - y - h
+            col_end = D_COLS - 1 - y
+            row_start = x
+            row_end = x + w - 1
+        else:  # r == 1
+            # User space: D_ROWS x D_COLS. panel_col = y, panel_row = (D_ROWS-1)-x.
+            col_start = y
+            col_end = y + h - 1
+            row_start = D_ROWS - x - w
+            row_end = D_ROWS - 1 - x
+
+        # PTLW alignment requirements (GDEP133C02): H: col_start and (col_end+1) must
+        # both be multiples of 4. V: row_start must be even; (row_end+1) must be even.
+        col_start = (col_start // 4) * 4
+        col_end = (((col_end + 4) // 4) * 4) - 1
+        if col_end >= D_COLS:
+            col_end = D_COLS - 1
+        if row_start % 2 != 0:
+            row_start -= 1
+        if row_start < 0:
+            row_start = 0
+        if (row_end + 1) % 2 != 0:
+            row_end += 1
+        if row_end >= D_ROWS:
+            row_end = D_ROWS - 1
+
+        cls.set_panel_state(True)
+
+        half_width = D_COLS // 2  # 600 px per chip
+        half_bytes = half_width // 2  # 300 bytes per row per chip
+        row_stride = D_COLS // 2  # 600 bytes per full framebuffer row
+
+        master_needed = col_start < half_width
+        slave_needed = col_end >= half_width
+
+        # Both chips must receive a full PTLW+DTM cycle before DRF, otherwise the
+        # uninvolved chip falls back to a full-panel refresh when DRF fires. For the
+        # uninvolved chip, a minimal 4x4 null window is used: it re-sends the existing
+        # framebuffer data (same as what's already on screen), so the refresh produces
+        # no visible change on that side.
+        ptlw_null = bytes(
+            [
+                0x00,
+                0x00,  # HRST = 0
+                0x00,
+                0x07,  # HRED = 7
+                0x00,
+                0x00,  # VRST = 0
+                0x00,
+                0x01,  # VRED = 1
+                0x01,  # PT = 1 (enable)
+            ]
+        )
+
+        mv = memoryview(cls._framebuf)
+
+        def send_chip(chip_id, needed, local_col_start, local_col_end, mem_col_off):
+            if needed:
+                hrst = local_col_start * 2
+                hred = (local_col_end + 1) * 2 - 1
+                vrst = row_start // 2
+                vred = (row_end + 1) // 2 - 1
+                ptlw = bytes(
+                    [
+                        (hrst >> 8) & 0xFF,
+                        hrst & 0xFF,
+                        (hred >> 8) & 0xFF,
+                        hred & 0xFF,
+                        (vrst >> 8) & 0xFF,
+                        vrst & 0xFF,
+                        (vred >> 8) & 0xFF,
+                        vred & 0xFF,
+                        0x01,
+                    ]
+                )
+                bytes_per_row = (local_col_end - local_col_start + 1) // 2
+                r_start, r_end = row_start, row_end
+            else:
+                ptlw = ptlw_null
+                bytes_per_row = 2  # 4 px / 2 px-per-byte
+                r_start, r_end = 0, 3
+
+            cls.send_command(SPECTRA133_REG_CMD66, REG_CMD66_V, chip_id)
+            cls.send_command(SPECTRA133_REG_PTLW, ptlw, chip_id)
+
+            inkplate.spi_dual_select(chip_id)
+            inkplate.spi_dual_write(bytes([SPECTRA133_REG_DTM]))
+            for row in range(r_start, r_end + 1):
+                off = row * row_stride + mem_col_off
+                inkplate.spi_dual_write(mv[off : off + bytes_per_row])
+            inkplate.spi_dual_deselect(chip_id)
+
+        # Master chip (left half of the screen)
+        if master_needed:
+            lcs = col_start
+            lce = col_end if col_end < half_width else half_width - 1
+            send_chip(CHIP_MASTER, True, lcs, lce, lcs // 2)
+        else:
+            send_chip(CHIP_MASTER, False, 0, 0, 0)
+
+        # Slave chip (right half of the screen)
+        cls.wait_for_busy()
+        if slave_needed:
+            lcs = (col_start - half_width) if col_start >= half_width else 0
+            lce = col_end - half_width
+            send_chip(CHIP_SLAVE, True, lcs, lce, half_bytes + lcs // 2)
+        else:
+            send_chip(CHIP_SLAVE, False, 0, 0, half_bytes)
+
+        cls.wait_for_busy()
+
+        # Both chips have received PTLW+DTM; trigger a coordinated refresh.
+        cls.send_command(SPECTRA133_REG_DRF, REG_DRF_V, CHIP_BOTH)
+        cls.wait_for_busy()
+
+        if not leave_on:
+            cls.set_panel_state(False)
+
     @classmethod
     def gpio_expander_pin(cls, pin, mode):
         return GpioPin(cls._PCAL6416A, pin, mode)
@@ -482,17 +646,13 @@ class Inkplate:
     @classmethod
     def set_rotation(cls, x):
         cls.rotation = x % 4
+        cls._gfx_rotation = (2 - cls.rotation) % 4
         if cls.rotation == 0 or cls.rotation == 2:
-            cls.GFX.width = D_COLS
-            cls.GFX.height = D_ROWS
             cls._width = D_COLS
             cls._height = D_ROWS
         elif cls.rotation == 1 or cls.rotation == 3:
-            cls.GFX.width = D_ROWS
-            cls.GFX.height = D_COLS
             cls._width = D_ROWS
             cls._height = D_COLS
-        cls.GFX.rotation = cls.rotation
 
     @classmethod
     def get_rotation(cls):
@@ -508,51 +668,43 @@ class Inkplate:
     def start_write(cls):
         pass
 
+    # Maps a user color index (0-5) to the panel's real register value, or None if out
+    # of range -- every gfx_* wrapper below does this once per call instead of once per
+    # pixel (this board's own pre-refactor write_pixel did the equivalent check/lookup
+    # per pixel, since every shape was drawn via a write_pixel-per-point Python loop).
     @classmethod
-    @micropython.native
-    def write_pixel(cls, x, y, c):
-        w = cls.width()
-        h = cls.height()
-
-        if x < 0 or y < 0 or x >= w or y >= h:
-            return
+    def _map_color(cls, c):
         if c > 5:
+            return None
+        return cls._color_palette[c]
+
+    @classmethod
+    def write_pixel(cls, x, y, c):
+        c = cls._map_color(c)
+        if c is None:
             return
-
-        # Map user color index to panel color value
-        c = cls._color_palette[c]
-
-        r = cls.rotation
-        if r == 0:
-            x = w - x - 1
-            y = h - y - 1
-        elif r == 1:
-            x, y = y, w - x - 1
-        elif r == 3:
-            x, y = h - y - 1, x
-        # r == 2: no change needed
-
-        idx = (D_COLS * y) >> 1
-        shift = (x & 1) * 4
-        mask = pixel_mask_glut[x & 1]
-
-        cls._framebuf[idx + (x >> 1)] = (cls._framebuf[idx + (x >> 1)] & mask) | (c << (4 - shift))
+        inkplate.gfx_set_pixel(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, c)
 
     @classmethod
     def write_fill_rect(cls, x, y, w, h, c):
-        for j in range(w):
-            for i in range(h):
-                cls.write_pixel(x + j, y + i, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_fill_rect(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, h, c)
 
     @classmethod
     def write_fast_vline(cls, x, y, h, c):
-        for i in range(h):
-            cls.write_pixel(x, y + i, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_vline(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, h, c)
 
     @classmethod
     def write_fast_hline(cls, x, y, w, c):
-        for i in range(w):
-            cls.write_pixel(x + i, y, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_hline(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, c)
 
     @classmethod
     def set_text_color(cls, c):
@@ -560,7 +712,10 @@ class Inkplate:
 
     @classmethod
     def write_line(cls, x0, y0, x1, y1, c):
-        cls.GFX.line(x0, y0, x1, y1, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_line(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, c)
 
     @classmethod
     def end_write(cls):
@@ -596,31 +751,60 @@ class Inkplate:
 
     @classmethod
     def draw_rect(cls, x, y, w, h, c):
-        cls.GFX.rect(x, y, w, h, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_rect(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, w, h, c)
 
     @classmethod
     def draw_circle(cls, x, y, r, c):
-        cls.GFX.circle(x, y, r, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_circle(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, r, c)
 
     @classmethod
     def fill_circle(cls, x, y, r, c):
-        cls.GFX.fill_circle(x, y, r, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_fill_circle(cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, r, c)
 
     @classmethod
     def draw_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.triangle(x0, y0, x1, y1, x2, y2, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_triangle(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, x2, y2, c
+        )
 
     @classmethod
     def fill_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        cls.GFX.fill_triangle(x0, y0, x1, y1, x2, y2, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_fill_triangle(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x0, y0, x1, y1, x2, y2, c
+        )
 
     @classmethod
     def draw_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.round_rect(x, y, q, h, r, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_round_rect(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, q, h, r, c
+        )
 
     @classmethod
     def fill_round_rect(cls, x, y, q, h, r, c):
-        cls.GFX.fill_round_rect(x, y, q, h, r, c)
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_fill_round_rect(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, q, h, r, c
+        )
 
     @classmethod
     def set_text_wrapping(cls, state: bool):
@@ -644,8 +828,8 @@ class Inkplate:
 
     @classmethod
     def set_font(cls, f):
-        cls.GFX.font_family = f
-        cls.GFX.font = cls.GFX.font_family._font
+        cls.font_family = f
+        cls.font = cls.font_family._font
 
     def reset_cursor(self):
         self.cursor = [0, 0]
@@ -653,8 +837,72 @@ class Inkplate:
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
+    # Ported from this board's own gfx.py GFX._print_text/_draw_char_4bpp, with the
+    # per-char blit routed through inkplate.gfx_draw_char instead (same shape as
+    # boards/inkplate6/inkplate6.py's _print_text). Color goes through _color_palette
+    # once here instead of once per pixel, like every other gfx_* wrapper on this board.
+    def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
+        display_width = self._width
+        color = self._color_palette[min(max(color, 0), 5)]
+
+        x = int(x0)
+        y = int(y0)
+        line_height = 0
+
+        def blit(cx, cy, char_data, ch_w, ch_h):
+            inkplate.gfx_draw_char(
+                framebuf,
+                D_COLS,
+                D_ROWS,
+                self._gfx_rotation,
+                1,
+                cx,
+                cy,
+                char_data,
+                ch_w,
+                ch_h,
+                size,
+                color,
+            )
+
+        for chunk in string.split("__"):
+            try:
+                char_data, ch_h, ch_w = self.font_family.get_ch(chunk)
+                line_height = max(line_height, ch_h * size)
+
+                if text_wrap is True and x + ch_w * size > display_width:
+                    x = 0
+                    y += line_height
+                    line_height = ch_h * size
+
+                blit(x, y, char_data, ch_w, ch_h)
+                x += ch_w * size
+            except (ValueError, TypeError):
+                for char in chunk:
+                    if char == "\n":
+                        x = x0
+                        y += line_height
+                        line_height = 0
+                        continue
+
+                    try:
+                        char_data, ch_h, ch_w = self.font_family.get_ch(char)
+                    except (ValueError, TypeError):
+                        char_data, ch_h, ch_w = self.font_family.get_ch("?")
+
+                    line_height = max(line_height, ch_h * size)
+
+                    if text_wrap is True and x + ch_w * size > display_width:
+                        x = 0
+                        y += line_height
+                        line_height = ch_h * size
+
+                    blit(x, y, char_data, ch_w, ch_h)
+                    x += ch_w * size
+        return [x, y], line_height
+
     def print_text(self, x, y, s):
-        self.GFX._print_text(
+        self._print_text(
             self._framebuf,
             x,
             y,
@@ -665,7 +913,7 @@ class Inkplate:
         )
 
     def println(self, text):
-        self.cursor, line_height = self.GFX._print_text(
+        self.cursor, line_height = self._print_text(
             self._framebuf,
             self.cursor[0],
             self.cursor[1],
@@ -678,7 +926,7 @@ class Inkplate:
         self.cursor[0] = 0
 
     def print(self, text):
-        self.cursor, line_height = self.GFX._print_text(
+        self.cursor, line_height = self._print_text(
             self._framebuf,
             self.cursor[0],
             self.cursor[1],
@@ -733,18 +981,12 @@ class Inkplate:
 
     @classmethod
     def draw_bitmap(cls, x, y, data, w, h, c=BLACK):
-        byte_width = (w + 7) // 8
-        byte = 0
-        cls.start_write()
-        for j in range(h):
-            for i in range(w):
-                if i & 7:
-                    byte <<= 1
-                else:
-                    byte = data[j * byte_width + i // 8]
-                if byte & 0x80:
-                    cls.write_pixel(x + i, y + j, c)
-        cls.end_write()
+        c = cls._map_color(c)
+        if c is None:
+            return
+        inkplate.gfx_draw_bitmap(
+            cls._framebuf, D_COLS, D_ROWS, cls._gfx_rotation, 1, x, y, data, w, h, c
+        )
 
     def draw_color_image(self, x, y, width, height, image):
         for i in range(0, len(image)):

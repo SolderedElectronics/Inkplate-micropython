@@ -28,15 +28,13 @@ if __name__ == "__main__":
     # before you call this function
     display.display()
 
-    # Draw pallet of posible shades
-    # 0 being the lightest (white), 3 being the darkest
-    display.write_fill_rect(0, 0, 25, 758, 3)
-    display.write_fill_rect(25, 0, 25, 758, 2)
-    display.write_fill_rect(50, 0, 25, 758, 1)
-    display.write_fill_rect(75, 0, 25, 758, 0)
+    # Draw a ramp of all 8 real gray levels (0=black .. 7=white) across the top of the panel,
+    # leaving the lower half clear for the logo (panel is 1024x758).
+    for level in range(8):
+        display.write_fill_rect(level * 128, 0, 128, 300, level)
 
     # Let's draw the Soldered logo and show it on the display
-    display.draw_bitmap(184, 357, soldered_logo, 211, 44)
+    display.draw_bitmap(406, 500, soldered_logo, 211, 44)
 
     display.display()
 

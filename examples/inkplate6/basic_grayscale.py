@@ -31,12 +31,10 @@ inkplate.clear_display()
 # Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
-# Draw pallet of posible shades
-# 0 being the lightest (white), 3 being the darkest
-inkplate.write_fill_rect(0, 0, 25, 600, 3)
-inkplate.write_fill_rect(25, 0, 25, 600, 2)
-inkplate.write_fill_rect(50, 0, 25, 600, 1)
-inkplate.write_fill_rect(75, 0, 25, 600, 0)
+# Draw a ramp of all 8 real gray levels (0=black .. 7=white) across the top of the panel,
+# leaving the lower half clear for the logo (panel is 800x600).
+for level in range(8):
+    inkplate.write_fill_rect(level * 100, 0, 100, 300, level)
 
 # Show on the display
 inkplate.display()
@@ -46,7 +44,7 @@ time.sleep(3)
 
 inkplate.set_text_color = 0
 # Let's draw the Soldered logo and show it on the display
-inkplate.draw_bitmap(294, 278, soldered_logo, 211, 44, c=0)
+inkplate.draw_bitmap(294, 428, soldered_logo, 211, 44, c=0)
 inkplate.display()
 
 # Stop timer and print total runtime
