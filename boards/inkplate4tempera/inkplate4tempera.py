@@ -1,10 +1,11 @@
 """MicroPython driver for the Inkplate 4TEMPERA e-paper display.
 
-Display-path + SD card only -- this pass deliberately does not port
+Display-path + SD card + touch -- this pass deliberately does not port
 setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue/readTemperature, the fuel
-gauge/BME688/APDS9960/accelerometer/buzzer peripherals, or touch/frontlight, same
+gauge/BME688/APDS9960/accelerometer/buzzer peripherals, or frontlight, same
 precedent as Inkplate6FLICK/6PLUSV2's own first pass (docs/refactor_plan.md Phase 8
-steps 24/25/26).
+steps 24/25/26). Touch (Elan controller, shared with Inkplate6PLUS/6PLUSV2) wired
+in Phase 11.
 """
 
 import time
@@ -17,6 +18,7 @@ from pcal6416a import *
 from tps65186 import TPS65186
 from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
+from touch_elan import Touch
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -37,10 +39,9 @@ D_COLS = const(600)
 pixel_mask_glut = bytearray(b"\x0f\xf0")
 
 
-# IO_EXT_ADDR straight from the pasted Inkplate4TEMPERA pins.h -- only used for touch on
-# real hardware (TOUCHSCREEN_IO_EXPANDER), out of scope this pass. The expander object
-# below exists only so expander_bridge_write() can route to it if ever needed, same
-# precedent as Inkplate6/6FLICK/6PLUSV2's own (also-unwired-for-touch) second expander.
+# IO_EXT_ADDR straight from the pasted Inkplate4TEMPERA pins.h -- this is
+# TOUCHSCREEN_IO_EXPANDER, i.e. touch EN/RST live here (see touch_elan.py), not on
+# the internal expander (0x20) used for OE/GMODE/SPV/TPS65186/SD.
 _EXPANDER2_ADDR = 0x21
 
 # Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
@@ -283,6 +284,18 @@ class Inkplate:
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
+        Touch.init(
+            _Inkplate._i2c,
+            _Inkplate._PCAL6416A_2,
+            self,
+            en_pin=0,
+            rst_pin=1,
+            width=D_COLS,
+            height=D_ROWS,
+            x_raw_inverted=True,
+            xy_swapped=True,
+        )
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -338,6 +351,32 @@ class Inkplate:
 
     def sd_card_sleep(self):
         _Inkplate.SD_ENABLE.digital_write(1)
+
+    # Touchscreen -- thin delegation to touch_elan.Touch, wired to this instance in
+    # begin() (so Touch can read .rotation for its coordinate remap).
+    def ts_init(self, power_state=1):
+        return Touch.ts_init(power_state)
+
+    def ts_shutdown(self):
+        Touch.ts_shutdown()
+
+    def ts_available(self):
+        return Touch.ts_available()
+
+    def ts_set_power_state(self, state):
+        Touch.ts_set_power_state(state)
+
+    def ts_get_power_state(self):
+        return Touch.ts_get_power_state()
+
+    def ts_get_data(self, x_pos, y_pos):
+        return Touch.ts_get_data(x_pos, y_pos)
+
+    def ts_get_raw_data(self):
+        return Touch.ts_get_raw_data()
+
+    def touch_in_area(self, x1, y1, w, h):
+        return Touch.touch_in_area(x1, y1, w, h)
 
     def gpio_expander_pin(self, expander, pin, mode):
         if expander == 1:

@@ -35,6 +35,10 @@
     [
       "epd_power_pins.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/epd_power_pins.py"
+    ],
+    [
+      "touch_elan.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/touch_elan.py"
     ]
   ],
   "deps": [],

@@ -1,11 +1,13 @@
 """MicroPython driver for the Inkplate 6PLUS (V2 revision) e-paper display.
 
-Display-path + SD card + battery/temperature only -- this pass deliberately does not
-port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue or touch/frontlight,
+Display-path + SD card + battery/temperature + touch -- this pass deliberately does
+not port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue or frontlight,
 same precedent as Inkplate6FLICK's own first pass (docs/refactor_plan.md Phase 8 step
 24). Only the V2 hardware revision is wired here (IO_EXT_ADDR 0x21 per the pasted
 Arduino reference driver's pins.h); the classic (non-V2) INKPLATE6PLUS uses 0x22 there
-and isn't supported by this file.
+and isn't supported by this file -- touch is unaffected by that split (its own
+TOUCHSCREEN_IO_EXPANDER is IO_INT_ADDR, 0x20, the same on both revisions). Touch (Elan
+controller, shared with Inkplate4TEMPERA) wired in Phase 11.
 """
 
 import time
@@ -18,6 +20,7 @@ from pcal6416a import *
 from tps65186 import TPS65186, read_battery_voltage_autodetect
 from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
+from touch_elan import Touch
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -297,6 +300,28 @@ class Inkplate:
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
+        # EN=12/RST=10 on the *internal* expander (0x20, IO_INT_ADDR) -- confirmed from
+        # this board's own pasted pins.h (TOUCHSCREEN_IO_EXPANDER=IO_INT_ADDR), same on
+        # both the classic and V2 revision. No collision with this expander's other
+        # pins (OE=0/GMOD=1/SPV=2/TPS_WAKEUP=3/PWRUP=4/VCOM=5/FRONTLIGHT_EN=11/
+        # SD_ENABLE=13), unlike Inkplate4TEMPERA's touch wiring.
+        #
+        # HIL-measured on real hardware: a 4-corner test showed decoded_x/y both
+        # mirrored against true screen position at every corner (decoded_x ==
+        # (width-1)-true_x, decoded_y == (height-1)-true_y), no axis swap involved --
+        # a different bug shape than Inkplate4TEMPERA's (flip+swap), confirming this
+        # really is per-board and not reusable without its own measurement.
+        Touch.init(
+            _Inkplate._i2c,
+            _Inkplate._PCAL6416A_1,
+            self,
+            en_pin=12,
+            rst_pin=10,
+            width=D_COLS,
+            height=D_ROWS,
+            xy_flipped=True,
+        )
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -353,6 +378,32 @@ class Inkplate:
 
     def sd_card_sleep(self):
         _Inkplate.SD_ENABLE.digital_write(1)
+
+    # Touchscreen -- thin delegation to touch_elan.Touch, wired to this instance in
+    # begin() (so Touch can read .rotation for its coordinate remap).
+    def ts_init(self, power_state=1):
+        return Touch.ts_init(power_state)
+
+    def ts_shutdown(self):
+        Touch.ts_shutdown()
+
+    def ts_available(self):
+        return Touch.ts_available()
+
+    def ts_set_power_state(self, state):
+        Touch.ts_set_power_state(state)
+
+    def ts_get_power_state(self):
+        return Touch.ts_get_power_state()
+
+    def ts_get_data(self, x_pos, y_pos):
+        return Touch.ts_get_data(x_pos, y_pos)
+
+    def ts_get_raw_data(self):
+        return Touch.ts_get_raw_data()
+
+    def touch_in_area(self, x1, y1, w, h):
+        return Touch.touch_in_area(x1, y1, w, h)
 
     def gpio_expander_pin(self, expander, pin, mode):
         if expander == 1:
