@@ -22,4 +22,12 @@ typedef void (*png_pixel_cb_t)(void *ctx, uint32_t x, uint32_t y, const uint8_t 
 int png_decode(const uint8_t *buf, size_t len, png_pixel_cb_t cb, void *ctx, uint32_t *out_width,
                uint32_t *out_height);
 
+// Reads width/height directly out of the PNG's IHDR chunk (a fixed byte offset
+// every valid PNG shares) without touching pngle/the real decoder at all -- lets
+// a caller reject an oversized image before paying for any decode work. Returns 0
+// on success, -1 if `buf` is too short to contain IHDR (the real png_decode()
+// call will report the actual error in that case).
+int png_peek_dimensions(const uint8_t *buf, size_t len, uint32_t *out_width,
+                        uint32_t *out_height);
+
 #endif // INKPLATE_PNG_DECODE_H

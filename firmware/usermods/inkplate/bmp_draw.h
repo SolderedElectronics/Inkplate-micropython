@@ -35,8 +35,12 @@ typedef void (*bmp_draw_palette_cb)(void *cb_ctx, int x, int y, int value);
 // entries), and calls `write_pixel(cb_ctx, x, y, value)` once per pixel with
 // image-local (x, y) -- 0..width-1 / 0..height-1, in file row order after any
 // vertical flip -- and the matched palette entry's `value`. `out_width`/`out_height`
-// receive the BMP's own pixel dimensions on success. Returns 0 on success, -1 on
-// parse/decode error or dither error-buffer allocation failure.
+// receive the BMP's own pixel dimensions on success. Unlike jpeg/png_draw_palette's
+// width cap, this one applies regardless of `dither` -- bmp_draw_row_rgb (bmp_draw.c)
+// is BMP's only per-row scratch buffer, needed for both the dithered and immediate
+// paths, so an image wider than it can't be drawn at all here, not just dithered.
+// Returns 0 on success, -1 on parse/decode error or dither error-buffer allocation
+// failure, -2 if the image is wider than this module can draw.
 int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                      const dither_palette_entry_t *palette, int palette_n,
                      bmp_draw_palette_cb write_pixel, void *cb_ctx, uint32_t *out_width,

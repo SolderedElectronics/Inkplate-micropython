@@ -36,24 +36,27 @@ typedef void (*jpeg_draw_palette_cb)(void *cb_ctx, int x, int y, int value);
 // Decodes the JPEG at buf/len, dithers (if `dither`) against `palette` (palette_n
 // entries), and calls `write_pixel(cb_ctx, x, y, value)` once per pixel with
 // image-local (x, y) and the matched palette entry's `value`. When `dither` is set,
-// buffers the full decoded RGB image (capped at max_width x max_height, caller's
-// choice -- not a fixed constant here, deliberately: see inkplatemodule.c's caller,
-// which passes the panel's own physical size, not a generously-sized "typical
-// photo" floor -- HIL on Inkplate6COLOR confirmed a fixed floor sized for the
-// largest board in this family (Inkplate13SPECTRA, up to ~5.76MB of PSRAM at 3
-// bytes/pixel) always requested that much regardless of the actual source image,
-// which reliably lost to PSRAM fragmentation even for images that would have fit a
-// panel-sized buffer easily). If the source image turns out bigger than
-// max_width/max_height, this retries the whole decode with dithering off instead
-// of failing -- draw's usual clip-to-panel behavior still applies to the
-// non-dithered result, so an oversized source image degrades gracefully rather
-// than being rejected. Also gracefully degrades to non-dithered if the buffer
-// allocation itself fails (transient PSRAM fragmentation). Same buffering
-// reasoning as jpeg_draw_gs4's luma buffer otherwise -- tiles can arrive out of row
-// order. Returns 0 on success, -1 on decode error or allocation failure.
+// buffers one MCU row-band at a time into a small static buffer (see
+// JPEG_PALETTE_BAND_MAX_W/JPEG_PALETTE_MCU_MAX_H in jpeg_draw.c) rather than the
+// whole image -- tjpgd delivers tiles in strict row-band raster order, so only one
+// band's rows are ever live at once (unlike png_draw_palette's PNG path, which
+// genuinely needs a whole-image buffer for Adam7-interlaced sources). This needs no
+// allocation at all (docs/REFACTOR-PLAN.md Phase 10 step 32's followup: the old
+// whole-image buffer, whether heap_caps_malloc'd or a caller-supplied bytearray,
+// could still fail to fit real Inkplate6COLOR PSRAM once other allocations had
+// fragmented it -- a band this small never can). If the image is wider than
+// JPEG_PALETTE_BAND_MAX_W, dithering isn't possible at this width: rather than
+// silently falling back to a non-dithered draw (surprising, since the caller asked
+// for dithering), this returns -2 so the caller can raise a clear "image too wide,
+// try scaling it down" error instead. That check happens right after the JPEG
+// header is parsed (jpeg_decode's pre_cb hook), before any MCU entropy decoding --
+// an oversized image costs no more than a header parse to reject, not a full
+// decode. Image height is unbounded either way (bands are processed and discarded
+// as decode progresses). Returns 0 on success, -1 on decode error, -2 if the image
+// is too wide to dither.
 int jpeg_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                       const dither_palette_entry_t *palette, int palette_n,
-                      jpeg_draw_palette_cb write_pixel, void *cb_ctx, int max_width,
-                      int max_height, uint32_t *out_width, uint32_t *out_height);
+                      jpeg_draw_palette_cb write_pixel, void *cb_ctx, uint32_t *out_width,
+                      uint32_t *out_height);
 
 #endif // INKPLATE_JPEG_DRAW_H

@@ -47,8 +47,8 @@ static UINT jpeg_outfunc(JDEC *jd, void *bitmap, JRECT *rect)
     return (UINT)s->cb(s->ctx, &tile);
 }
 
-int jpeg_decode(const uint8_t *buf, size_t len, jpeg_tile_cb_t cb, void *ctx, uint32_t *out_width,
-                uint32_t *out_height)
+int jpeg_decode(const uint8_t *buf, size_t len, jpeg_pre_decode_cb_t pre_cb, jpeg_tile_cb_t cb,
+                void *ctx, uint32_t *out_width, uint32_t *out_height)
 {
     void *pool = malloc(JPEG_WORK_POOL_SIZE);
     if (pool == NULL) {
@@ -69,6 +69,14 @@ int jpeg_decode(const uint8_t *buf, size_t len, jpeg_tile_cb_t cb, void *ctx, ui
     }
     if (out_height != NULL) {
         *out_height = jd.height;
+    }
+
+    if (pre_cb != NULL && !pre_cb(ctx, jd.width, jd.height)) {
+        // Header's parsed, dimensions are known, but the caller doesn't want to pay
+        // for the actual MCU entropy decoding (e.g. the image is too wide to
+        // dither) -- bail here instead, before any of that work happens.
+        free(pool);
+        return -2;
     }
 
     res = jd_decomp(&jd, jpeg_outfunc, 0);

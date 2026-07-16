@@ -21,11 +21,18 @@ typedef struct {
 // nonzero to continue.
 typedef int (*jpeg_tile_cb_t)(void *ctx, const jpeg_tile_t *tile);
 
+// Invoked once, right after the JPEG header is parsed (jd_prepare) and before any
+// MCU entropy decoding starts (jd_decomp) -- the expensive part. Return 0 to abort
+// the decode immediately at near-zero cost, nonzero to proceed normally. Pass NULL
+// to always proceed (skips this check entirely).
+typedef int (*jpeg_pre_decode_cb_t)(void *ctx, uint32_t width, uint32_t height);
+
 // Decodes `len` bytes of JPEG data at `buf`, streaming one tile at a time through `cb`
 // (no full-image buffer is allocated). `out_width`/`out_height` receive the image
-// dimensions on success. Returns 0 on success, -1 on error (malformed/unsupported
-// JPEG, ROM decode failure, or `cb` returning 0).
-int jpeg_decode(const uint8_t *buf, size_t len, jpeg_tile_cb_t cb, void *ctx, uint32_t *out_width,
-                uint32_t *out_height);
+// dimensions on success (also set if `pre_cb` aborts the decode, since the header is
+// already parsed by then). Returns 0 on success, -1 on error (malformed/unsupported
+// JPEG, ROM decode failure, or `cb` returning 0), -2 if `pre_cb` aborted the decode.
+int jpeg_decode(const uint8_t *buf, size_t len, jpeg_pre_decode_cb_t pre_cb, jpeg_tile_cb_t cb,
+                void *ctx, uint32_t *out_width, uint32_t *out_height);
 
 #endif // INKPLATE_JPEG_DECODE_H

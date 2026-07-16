@@ -60,3 +60,22 @@ int png_decode(const uint8_t *buf, size_t len, png_pixel_cb_t cb, void *ctx, uin
     pngle_destroy(pngle);
     return ok ? 0 : -1;
 }
+
+// PNG's fixed layout: 8-byte signature, then IHDR's 8-byte chunk header (4-byte
+// length + 4-byte "IHDR" type), then IHDR's own data starting with a 4-byte width
+// and 4-byte height (both big-endian) -- every valid PNG has this at the exact
+// same offset (IHDR is required to be the first chunk), so width/height can be
+// read directly without involving pngle/the real decoder at all. Doesn't validate
+// the signature or chunk type -- a malformed file just gets caught later by the
+// real png_decode() call; this is only a fast-path peek.
+int png_peek_dimensions(const uint8_t *buf, size_t len, uint32_t *out_width, uint32_t *out_height)
+{
+    if (len < 24) {
+        return -1;
+    }
+    *out_width = ((uint32_t)buf[16] << 24) | ((uint32_t)buf[17] << 16) |
+                 ((uint32_t)buf[18] << 8) | buf[19];
+    *out_height = ((uint32_t)buf[20] << 24) | ((uint32_t)buf[21] << 16) |
+                  ((uint32_t)buf[22] << 8) | buf[23];
+    return 0;
+}

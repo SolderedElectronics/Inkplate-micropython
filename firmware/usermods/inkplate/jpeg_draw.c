@@ -140,7 +140,7 @@ int jpeg_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display
     }
 
     uint32_t width = 0, height = 0;
-    int res = jpeg_decode(buf, len, jpeg_draw_tile_cb, &ctx, &width, &height);
+    int res = jpeg_decode(buf, len, NULL, jpeg_draw_tile_cb, &ctx, &width, &height);
 
     if (res == 0 && dither) {
         jpeg_dither_pass(&ctx, width, height);
@@ -157,19 +157,26 @@ int jpeg_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display
     return 0;
 }
 
-// Buffer dims are the caller-supplied max_width/max_height, not a fixed constant --
-// see inkplatemodule.c's `inkplate_jpeg_draw_palette` for the actual per-call
-// policy and its HIL-informed history (a fixed one-size-fits-all cap, and then a
-// too-small panel-only cap, both turned out wrong on real Inkplate6COLOR hardware
-// before landing here). Stored as RGB565 (2 bytes/pixel, dither_pack_rgb565/
-// dither_unpack_rgb565 in dither.h) rather than RGB888 (3 bytes/pixel) -- matches
-// what the pre-refactor Python driver decoded to before dithering, and cuts this
-// buffer's PSRAM footprint by a third, which is what actually let real photos fit
-// again on Inkplate6COLOR's fragmented PSRAM (confirmed via HIL) rather than
-// relying on the fallbacks below. Same memory-budget reasoning jpeg_draw_ctx_t's
-// luma buffer above already needed once (docs/REFACTOR-PLAN.md Phase 7 step 21),
-// just parameterized and RGB565-packed this time, since this path serves 3 boards
-// with very different panel sizes through the same compiled function.
+// Row-band scratch buffer for the palette dithering path below. tjpgd (jpeg_decode.c)
+// delivers MCU tiles in strict row-band raster order -- jpeg_decode.h's own contract
+// ("invoked once per decoded MCU tile, in raster order") means every tile spanning
+// the full image width for a given MCU row-band arrives before the next band down
+// starts. Unlike PNG's Adam7 interlacing (png_draw.c), which sweeps the whole image
+// in up to 7 non-monotonic passes and genuinely needs a whole-image buffer, JPEG only
+// ever needs one band's worth of pixels buffered at a time. JPEG_PALETTE_BAND_MAX_W
+// matches this codebase's existing "typical photo" width floor (see the grayscale
+// path's JPEG_DRAW_MAX_WIDTH above); JPEG_PALETTE_MCU_MAX_H is the largest MCU height
+// tjpgd can produce (msy <= 2 blocks of 8px per rom/tjpgd.h -- standard JPEG
+// subsampling never exceeds a 2x2-block MCU). A static buffer this small (~38KB)
+// needs no allocation at all, so it can never hit the PSRAM fragmentation a
+// whole-image buffer did on real Inkplate6COLOR hardware (docs/REFACTOR-PLAN.md
+// Phase 10 step 32's followup) -- there's nothing here to fail. Height is now
+// unbounded too (bands are processed and discarded as decode progresses), unlike the
+// old whole-image buffer's max_height cap.
+#define JPEG_PALETTE_BAND_MAX_W 1200
+#define JPEG_PALETTE_MCU_MAX_H 16
+static uint16_t jpeg_palette_band_rgb[JPEG_PALETTE_BAND_MAX_W * JPEG_PALETTE_MCU_MAX_H];
+
 typedef struct {
     int invert;
     int dither;
@@ -178,16 +185,17 @@ typedef struct {
     int palette_n;
     jpeg_draw_palette_cb write_pixel;
     void *cb_ctx;
-    int max_width;
-    int max_height;
-    // Only allocated when dither is set: full decoded image as RGB565, indexed
-    // [y * max_width + x] regardless of the image's real width, same reasoning as
-    // jpeg_draw_ctx_t's luma buffer above.
-    uint16_t *rgb;
-    // Set when a tile lands outside max_width/max_height -- signals
-    // jpeg_draw_palette to retry the whole decode with dithering off, rather than
-    // just failing (see jpeg_draw_palette_tile_cb).
-    int oversized_for_dither;
+    // Row-band dithering state -- see jpeg_palette_band_rgb above.
+    int band_y0; // image row where the buffered band starts, -1 if nothing buffered
+    int band_h;  // valid rows in the band buffer (this band's MCU tile height)
+    int band_w;  // widest x+w seen so far this band -- equals the real image width
+                 // once a band's tiles have all arrived
+    dither_rgb_ctx_t dctx;
+    // -1: not yet attempted (band_w, needed to size dctx, isn't known until the
+    // first band completes); 0: attempted and failed (degrade to non-diffused
+    // quantization, same fallback philosophy as the grayscale path's luma buffer);
+    // 1: ready.
+    int have_dctx;
 } jpeg_draw_palette_ctx_t;
 
 static void jpeg_draw_palette_tile_immediate(jpeg_draw_palette_ctx_t *ctx,
@@ -207,6 +215,63 @@ static void jpeg_draw_palette_tile_immediate(jpeg_draw_palette_ctx_t *ctx,
     }
 }
 
+// Dithers+writes the currently-buffered band (a no-op if nothing is buffered).
+// `draw_height` bounds bottom-edge error diffusion (dither_diffuse_error_rgb) -- the
+// real image height isn't known until decode completes, so every mid-decode flush
+// (triggered by the next band's first tile arriving) passes a large sentinel: this
+// is never actually the image's last row, so an overly generous bound only ever
+// avoids an incorrect early cutoff. The final flush (jpeg_draw_palette, after decode
+// completes) passes the real height for a correct bottom edge.
+static void jpeg_draw_palette_flush_band(jpeg_draw_palette_ctx_t *ctx, int draw_height)
+{
+    if (ctx->band_y0 < 0) {
+        return;
+    }
+    if (ctx->have_dctx < 0) {
+        ctx->have_dctx = dither_rgb_ctx_init(&ctx->dctx, ctx->band_w, ctx->kernel_type) == 0;
+    }
+
+    for (int ty = 0; ty < ctx->band_h; ty++) {
+        int y = ctx->band_y0 + ty;
+        for (int x = 0; x < ctx->band_w; x++) {
+            int r, g, b;
+            dither_unpack_rgb565(jpeg_palette_band_rgb[ty * JPEG_PALETTE_BAND_MAX_W + x], &r, &g,
+                                 &b);
+            int value, recon_r, recon_g, recon_b;
+            if (ctx->have_dctx) {
+                dither_apply_error_rgb(&ctx->dctx, x, &r, &g, &b);
+                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
+                                                &recon_g, &recon_b);
+                dither_diffuse_error_rgb(&ctx->dctx, x, y, ctx->band_w, draw_height, r - recon_r,
+                                         g - recon_g, b - recon_b);
+            } else {
+                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
+                                                &recon_g, &recon_b);
+            }
+            if (ctx->invert) {
+                value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
+            }
+            ctx->write_pixel(ctx->cb_ctx, x, y, value);
+        }
+        if (ctx->have_dctx) {
+            dither_row_advance_rgb(&ctx->dctx);
+        }
+    }
+    ctx->band_y0 = -1;
+}
+
+// Checked right after the JPEG header is parsed, before any MCU decoding starts --
+// see jpeg_draw_palette's call site. Width can only ever grow past
+// JPEG_PALETTE_BAND_MAX_W between here and the first tile, never shrink, so
+// catching it this early (instead of waiting for a tile to overflow the band
+// buffer) means an oversized image costs nothing beyond header parsing.
+static int jpeg_draw_palette_pre_cb(void *ctx_, uint32_t width, uint32_t height)
+{
+    (void)height;
+    jpeg_draw_palette_ctx_t *ctx = (jpeg_draw_palette_ctx_t *)ctx_;
+    return !ctx->dither || width <= JPEG_PALETTE_BAND_MAX_W;
+}
+
 static int jpeg_draw_palette_tile_cb(void *ctx_, const jpeg_tile_t *tile)
 {
     jpeg_draw_palette_ctx_t *ctx = (jpeg_draw_palette_ctx_t *)ctx_;
@@ -216,64 +281,36 @@ static int jpeg_draw_palette_tile_cb(void *ctx_, const jpeg_tile_t *tile)
         return 1;
     }
 
-    if (tile->x + tile->w > (uint32_t)ctx->max_width ||
-        tile->y + tile->h > (uint32_t)ctx->max_height) {
-        // Abort this buffered attempt -- jpeg_draw_palette retries the whole decode
-        // with dithering off (jpeg_decode is stateless/re-entrant across calls, so
-        // this is a clean full redo, not a half-drawn image).
-        ctx->oversized_for_dither = 1;
-        return 0;
+    if (ctx->band_y0 >= 0 && tile->y != (uint32_t)ctx->band_y0) {
+        // New row-band started: every tile for the previous band (full image width)
+        // has already arrived -- tjpgd's raster tile order guarantees this -- so
+        // it's safe to dither+flush it now, before this tile's data overwrites it.
+        jpeg_draw_palette_flush_band(ctx, INT32_MAX);
+    }
+    if (ctx->band_y0 < 0) {
+        ctx->band_y0 = (int)tile->y;
+        ctx->band_h = (int)tile->h;
+        ctx->band_w = 0;
     }
 
     for (uint32_t ty = 0; ty < tile->h; ty++) {
         for (uint32_t tx = 0; tx < tile->w; tx++) {
             const uint8_t *px = tile->rgb + (ty * tile->w + tx) * 3;
-            size_t off = (size_t)(tile->y + ty) * (uint32_t)ctx->max_width + (tile->x + tx);
-            ctx->rgb[off] = dither_pack_rgb565(px[0], px[1], px[2]);
+            size_t off = (size_t)ty * JPEG_PALETTE_BAND_MAX_W + (tile->x + tx);
+            jpeg_palette_band_rgb[off] = dither_pack_rgb565(px[0], px[1], px[2]);
         }
+    }
+    int band_right = (int)(tile->x + tile->w);
+    if (band_right > ctx->band_w) {
+        ctx->band_w = band_right;
     }
     return 1;
 }
 
-static void jpeg_palette_dither_pass(jpeg_draw_palette_ctx_t *ctx, uint32_t w, uint32_t h)
-{
-    dither_rgb_ctx_t dctx;
-    int have_dctx = dither_rgb_ctx_init(&dctx, (int)w, ctx->kernel_type) == 0;
-
-    for (uint32_t y = 0; y < h; y++) {
-        for (uint32_t x = 0; x < w; x++) {
-            size_t off = (size_t)y * (uint32_t)ctx->max_width + x;
-            int r, g, b;
-            dither_unpack_rgb565(ctx->rgb[off], &r, &g, &b);
-            int value, recon_r, recon_g, recon_b;
-            if (have_dctx) {
-                dither_apply_error_rgb(&dctx, (int)x, &r, &g, &b);
-                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
-                                                &recon_g, &recon_b);
-                dither_diffuse_error_rgb(&dctx, (int)x, (int)y, (int)w, (int)h, r - recon_r,
-                                         g - recon_g, b - recon_b);
-            } else {
-                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
-                                                &recon_g, &recon_b);
-            }
-            if (ctx->invert) {
-                value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
-            }
-            ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
-        }
-        if (have_dctx) {
-            dither_row_advance_rgb(&dctx);
-        }
-    }
-    if (have_dctx) {
-        dither_rgb_ctx_free(&dctx);
-    }
-}
-
 int jpeg_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                       const dither_palette_entry_t *palette, int palette_n,
-                      jpeg_draw_palette_cb write_pixel, void *cb_ctx, int max_width,
-                      int max_height, uint32_t *out_width, uint32_t *out_height)
+                      jpeg_draw_palette_cb write_pixel, void *cb_ctx, uint32_t *out_width,
+                      uint32_t *out_height)
 {
     jpeg_draw_palette_ctx_t ctx = {.invert = invert,
                                    .dither = dither,
@@ -282,56 +319,27 @@ int jpeg_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, in
                                    .palette_n = palette_n,
                                    .write_pixel = write_pixel,
                                    .cb_ctx = cb_ctx,
-                                   .max_width = max_width,
-                                   .max_height = max_height,
-                                   .rgb = NULL,
-                                   .oversized_for_dither = 0};
-
-    if (dither) {
-        ctx.rgb = heap_caps_malloc((size_t)max_width * (size_t)max_height * sizeof(uint16_t),
-                                   MALLOC_CAP_SPIRAM);
-        if (ctx.rgb == NULL) {
-            // A single contiguous block this size isn't available right now (PSRAM
-            // fragmentation -- this is now the RGB565-sized request, half again
-            // smaller than the RGB888 size that originally hit this on real
-            // Inkplate6COLOR hardware, so this fallback should be rare in practice).
-            // Degrade to a non-dithered draw instead of hard-failing the whole call,
-            // same transient-OOM-degrades-gracefully philosophy as
-            // jpeg_palette_dither_pass's own dither_rgb_ctx_t fallback below.
-            dither = 0;
-            ctx.dither = 0;
-        }
-    }
+                                   .band_y0 = -1,
+                                   .band_h = 0,
+                                   .band_w = 0,
+                                   .have_dctx = -1};
 
     uint32_t width = 0, height = 0;
-    int res = jpeg_decode(buf, len, jpeg_draw_palette_tile_cb, &ctx, &width, &height);
+    int res = jpeg_decode(buf, len, jpeg_draw_palette_pre_cb, jpeg_draw_palette_tile_cb, &ctx,
+                          &width, &height);
 
-    if (res != 0 && ctx.oversized_for_dither) {
-        // Source image is bigger than max_width/max_height (typically the panel's
-        // own physical size -- see inkplatemodule.c's caller), so the dither buffer
-        // was never going to hold it. Retry the whole decode from scratch with
-        // dithering off instead of failing outright -- jpeg_decode has no state
-        // that survives across calls, so this is a clean full redo, not a
-        // half-drawn image.
-        if (ctx.rgb != NULL) {
-            heap_caps_free(ctx.rgb);
-            ctx.rgb = NULL;
-        }
-        dither = 0;
-        ctx.dither = 0;
-        width = 0;
-        height = 0;
-        res = jpeg_decode(buf, len, jpeg_draw_palette_tile_cb, &ctx, &width, &height);
-    }
-
-    if (res == 0 && dither) {
-        jpeg_palette_dither_pass(&ctx, width, height);
-    }
-    if (dither) {
-        heap_caps_free(ctx.rgb);
+    if (res == -2) {
+        return -2; // too wide to dither -- caught before any MCU decode work happened
     }
     if (res != 0) {
         return -1;
+    }
+
+    if (dither) {
+        jpeg_draw_palette_flush_band(&ctx, (int)height);
+        if (ctx.have_dctx == 1) {
+            dither_rgb_ctx_free(&ctx.dctx);
+        }
     }
 
     *out_width = width;

@@ -160,7 +160,6 @@ typedef struct {
     int max_width;
     int max_height;
     uint16_t *rgb; // [y * max_width + x], RGB565, only allocated when dither is set
-    int oversized; // set if a pixel ever falls outside the max_width/max_height cap
 } png_draw_palette_ctx_t;
 
 static void png_draw_palette_pixel_cb(void *ctx_, uint32_t x, uint32_t y, const uint8_t rgba[4])
@@ -178,8 +177,12 @@ static void png_draw_palette_pixel_cb(void *ctx_, uint32_t x, uint32_t y, const 
         return;
     }
 
+    // png_draw_palette already rejected (via png_peek_dimensions) any image bigger
+    // than max_width/max_height before decode started, but that peek reads IHDR by
+    // hand rather than through pngle itself -- this bounds check is the real
+    // safety net against the two ever disagreeing (out-of-bounds ctx->rgb write),
+    // not just a defensive copy of the same check.
     if (x >= (uint32_t)ctx->max_width || y >= (uint32_t)ctx->max_height) {
-        ctx->oversized = 1;
         return;
     }
     size_t off = (size_t)y * (uint32_t)ctx->max_width + x;
@@ -224,7 +227,8 @@ static void png_palette_dither_pass(png_draw_palette_ctx_t *ctx, uint32_t w, uin
 int png_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int kernel_type,
                      const dither_palette_entry_t *palette, int palette_n,
                      png_draw_palette_cb write_pixel, void *cb_ctx, int max_width, int max_height,
-                     uint32_t *out_width, uint32_t *out_height)
+                     uint16_t *scratch_rgb, size_t scratch_cap, uint32_t *out_width,
+                     uint32_t *out_height)
 {
     png_draw_palette_ctx_t ctx = {.invert = invert,
                                   .dither = dither,
@@ -235,48 +239,45 @@ int png_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
                                   .cb_ctx = cb_ctx,
                                   .max_width = max_width,
                                   .max_height = max_height,
-                                  .rgb = NULL,
-                                  .oversized = 0};
+                                  .rgb = NULL};
 
     if (dither) {
-        ctx.rgb = heap_caps_malloc((size_t)max_width * (size_t)max_height * sizeof(uint16_t),
-                                   MALLOC_CAP_SPIRAM);
-        if (ctx.rgb == NULL) {
-            // Same graceful degrade as jpeg_draw_palette -- see its identical comment
-            // for the HIL-confirmed PSRAM-fragmentation reasoning.
-            dither = 0;
-            ctx.dither = 0;
+        // Reject an oversized image before paying for any decode work at all --
+        // png_peek_dimensions reads IHDR directly (fixed byte offset every PNG
+        // shares), without touching pngle. Source image bigger than
+        // max_width/max_height (typically the panel's own physical size -- see
+        // inkplatemodule.c's caller) can't be dithered: same distinct return code
+        // as the missing-buffer case below, rather than silently redrawing without
+        // dithering (docs/REFACTOR-PLAN.md Phase 10 step 32's followup: a silent
+        // behavior change surprised users expecting dithered output, same
+        // reasoning as jpeg_draw_palette's too-wide case). A failed peek (buf too
+        // short) just falls through -- the real png_decode() call below reports
+        // that as a decode error instead.
+        uint32_t peek_w = 0, peek_h = 0;
+        if (png_peek_dimensions(buf, len, &peek_w, &peek_h) == 0 &&
+            (peek_w > (uint32_t)max_width || peek_h > (uint32_t)max_height)) {
+            return -2;
         }
+
+        // Caller-supplied buffer (docs/REFACTOR-PLAN.md Phase 10 step 32's followup)
+        // -- see jpeg_draw_palette's identical comment for the HIL-confirmed
+        // PSRAM-fragmentation reasoning for why this is no longer heap_caps_malloc'd
+        // in here. Missing/undersized buffer can't dither either -- same distinct
+        // return code as the oversized case above.
+        if (scratch_rgb == NULL || scratch_cap < (size_t)max_width * (size_t)max_height) {
+            return -2;
+        }
+        ctx.rgb = scratch_rgb;
     }
 
     uint32_t width = 0, height = 0;
     int res = png_decode(buf, len, png_draw_palette_pixel_cb, &ctx, &width, &height);
 
-    if (res == 0 && ctx.oversized && dither) {
-        // Source image is bigger than max_width/max_height (typically the panel's
-        // own physical size -- see inkplatemodule.c's caller), so the dither buffer
-        // never held the whole image. Retry the whole decode from scratch with
-        // dithering off instead of failing outright -- png_decode has no state that
-        // survives across calls, so this is a clean full redo, not a half-drawn
-        // image (same reasoning as jpeg_draw_palette's identical retry).
-        heap_caps_free(ctx.rgb);
-        ctx.rgb = NULL;
-        dither = 0;
-        ctx.dither = 0;
-        ctx.oversized = 0;
-        width = 0;
-        height = 0;
-        res = png_decode(buf, len, png_draw_palette_pixel_cb, &ctx, &width, &height);
-    }
-
-    if (res == 0 && dither) {
-        png_palette_dither_pass(&ctx, width, height);
-    }
-    if (dither) {
-        heap_caps_free(ctx.rgb);
-    }
     if (res != 0) {
         return -1;
+    }
+    if (dither) {
+        png_palette_dither_pass(&ctx, width, height);
     }
 
     *out_width = width;
