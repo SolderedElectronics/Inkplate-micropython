@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "../dither.h"
+#include "../image/dither.h"
 
 static void test_quantize_mono(void)
 {

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../board_config.h"
+#include "../display/board_config.h"
 
 int main(void)
 {

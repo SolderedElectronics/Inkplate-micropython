@@ -5,7 +5,7 @@
 #include "esp_heap_caps.h"
 
 #include "dither.h"
-#include "gfx.h"
+#include "../display/gfx.h"
 #include "png_decode.h"
 
 // Whole-image buffered path -- only reachable for Adam7-interlaced PNGs (see

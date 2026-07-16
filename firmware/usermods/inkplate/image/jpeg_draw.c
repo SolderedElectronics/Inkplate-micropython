@@ -5,7 +5,7 @@
 #include "esp_heap_caps.h"
 
 #include "dither.h"
-#include "gfx.h"
+#include "../display/gfx.h"
 #include "jpeg_decode.h"
 
 // Row-band scratch buffers, shared by the grayscale path below and the palette path

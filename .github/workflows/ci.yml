@@ -12,16 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Build check (host-compiled C sources)
-        run: |
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/board_config.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/waveform.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/epd_partial_lut.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_decode.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/gfx.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/bmp_draw.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/dither.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/spi_panel_config.c -o /dev/null
-          gcc -Wall -Wextra -Werror -I firmware/usermods/inkplate -c firmware/usermods/inkplate/spi_panel_palette.c -o /dev/null
+        run: python3 firmware/usermods/inkplate/tests/run_ci.py build
 
   format:
     runs-on: ubuntu-latest
@@ -44,53 +35,4 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Unit test runner (host-compiled C tests)
-        run: |
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_board_config.c \
-            firmware/usermods/inkplate/board_config.c \
-            -o /tmp/test_board_config
-          /tmp/test_board_config
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_waveform.c \
-            firmware/usermods/inkplate/waveform.c \
-            firmware/usermods/inkplate/board_config.c \
-            -o /tmp/test_waveform
-          /tmp/test_waveform
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_epd_partial_lut.c \
-            firmware/usermods/inkplate/epd_partial_lut.c \
-            -o /tmp/test_epd_partial_lut
-          /tmp/test_epd_partial_lut
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_bmp_decode.c \
-            firmware/usermods/inkplate/bmp_decode.c \
-            -o /tmp/test_bmp_decode
-          /tmp/test_bmp_decode
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_gfx.c \
-            firmware/usermods/inkplate/gfx.c \
-            -o /tmp/test_gfx
-          /tmp/test_gfx
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_dither.c \
-            firmware/usermods/inkplate/dither.c \
-            -o /tmp/test_dither
-          /tmp/test_dither
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_spi_panel_config.c \
-            firmware/usermods/inkplate/spi_panel_config.c \
-            -o /tmp/test_spi_panel_config
-          /tmp/test_spi_panel_config
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_spi_panel_palette.c \
-            firmware/usermods/inkplate/spi_panel_palette.c \
-            -o /tmp/test_spi_panel_palette
-          /tmp/test_spi_panel_palette
-          gcc -Wall -Wextra -I firmware/usermods/inkplate \
-            firmware/usermods/inkplate/tests/test_bmp_draw_palette.c \
-            firmware/usermods/inkplate/bmp_draw.c \
-            firmware/usermods/inkplate/bmp_decode.c \
-            firmware/usermods/inkplate/dither.c \
-            firmware/usermods/inkplate/gfx.c \
-            -o /tmp/test_bmp_draw_palette
-          /tmp/test_bmp_draw_palette
+        run: python3 firmware/usermods/inkplate/tests/run_ci.py test

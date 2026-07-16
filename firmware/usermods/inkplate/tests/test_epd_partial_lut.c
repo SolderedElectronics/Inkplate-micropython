@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "../epd_partial_lut.h"
+#include "../display/epd_partial_lut.h"
 
 // Independent transcription of the Arduino reference driver's GraphicsDefs.h tables (not
 // a call into production code) plus the diffw/diffb formula, used to cross-check

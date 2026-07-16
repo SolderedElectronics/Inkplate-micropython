@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../bmp_draw.h"
-#include "../dither.h"
+#include "../image/bmp_draw.h"
+#include "../image/dither.h"
 
 // Same 2x2 24bpp sample as tests/test_bmp_decode.c's sample_bmp_24: top-left=red,
 // top-right=green, bottom-left=blue, bottom-right=yellow, stored bottom-up.

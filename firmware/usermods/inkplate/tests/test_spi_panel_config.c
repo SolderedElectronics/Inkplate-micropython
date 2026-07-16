@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../spi_panel_config.h"
+#include "../display/spi_panel_config.h"
 
 int main(void)
 {

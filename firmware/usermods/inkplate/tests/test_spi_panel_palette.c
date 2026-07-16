@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../spi_panel_palette.h"
+#include "../image/spi_panel_palette.h"
 
 static void test_id_for_name(void)
 {

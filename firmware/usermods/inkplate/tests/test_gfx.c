@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../gfx.h"
+#include "../display/gfx.h"
 
 #define W 32
 #define H 32

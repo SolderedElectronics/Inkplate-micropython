@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../bmp_decode.h"
+#include "../image/bmp_decode.h"
 
 // All sample images below share the same 2x2 layout (top-down, as a human would view it):
 //   top-left=red(255,0,0)     top-right=green(0,255,0)

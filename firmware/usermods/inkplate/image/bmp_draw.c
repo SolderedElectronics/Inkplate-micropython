@@ -2,7 +2,7 @@
 
 #include "bmp_decode.h"
 #include "dither.h"
-#include "gfx.h"
+#include "../display/gfx.h"
 
 // Static row-scratch buffer for bmp_decode_row's RGB888 output, sized with headroom
 // over the widest board resolution in scope today (Inkplate5v2, 1280px). Static rather

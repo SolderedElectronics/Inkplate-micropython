@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../board_config.h"
-#include "../waveform.h"
+#include "../display/board_config.h"
+#include "../display/waveform.h"
 
 // Reference values below were cross-checked by running the actual genlut()/WAVE_2B from
 // boards/inkplate10/inkplateGS.py in Python, not hand-derived, so this catches drift between
