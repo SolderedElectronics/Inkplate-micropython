@@ -148,6 +148,7 @@ class PCAL6416A:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] |= 1 << pin
+            self.ioRegsInt[PCAL6416A_PUPDEN_REG0_ARRAY + port] |= 1 << pin
             self.write(
                 PCAL6416A_OUTPORT0 + port,
                 self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port],
@@ -159,11 +160,16 @@ class PCAL6416A:
             self.write(
                 PCAL6416A_PUPDSEL_REG0 + port,
                 self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port],
+            )
+            self.write(
+                PCAL6416A_PUPDEN_REG0 + port,
+                self.ioRegsInt[PCAL6416A_PUPDEN_REG0_ARRAY + port],
             )
         elif mode == mode_input_pulldown:
             self.ioRegsInt[PCAL6416A_CFGPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port] |= 1 << pin
             self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port] &= ~(1 << pin)
+            self.ioRegsInt[PCAL6416A_PUPDEN_REG0_ARRAY + port] |= 1 << pin
             self.write(
                 PCAL6416A_OUTPORT0 + port,
                 self.ioRegsInt[PCAL6416A_OUTPORT0_ARRAY + port],
@@ -175,6 +181,10 @@ class PCAL6416A:
             self.write(
                 PCAL6416A_PUPDSEL_REG0 + port,
                 self.ioRegsInt[PCAL6416A_PUPDSEL_REG0_ARRAY + port],
+            )
+            self.write(
+                PCAL6416A_PUPDEN_REG0 + port,
+                self.ioRegsInt[PCAL6416A_PUPDEN_REG0_ARRAY + port],
             )
 
     def digital_write(self, pin, state):
