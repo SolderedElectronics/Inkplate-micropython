@@ -21,7 +21,7 @@ class InkplatePartial:
 
     # display the changes between our reference copy and the current framebuffer contents
     # -- runs over I2S DMA in C now (firmware/usermods/inkplate/epd_i2s.c's
-    # epd_i2s_push_partial_frame, docs/REFACTOR-PLAN.md step 16), matching how mono/GS/clean
+    # epd_i2s_push_partial_frame, docs/refactor_plan.md step 16), matching how mono/GS/clean
     # already work. Always walks the full frame (no region params) -- matches the real
     # Arduino reference driver's partialUpdate(), which has none either: unchanged pixels
     # get a skip code from the diff, there's no row-range transmission shortcut over I2S.

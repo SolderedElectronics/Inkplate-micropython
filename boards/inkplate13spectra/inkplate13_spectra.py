@@ -16,7 +16,7 @@ machine.freq(240000000)
 
 # RST/DC/CS_M/CS_S/BUSY/CLK/DIN, PWR_EN, BS0/BS1 and the SPI peripheral itself are owned
 # by the C dual-chip spi transport (firmware/usermods/inkplate/epd_spi.c's epd_spi_dual_*
-# functions, docs/REFACTOR-PLAN.md Phase 9 step 31) -- no Python-side pin constants
+# functions, docs/refactor_plan.md Phase 9 step 31) -- no Python-side pin constants
 # needed for the panel.
 
 pixel_mask_glut = [0xF, 0xF0]
@@ -135,7 +135,7 @@ class Inkplate:
 
         # RST/DC/CS_M/CS_S/BUSY/CLK/DIN/PWR_EN/BS0/BS1 + the SPI peripheral itself are
         # owned by the C dual-chip spi transport from here on
-        # (firmware/usermods/inkplate/epd_spi.c, docs/REFACTOR-PLAN.md Phase 9 step 31)
+        # (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
         # -- no more machine.SPI/Pin objects for the panel itself.
         inkplate.select_spi_panel("inkplate13spectra")
 
@@ -241,7 +241,7 @@ class Inkplate:
         rather than a dual-chip-specific 100ms/100ms pulse -- the real Arduino reference
         driver's own resetPanel() only asks for 100ms/100ms, and a longer recovery delay
         can't hurt, same reasoning already applied to Inkplate2's reset pulse width
-        (docs/REFACTOR-PLAN.md Phase 9 step 31).
+        (docs/refactor_plan.md Phase 9 step 31).
         """
         inkplate.spi_panel_reset()
 
@@ -818,7 +818,7 @@ class Inkplate:
         # Adam7-interlaced source (dithers non-interlaced PNGs -- the common case --
         # inline, per pixel, no whole-image buffer at all). Pre-allocating one here
         # unconditionally used to reliably MemoryError on real Inkplate6COLOR
-        # hardware for completely ordinary photos (docs/REFACTOR-PLAN.md Phase 7
+        # hardware for completely ordinary photos (docs/refactor_plan.md Phase 7
         # step 21's follow-up) -- worse than the rare case this was meant to serve.
         inkplate.png_draw_palette(
             self._framebuf,

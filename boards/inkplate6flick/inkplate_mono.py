@@ -20,7 +20,7 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # KNOWN ISSUE (docs/REFACTOR-PLAN.md step 24, HIL-blocked): on real hardware,
+        # KNOWN ISSUE (docs/refactor_plan.md step 24, HIL-blocked): on real hardware,
         # calling more than one display-affecting operation (clean()/mono_display()) in
         # the same power_on()/i2s_init() bracket is unreliable -- content sometimes
         # doesn't show, sometimes the whole panel goes solid black regardless of what was

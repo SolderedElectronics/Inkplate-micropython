@@ -1,5 +1,5 @@
 """Decode mountain.jpg from the SD card through the new C JPEG decode path (ROM tjpgd,
-docs/REFACTOR-PLAN.md Phase 7 step 18) with real Floyd-Steinberg dithering (step 21) and
+docs/refactor_plan.md Phase 7 step 18) with real Floyd-Steinberg dithering (step 21) and
 draw it in grayscale.
 
 Calls the low-level inkplate.jpeg_draw_gs4() C binding directly -- draw_image()/

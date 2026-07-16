@@ -104,7 +104,7 @@ class Inkplate:
 
         # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
         # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
-        # docs/REFACTOR-PLAN.md Phase 9 step 30) -- no more machine.SPI/Pin objects for
+        # docs/refactor_plan.md Phase 9 step 30) -- no more machine.SPI/Pin objects for
         # the panel itself.
         inkplate.select_spi_panel("inkplate6color")
         inkplate.spi_panel_init()
@@ -195,7 +195,7 @@ class Inkplate:
                     cs=Pin(15),
                     # 4MHz, same value every parallel-bus board settled on after hitting
                     # real hangs/mount failures at higher speeds on this same SPI-mode SD
-                    # driver (docs/REFACTOR-PLAN.md Phase 7 step 21/Phase 8 step 26) --
+                    # driver (docs/refactor_plan.md Phase 7 step 21/Phase 8 step 26) --
                     # not independently reverified on Inkplate6COLOR, but there's no
                     # reason to expect this board's SD wiring to behave differently.
                     freq=4000000,
@@ -770,7 +770,7 @@ class Inkplate:
         # Adam7-interlaced source (dithers non-interlaced PNGs -- the common case --
         # inline, per pixel, no whole-image buffer at all). Pre-allocating one here
         # unconditionally used to reliably MemoryError on real Inkplate6COLOR
-        # hardware for completely ordinary photos (docs/REFACTOR-PLAN.md Phase 7
+        # hardware for completely ordinary photos (docs/refactor_plan.md Phase 7
         # step 21's follow-up) -- worse than the rare case this was meant to serve.
         inkplate.png_draw_palette(
             self._framebuf,

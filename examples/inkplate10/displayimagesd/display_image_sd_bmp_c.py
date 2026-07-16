@@ -1,5 +1,5 @@
 """Decode a BMP from the SD card through the new C BMP decode path (24-bit, 1/4/8-bit
-indexed, and 16-bit 555/565, docs/REFACTOR-PLAN.md Phase 7 step 20) with real
+indexed, and 16-bit 555/565, docs/refactor_plan.md Phase 7 step 20) with real
 Floyd-Steinberg dithering (step 21) and draw it in grayscale.
 
 Calls the low-level inkplate.bmp_draw_gs4() C binding directly -- draw_image()/

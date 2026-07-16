@@ -48,7 +48,7 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (now driven via I2S DMA -- docs/REFACTOR-PLAN.md step 12)
+        # clean the display (now driven via I2S DMA -- docs/refactor_plan.md step 12)
         t0 = time.ticks_ms()
         ip.clean(0, 1)
         ip.clean(1, 12)

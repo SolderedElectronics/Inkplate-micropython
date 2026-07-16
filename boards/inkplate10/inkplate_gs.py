@@ -1,7 +1,7 @@
 """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
 The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real 3-bit/8-level
-waveform table natively (docs/REFACTOR-PLAN.md Phase 5 step 15) -- no intermediate fold.
+waveform table natively (docs/refactor_plan.md Phase 5 step 15) -- no intermediate fold.
 """
 
 import time
@@ -34,7 +34,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (now driven via I2S DMA -- docs/REFACTOR-PLAN.md step 12)
+        # clean the display (now driven via I2S DMA -- docs/refactor_plan.md step 12)
         t0 = time.ticks_ms()
         ip.clean(1, 1)
         ip.clean(0, 10)

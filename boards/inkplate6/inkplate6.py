@@ -368,7 +368,7 @@ class Inkplate:
                     # reference driver's sdCardInit(), same pins), so reusing Inkplate10's
                     # already-HIL-verified 4MHz value here too -- but that finding was
                     # specific to Inkplate10's own SD card/cable on that session's hardware
-                    # (docs/REFACTOR-PLAN.md Phase 7 step 21); not yet independently
+                    # (docs/refactor_plan.md Phase 7 step 21); not yet independently
                     # confirmed on real Inkplate6 hardware. Re-verify during this step's
                     # HIL pass and raise if 4MHz proves unnecessarily conservative here.
                     freq=4000000,

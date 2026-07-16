@@ -11,7 +11,7 @@ import inkplate
 machine.freq(240000000)
 
 # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C spi_panel
-# transport (firmware/usermods/inkplate/epd_spi.c, docs/REFACTOR-PLAN.md Phase 9 step 31)
+# transport (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
 # -- no Python-side pin constants needed.
 
 pixel_mask_lut = [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
@@ -61,7 +61,7 @@ class Inkplate:
 
         # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
         # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
-        # docs/REFACTOR-PLAN.md Phase 9 step 31) -- no more machine.SPI/Pin objects for
+        # docs/refactor_plan.md Phase 9 step 31) -- no more machine.SPI/Pin objects for
         # the panel itself.
         inkplate.select_spi_panel("inkplate2")
         inkplate.spi_panel_init()
@@ -523,7 +523,7 @@ class Inkplate:
             # case -- inline, per pixel, no whole-image buffer at all).
             # Pre-allocating one here unconditionally used to reliably MemoryError
             # on real Inkplate6COLOR hardware for completely ordinary photos
-            # (docs/REFACTOR-PLAN.md Phase 7 step 21's follow-up) -- worse than the
+            # (docs/refactor_plan.md Phase 7 step 21's follow-up) -- worse than the
             # rare case this was meant to serve.
             inkplate.png_draw_palette(
                 self._framebuf_BW,

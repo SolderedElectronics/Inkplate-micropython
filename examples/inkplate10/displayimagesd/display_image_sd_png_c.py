@@ -1,5 +1,5 @@
 """Decode a PNG from the SD card through the new C PNG decode path (vendored pngle,
-ROM miniz/tinfl, docs/REFACTOR-PLAN.md Phase 7 step 19) with real Floyd-Steinberg
+ROM miniz/tinfl, docs/refactor_plan.md Phase 7 step 19) with real Floyd-Steinberg
 dithering (step 21) and draw it in grayscale. Alpha is ignored (treated fully opaque).
 
 Calls the low-level inkplate.png_draw_gs4() C binding directly -- draw_image()/

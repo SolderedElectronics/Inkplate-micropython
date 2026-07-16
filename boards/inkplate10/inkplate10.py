@@ -235,7 +235,7 @@ class _Inkplate:
 
     # vscan_start/vscan_write/vscan_end/fill_screen are implemented in C
     # (firmware/usermods/inkplate/epd_bitbang.c) as of Phase 2 -- see
-    # docs/REFACTOR-PLAN.md step 7. Same names/signatures as before, so
+    # docs/refactor_plan.md step 7. Same names/signatures as before, so
     # inkplate_mono.py/inkplate_gs.py/inkplate_partial.py need no changes.
     @classmethod
     def vscan_start(cls):
@@ -398,7 +398,7 @@ class Inkplate:
                     # -- confirmed with plain f.read()/readinto(), no decode/dither code
                     # involved), surviving multiple power-cycles and an SD card reseat, so
                     # not a loose-contact fluke. Dropped to 4MHz (reads of both files
-                    # confirmed hang-free at this speed, docs/REFACTOR-PLAN.md Phase 7
+                    # confirmed hang-free at this speed, docs/refactor_plan.md Phase 7
                     # step 21 HIL) -- slower, but this board/card/cable combination no
                     # longer reliably sustains 20MHz for large transfers. Revisit if a
                     # faster reliable speed is found later; don't assume the regression is
@@ -638,7 +638,7 @@ class Inkplate:
         )
 
     # Active framebuf for the current display_mode -- shared by every gfx_* call below,
-    # since C owns the whole draw now (docs/REFACTOR-PLAN.md Phase 7 step 17) instead of
+    # since C owns the whole draw now (docs/refactor_plan.md Phase 7 step 17) instead of
     # a per-pixel Python callback.
     def _framebuf(self):
         return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf
@@ -938,7 +938,7 @@ class Inkplate:
             # os.stat + readinto into a pre-sized bytearray, not f.read(): MicroPython's
             # whole-file read() grows its buffer geometrically and can transiently need
             # more than the final size, MemoryError-ing on files a pre-sized allocation
-            # handles fine (docs/REFACTOR-PLAN.md step 20's finding).
+            # handles fine (docs/refactor_plan.md step 20's finding).
             f.readinto(bmp_data)
         inkplate.bmp_draw_gs4(
             self._framebuf(),

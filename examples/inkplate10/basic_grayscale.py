@@ -28,7 +28,7 @@ inkplate.clear_display()
 inkplate.display()
 
 # Draw a ramp of all 8 real gray levels (0=black .. 7=white) -- the C engine now drives the
-# real 3-bit/8-level waveform table natively (docs/REFACTOR-PLAN.md Phase 5 step 15).
+# real 3-bit/8-level waveform table natively (docs/refactor_plan.md Phase 5 step 15).
 for level in range(8):
     inkplate.write_fill_rect(level * 103, 0, 103, 825, level)
 

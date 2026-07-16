@@ -27,7 +27,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.i2s_init()
 
         # KNOWN ISSUE -- see inkplate_mono.py's display() for the full explanation
-        # (docs/REFACTOR-PLAN.md step 24, HIL-blocked).
+        # (docs/refactor_plan.md step 24, HIL-blocked).
 
         # clean the display (I2S DMA), reps transcribed verbatim from the real Arduino
         # Inkplate6FLICKDriver.cpp display3b() -- identical sequence to display1b() on

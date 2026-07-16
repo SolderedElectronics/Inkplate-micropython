@@ -2,7 +2,7 @@
 
 Display-path + SD card + battery/temperature only -- this pass deliberately does not
 port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue or touch/frontlight,
-same precedent as Inkplate6FLICK's own first pass (docs/REFACTOR-PLAN.md Phase 8 step
+same precedent as Inkplate6FLICK's own first pass (docs/refactor_plan.md Phase 8 step
 24). Only the V2 hardware revision is wired here (IO_EXT_ADDR 0x21 per the pasted
 Arduino reference driver's pins.h); the classic (non-V2) INKPLATE6PLUS uses 0x22 there
 and isn't supported by this file.

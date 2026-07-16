@@ -3,7 +3,7 @@
 Display-path + SD card only -- this pass deliberately does not port
 setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue/readTemperature, the fuel
 gauge/BME688/APDS9960/accelerometer/buzzer peripherals, or touch/frontlight, same
-precedent as Inkplate6FLICK/6PLUSV2's own first pass (docs/REFACTOR-PLAN.md Phase 8
+precedent as Inkplate6FLICK/6PLUSV2's own first pass (docs/refactor_plan.md Phase 8
 steps 24/25/26).
 """
 
