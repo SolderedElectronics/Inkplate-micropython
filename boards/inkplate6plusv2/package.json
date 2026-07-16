@@ -39,6 +39,10 @@
     [
       "touch_elan.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/touch_elan.py"
+    ],
+    [
+      "frontlight.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/frontlight.py"
     ]
   ],
   "deps": [],

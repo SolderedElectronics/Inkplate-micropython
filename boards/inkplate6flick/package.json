@@ -21,6 +21,10 @@
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/touch_cypress.py"
     ],
     [
+      "frontlight.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/frontlight.py"
+    ],
+    [
       "gfx_standard_font_01.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/gfx_standard_font_01.py"
     ],

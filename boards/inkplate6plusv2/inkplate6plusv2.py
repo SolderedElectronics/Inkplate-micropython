@@ -1,13 +1,14 @@
 """MicroPython driver for the Inkplate 6PLUS (V2 revision) e-paper display.
 
 Display-path + SD card + battery/temperature + touch -- this pass deliberately does
-not port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue or frontlight,
-same precedent as Inkplate6FLICK's own first pass (docs/refactor_plan.md Phase 8 step
-24). Only the V2 hardware revision is wired here (IO_EXT_ADDR 0x21 per the pasted
-Arduino reference driver's pins.h); the classic (non-V2) INKPLATE6PLUS uses 0x22 there
-and isn't supported by this file -- touch is unaffected by that split (its own
+not port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue, same precedent as
+Inkplate6FLICK's own first pass (docs/refactor_plan.md Phase 8 step 24). Only the V2
+hardware revision is wired here (IO_EXT_ADDR 0x21 per the pasted Arduino reference
+driver's pins.h); the classic (non-V2) INKPLATE6PLUS uses 0x22 there and isn't
+supported by this file -- touch is unaffected by that split (its own
 TOUCHSCREEN_IO_EXPANDER is IO_INT_ADDR, 0x20, the same on both revisions). Touch (Elan
-controller, shared with Inkplate4TEMPERA) wired in Phase 11.
+controller, shared with Inkplate4TEMPERA) and frontlight (shared with Inkplate4TEMPERA/
+6FLICK) wired in Phase 11.
 """
 
 import time
@@ -21,6 +22,7 @@ from tps65186 import TPS65186, read_battery_voltage_autodetect
 from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
 from touch_elan import Touch
+from frontlight import Frontlight
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -322,6 +324,12 @@ class Inkplate:
             xy_flipped=True,
         )
 
+        # FRONTLIGHT_EN=11 on the internal expander (0x20) -- confirmed from this
+        # board's own pasted pins.h, no collision with that expander's other pins
+        # (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/VBAT_EN=9/touch RST=10/EN=12/
+        # SD_ENABLE=13).
+        Frontlight.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 11)
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -404,6 +412,13 @@ class Inkplate:
 
     def touch_in_area(self, x1, y1, w, h):
         return Touch.touch_in_area(x1, y1, w, h)
+
+    # Frontlight -- thin delegation to frontlight.Frontlight, wired in begin().
+    def set_frontlight(self, state):
+        Frontlight.set_state(state)
+
+    def set_frontlight_brightness(self, v):
+        Frontlight.set_brightness(v)
 
     def gpio_expander_pin(self, expander, pin, mode):
         if expander == 1:

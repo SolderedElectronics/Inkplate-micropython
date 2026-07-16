@@ -1,4 +1,7 @@
-"""MicroPython driver for the Inkplate 6FLICK e-paper display."""
+"""MicroPython driver for the Inkplate 6FLICK e-paper display.
+
+Frontlight (shared with Inkplate4TEMPERA/6PLUSV2) wired in Phase 11.
+"""
 
 import time
 import micropython
@@ -12,6 +15,7 @@ from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
 from micropython import const
 from touch_cypress import Touch
+from frontlight import Frontlight
 import gfx_standard_font_01 as montserrat_black
 import gc
 
@@ -288,6 +292,12 @@ class Inkplate:
 
         Touch.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, self)
 
+        # FRONTLIGHT_EN=11 on the internal expander (0x20) -- confirmed from this
+        # board's own pasted pins.h, no collision with that expander's other pins
+        # (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/VBAT_EN=9/touch RST=10/EN=12/
+        # SD_ENABLE=13).
+        Frontlight.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 11)
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -436,6 +446,13 @@ class Inkplate:
 
     def touch_in_area(self, x1, y1, w, h):
         return Touch.touch_in_area(x1, y1, w, h)
+
+    # Frontlight -- thin delegation to frontlight.Frontlight, wired in begin().
+    def set_frontlight(self, state):
+        Frontlight.set_state(state)
+
+    def set_frontlight_brightness(self, v):
+        Frontlight.set_brightness(v)
 
     def width(self):
         return self._width

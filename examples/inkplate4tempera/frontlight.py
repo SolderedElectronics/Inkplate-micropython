@@ -1,7 +1,7 @@
 """Turn on the frontlight and ramp its brightness up and down."""
 
 # Include required libraries
-from inkplate6_flick import Inkplate
+from inkplate4tempera import Inkplate
 import time
 
 # Create Inkplate object in 1-bit (black and white) mode

@@ -1,11 +1,11 @@
 """MicroPython driver for the Inkplate 4TEMPERA e-paper display.
 
 Display-path + SD card + touch -- this pass deliberately does not port
-setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue/readTemperature, the fuel
-gauge/BME688/APDS9960/accelerometer/buzzer peripherals, or frontlight, same
-precedent as Inkplate6FLICK/6PLUSV2's own first pass (docs/refactor_plan.md Phase 8
-steps 24/25/26). Touch (Elan controller, shared with Inkplate6PLUS/6PLUSV2) wired
-in Phase 11.
+setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue/readTemperature, or the fuel
+gauge/BME688/APDS9960/accelerometer/buzzer peripherals, same precedent as
+Inkplate6FLICK/6PLUSV2's own first pass (docs/refactor_plan.md Phase 8 steps 24/25/26).
+Touch (Elan controller, shared with Inkplate6PLUS/6PLUSV2) and frontlight (shared with
+Inkplate6PLUS/6PLUSV2/6FLICK) wired in Phase 11.
 """
 
 import time
@@ -19,6 +19,7 @@ from tps65186 import TPS65186
 from rtc import RTC
 from epd_power_pins import tristate_display_pins, restore_display_pins
 from touch_elan import Touch
+from frontlight import Frontlight
 from micropython import const
 import gfx_standard_font_01 as montserrat_black
 import gc
@@ -296,6 +297,11 @@ class Inkplate:
             xy_swapped=True,
         )
 
+        # FRONTLIGHT_EN=10 on the internal expander (0x20) -- confirmed from this
+        # board's own pasted pins.h, no collision with that expander's other pins
+        # (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/SD_ENABLE=11).
+        Frontlight.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 10)
+
         self.ipg = InkplateGS2()
         self.ipm = InkplateMono()
 
@@ -377,6 +383,13 @@ class Inkplate:
 
     def touch_in_area(self, x1, y1, w, h):
         return Touch.touch_in_area(x1, y1, w, h)
+
+    # Frontlight -- thin delegation to frontlight.Frontlight, wired in begin().
+    def set_frontlight(self, state):
+        Frontlight.set_state(state)
+
+    def set_frontlight_brightness(self, v):
+        Frontlight.set_brightness(v)
 
     def gpio_expander_pin(self, expander, pin, mode):
         if expander == 1:
