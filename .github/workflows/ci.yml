@@ -37,8 +37,7 @@ jobs:
       - name: clang-format check (C)
         run: |
           sudo apt-get update && sudo apt-get install -y clang-format-18
-          clang-format-18 --dry-run --Werror $(find firmware -name '*.c' -o -name '*.h' \
-            | grep -v -e '/pngle\.c$' -e '/pngle\.h$')
+          clang-format-18 --dry-run --Werror $(find firmware -name '*.c' -o -name '*.h')
 
   test:
     runs-on: ubuntu-latest
