@@ -267,6 +267,22 @@ static void test_set_pixel_gs4_packing(void)
     assert(gs4_nibble(fb, 8, 2, 0) == 7);
 }
 
+// Inkplate4TEMPERA's own write_pixel_viper packs the opposite nibble order from every other
+// wired board (docs/refactor_plan.md Phase 8 step 26) -- gfx_set_gs4_nibble_swap lets
+// gfx_set_pixel reproduce that without a second copy of the packing logic.
+static void test_set_pixel_gs4_nibble_swap(void)
+{
+    uint8_t fb[8];
+    memset(fb, 0, sizeof(fb));
+    gfx_set_gs4_nibble_swap(1);
+    gfx_set_pixel(fb, 8, 2, 0, 1, 0, 0, 5); // even x -> high nibble when swapped
+    gfx_set_pixel(fb, 8, 2, 0, 1, 1, 0, 6); // odd x -> low nibble when swapped
+    gfx_set_gs4_nibble_swap(0);             // restore default for every other test in this file
+    assert(fb[0] == 0x56);
+    assert(gs4_nibble(fb, 8, 0, 0) == 6);
+    assert(gs4_nibble(fb, 8, 1, 0) == 5);
+}
+
 // Hand-built 4x3 glyph (row_bytes = ceil(4/8) = 1 byte/row, MSB-first per row, matching
 // shared/gfx_standard_font_01.py-style get_ch() output):
 //   row0: 1010   row1: 0110   row2: 1111
@@ -323,14 +339,68 @@ static void test_draw_char_gs4(void)
     assert(gs4_nibble(fb, 8, 3, 0) == 0);
 }
 
+// Reuses glyph_4x3 as a "bitmap" source (same MSB-first-per-row format) -- replaces every
+// board's own per-set-bit write_pixel draw_bitmap loop, see docs/refactor_plan.md Phase 12
+// step 41. Confirms both the transparent (unset-bit) background and that a pre-existing
+// pixel bit isn't touched by a 0 source bit.
+static void test_draw_bitmap_mono(void)
+{
+    uint8_t fb[FB_BYTES];
+    memset(fb, 0, sizeof(fb));
+    // Pre-set an unrelated pixel outside the glyph footprint, and one *inside* it at a
+    // position where the glyph bit is 0 (row1,col0) -- both must survive untouched.
+    gfx_set_pixel(fb, W, H, 0, 0, 20, 20, 1);
+    gfx_set_pixel(fb, W, H, 0, 0, 0, 1, 1);
+
+    gfx_draw_bitmap(fb, W, H, 0, 0, 0, 0, glyph_4x3, 4, 3, 1);
+
+    static const pt_t expected[] = {
+        {0, 0}, {0, 1}, {0, 2}, {1, 1}, {1, 2}, {2, 0}, {2, 1}, {2, 2}, {3, 2}, {20, 20},
+    };
+    pt_t actual[16];
+    int n = collect_set_pixels(fb, actual, 16);
+    assert(n == (int)(sizeof(expected) / sizeof(expected[0])));
+    for (int i = 0; i < n; i++) {
+        assert(actual[i].x == expected[i].x && actual[i].y == expected[i].y);
+    }
+}
+
+// Replaces every board's duplicated `@micropython.viper` byte-fill loop (mono clear ->
+// 0x00, GS4 clear -> 0x77) with one real memset(), see docs/refactor_plan.md Phase 12.
+// Rotation/display_mode-agnostic -- a full clear has no per-pixel remap to get wrong,
+// so this only needs to confirm every byte in the buffer got the value, no more no less.
+static void test_buf_fill(void)
+{
+    uint8_t fb[FB_BYTES];
+    memset(fb, 0xAA, sizeof(fb));
+    gfx_buf_fill(fb, sizeof(fb), 0x77);
+    for (size_t i = 0; i < sizeof(fb); i++) {
+        assert(fb[i] == 0x77);
+    }
+
+    // A shorter fill must not touch bytes past `len`.
+    uint8_t fb2[8];
+    memset(fb2, 0xAA, sizeof(fb2));
+    gfx_buf_fill(fb2, 4, 0x00);
+    for (int i = 0; i < 4; i++) {
+        assert(fb2[i] == 0x00);
+    }
+    for (int i = 4; i < 8; i++) {
+        assert(fb2[i] == 0xAA);
+    }
+}
+
 int main(void)
 {
     test_shapes_vs_python_reference();
     test_set_pixel_rotation();
     test_set_pixel_gs4_packing();
+    test_set_pixel_gs4_nibble_swap();
     test_draw_char_mono();
     test_draw_char_scaled();
     test_draw_char_gs4();
+    test_draw_bitmap_mono();
+    test_buf_fill();
     printf("test_gfx: all tests passed\n");
     return 0;
 }

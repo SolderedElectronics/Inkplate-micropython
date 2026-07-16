@@ -6,7 +6,7 @@
     ],
     [
       "touch_cypress.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/touch_cypress.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/touch_cypress.py"
     ],
     [
       "frontlight.py",

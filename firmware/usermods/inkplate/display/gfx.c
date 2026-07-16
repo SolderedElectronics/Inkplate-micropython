@@ -1,5 +1,12 @@
 #include "gfx.h"
 
+#include <string.h>
+
+void gfx_buf_fill(uint8_t *fb, int len, uint8_t value)
+{
+    memset(fb, value, (size_t)len);
+}
+
 // Matches Python's `//` (floor division), not C's `/` (truncation toward zero) -- needed by
 // gfx_fill_triangle's scanline math, which can see negative numerators/denominators once the
 // three vertices aren't sorted left-to-right.
@@ -39,6 +46,15 @@ static int s_mirror_x = 0;
 void gfx_set_mirror_x(int enable)
 {
     s_mirror_x = enable;
+}
+
+// See gfx_set_gs4_nibble_swap's declaration (gfx.h) for why this is static session state
+// rather than a per-call parameter.
+static int s_gs4_nibble_swap = 0;
+
+void gfx_set_gs4_nibble_swap(int enable)
+{
+    s_gs4_nibble_swap = enable;
 }
 
 // Single pixel-write core -- consolidates what was boards/inkplate10/inkplate10.py's
@@ -91,12 +107,15 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
         if (color) {
             fb[idx] |= (uint8_t)(1 << shift);
         } else {
-            fb[idx] &= (uint8_t) ~(1 << shift);
+            fb[idx] &= (uint8_t)~(1 << shift);
         }
     } else {
         color &= 0x07;
         int byte_index = py * (w / 2) + (px >> 1);
         int pixel_index = px & 1;
+        if (s_gs4_nibble_swap) {
+            pixel_index ^= 1;
+        }
         int shift = pixel_index * 4;
         uint8_t mask = pixel_index == 0 ? 0xF0 : 0x0F;
         fb[byte_index] = (uint8_t)((fb[byte_index] & mask) | (color << shift));
@@ -462,6 +481,28 @@ void gfx_draw_char(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
                     gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x_base + sx,
                                   y_base + sy, color);
                 }
+            }
+        }
+    }
+}
+
+// Ports every board's own draw_bitmap Python loop (byte-walking + write_pixel per set bit)
+// into one C call -- see docs/refactor_plan.md Phase 12 step 41.
+void gfx_draw_bitmap(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
+                     int y0, const uint8_t *bitmap, int bmp_w, int bmp_h, int color)
+{
+    int byte_width = (bmp_w + 7) / 8;
+    for (int row = 0; row < bmp_h; row++) {
+        uint8_t byte = 0;
+        for (int col = 0; col < bmp_w; col++) {
+            if (col & 7) {
+                byte <<= 1;
+            } else {
+                byte = bitmap[row * byte_width + col / 8];
+            }
+            if (byte & 0x80) {
+                gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + col, y0 + row,
+                              color);
             }
         }
     }

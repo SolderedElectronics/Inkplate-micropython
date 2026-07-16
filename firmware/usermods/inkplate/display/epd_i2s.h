@@ -27,7 +27,7 @@ void epd_i2s_init(const board_config_t *cfg);
 
 // Reconnects data_pins[0..7]/pin_cl back to plain GPIO output (undoes the matrix
 // routing from epd_i2s_init) and tears down the I2S1 peripheral + DMA buffers, so
-// epd_bitbang.c's bit-bang path is usable again afterward.
+// epd_control.c's bit-bang path is usable again afterward.
 void epd_i2s_deinit(const board_config_t *cfg);
 
 // Sends one row (width>>3 bytes, all set to fill_byte) via I2S1 DMA, framed by SPH

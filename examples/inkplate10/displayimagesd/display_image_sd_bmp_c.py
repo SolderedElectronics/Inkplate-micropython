@@ -1,54 +1,36 @@
-"""Decode a BMP from the SD card through the new C BMP decode path (24-bit, 1/4/8-bit
+"""Decode a BMP from the SD card through the C BMP decode path (24-bit, 1/4/8-bit
 indexed, and 16-bit 555/565, docs/refactor_plan.md Phase 7 step 20) with real
 Floyd-Steinberg dithering (step 21) and draw it in grayscale.
 
-Calls the low-level inkplate.bmp_draw_gs4() C binding directly -- draw_image()/
-draw_bmp_from_sd() (boards/inkplate10/inkplate10.py) now call the same binding, so this
-example is mainly useful for exercising it without SD-card plumbing.
+Calls the high-level draw_bmp_from_sd() (boards/inkplate10/inkplate10.py) -- it wraps the
+same inkplate.bmp_draw_gs4() C binding this example called directly before step 43, plus
+the file read and a gc.collect() after. Its own file read already uses os.stat +
+readinto() into a pre-sized bytearray rather than f.read() -- MicroPython's whole-file
+read() grows its buffer geometrically and can transiently need more than the final size,
+so it can MemoryError on a file that a single pre-sized allocation of the same size
+handles fine (seen on real hardware with this example's own 1.4MB BMP, ~3.3MB free heap
+at the time).
 
 Copy a BMP onto the SD card as /sd/coastal.bmp before running this example.
-
-Note: uses os.stat + readinto() into a pre-sized bytearray rather than f.read() --
-MicroPython's whole-file read() grows its buffer geometrically and can transiently
-need more than the final size, so it can MemoryError on a file that a single
-pre-sized allocation of the same size handles fine (seen on real hardware with this
-example's own 1.4MB BMP, ~3.3MB free heap at the time).
 """
 
 from inkplate10 import Inkplate
-import inkplate
-import os
 import time
-
-# Inkplate10 physical (unrotated) panel dimensions -- see D_COLS/D_ROWS in
-# boards/inkplate10/inkplate10.py.
-D_COLS = 1200
-D_ROWS = 825
 
 ipk = Inkplate(Inkplate.INKPLATE_2BIT)
 ipk.begin()
 ipk.init_sd_card(fast_boot=True)
 
-bmp_size = os.stat("/sd/coastal.bmp")[6]
-bmp_data = bytearray(bmp_size)
-with open("/sd/coastal.bmp", "rb") as f:
-    f.readinto(bmp_data)
-
 t0 = time.ticks_ms()
-width, height = inkplate.bmp_draw_gs4(
-    ipk.ipg._framebuf,
-    D_COLS,
-    D_ROWS,
-    ipk.rotation,
-    ipk.display_mode,
+ipk.draw_bmp_from_sd(
+    "/sd/coastal.bmp",
     0,
     0,
-    bmp_data,
-    False,  # invert
-    True,  # dither
-    0,  # kernel_type: Floyd-Steinberg
+    invert=False,
+    dither=True,
+    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
 )
-print("decoded {}x{} BMP in {} ms".format(width, height, time.ticks_diff(time.ticks_ms(), t0)))
+print("decoded+drew BMP in {} ms".format(time.ticks_diff(time.ticks_ms(), t0)))
 
 ipk.display()
 

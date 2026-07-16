@@ -26,7 +26,7 @@ TESTS_DIR = SRC_DIR / "tests"
 # esp_heap_caps.h, sdkconfig.h, miniz.h, ...) that don't exist for a host gcc -- they're
 # only checked by the real firmware build + HIL, not host-compiled here.
 HARDWARE_ONLY = {
-    "epd_bitbang.c",
+    "epd_control.c",
     "epd_i2s.c",
     "epd_spi.c",
     "expander_bridge.c",

@@ -2,7 +2,7 @@
 #include "py/obj.h"
 #include "display/expander_bridge.h"
 #include "display/board_config.h"
-#include "display/epd_bitbang.h"
+#include "display/epd_control.h"
 #include "display/epd_i2s.h"
 #include "display/epd_partial_lut.h"
 #include "display/waveform.h"
@@ -44,7 +44,7 @@ static MP_DEFINE_CONST_FUN_OBJ_3(inkplate_test_expander_write_obj, inkplate_test
 
 // Active board, set once via select_board() before any epd_* call. mp function arity
 // is fixed, so board_config_t* can't be threaded through the Python-facing calls the
-// way it is through the C-internal epd_bitbang API -- this is the one place that holds
+// way it is through the C-internal epd_control API -- this is the one place that holds
 // it as static state instead.
 static const board_config_t *active_board = NULL;
 
@@ -389,6 +389,56 @@ static mp_obj_t inkplate_gfx_set_mirror_x(mp_obj_t enable_obj)
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gfx_set_mirror_x_obj, inkplate_gfx_set_mirror_x);
+
+static mp_obj_t inkplate_gfx_set_gs4_nibble_swap(mp_obj_t enable_obj)
+{
+    gfx_set_gs4_nibble_swap(mp_obj_is_true(enable_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gfx_set_gs4_nibble_swap_obj,
+                                 inkplate_gfx_set_gs4_nibble_swap);
+
+// args: framebuf, phys_w, phys_h, rotation, display_mode, x, y, color.
+static mp_obj_t inkplate_gfx_set_pixel(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf;
+    gfx_set_pixel(gfx_writable_buf(args[0], &buf), mp_obj_get_int(args[1]),
+                  mp_obj_get_int(args[2]), mp_obj_get_int(args[3]), mp_obj_get_int(args[4]),
+                  mp_obj_get_int(args[5]), mp_obj_get_int(args[6]), mp_obj_get_int(args[7]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_set_pixel_obj, 8, 8,
+                                           inkplate_gfx_set_pixel);
+
+// args: framebuf, value. Fills the whole buffer -- length comes from the buffer itself,
+// not a separate arg, so a caller can't accidentally overrun it with a mismatched size.
+static mp_obj_t inkplate_gfx_buf_fill(mp_obj_t fb_obj, mp_obj_t value_obj)
+{
+    mp_buffer_info_t buf;
+    gfx_buf_fill(gfx_writable_buf(fb_obj, &buf), (int)buf.len,
+                 (uint8_t)mp_obj_get_int(value_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_gfx_buf_fill_obj, inkplate_gfx_buf_fill);
+
+// args: framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, bitmap(bytes-like), bmp_w,
+// bmp_h, color.
+static mp_obj_t inkplate_gfx_draw_bitmap(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    mp_buffer_info_t buf, bmp_buf;
+    uint8_t *fb = gfx_writable_buf(args[0], &buf);
+    mp_get_buffer_raise(args[7], &bmp_buf, MP_BUFFER_READ);
+
+    gfx_draw_bitmap(fb, mp_obj_get_int(args[1]), mp_obj_get_int(args[2]), mp_obj_get_int(args[3]),
+                    mp_obj_get_int(args[4]), mp_obj_get_int(args[5]), mp_obj_get_int(args[6]),
+                    (const uint8_t *)bmp_buf.buf, mp_obj_get_int(args[8]),
+                    mp_obj_get_int(args[9]), mp_obj_get_int(args[10]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_bitmap_obj, 11, 11,
+                                           inkplate_gfx_draw_bitmap);
 
 static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
 {
@@ -822,6 +872,11 @@ static const mp_rom_map_elem_t inkplate_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_spi_dual_deselect), MP_ROM_PTR(&inkplate_spi_dual_deselect_obj)},
     {MP_ROM_QSTR(MP_QSTR_spi_dual_write), MP_ROM_PTR(&inkplate_spi_dual_write_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_set_mirror_x), MP_ROM_PTR(&inkplate_gfx_set_mirror_x_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_set_gs4_nibble_swap),
+     MP_ROM_PTR(&inkplate_gfx_set_gs4_nibble_swap_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_set_pixel), MP_ROM_PTR(&inkplate_gfx_set_pixel_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_buf_fill), MP_ROM_PTR(&inkplate_gfx_buf_fill_obj)},
+    {MP_ROM_QSTR(MP_QSTR_gfx_draw_bitmap), MP_ROM_PTR(&inkplate_gfx_draw_bitmap_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_hline), MP_ROM_PTR(&inkplate_gfx_hline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_vline), MP_ROM_PTR(&inkplate_gfx_vline_obj)},
     {MP_ROM_QSTR(MP_QSTR_gfx_line), MP_ROM_PTR(&inkplate_gfx_line_obj)},

@@ -1,12 +1,10 @@
 """MicroPython driver for the Inkplate 10 e-paper display."""
 
 import time
-import micropython
 import os
 import inkplate
 import framebuf
 from machine import ADC, I2C, Pin, SDCard
-from uarray import array
 from pcal6416a import *
 from mcp23017 import MCP23017
 from tps65186 import TPS65186, read_battery_voltage
@@ -23,9 +21,6 @@ machine.freq(240000000)
 # Raw display constants for Inkplate 10
 D_ROWS = const(825)
 D_COLS = const(1200)
-
-# Lookup mask to clear just that pixel's 4 bits (GS4_HMSB, 2 pixels/byte)
-pixel_mask_glut = bytearray(b"\xf0\x0f")  # precomputed masks
 
 # Waveforms for 2 bits per pixel grey-scale.
 # Order of 4 values in each tuple: blk, dk-grey, light-grey, white
@@ -44,12 +39,6 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
 # Ink10 WAVEFORM3BIT from arduino driver
 # {{0,0,0,0,0,0,1,0},{0,0,2,2,2,1,1,0},{0,2,1,1,2,2,1,0},{1,2,2,1,2,2,1,0},
 #  {0,2,1,2,2,2,1,0},{2,2,2,2,2,2,1,0},{0,0,0,0,2,1,2,0},{0,0,2,2,2,2,2,0}};
-
-# Bit masks used by the (still-Python) byte2gpio table and clean(); the CL/LE/CKV/SPH
-# pulse sequencing itself now lives in C (firmware/usermods/inkplate/epd_bitbang.c),
-# selected via inkplate.select_board() below.
-EPD_DATA = const(0x0E8C0030)  # EPD_D0..EPD_D7
-EPD_CL = const(0x00000001)  # in W1Tx0
 
 # Valid hardware variants for this driver -- confirmed from the real Arduino reference
 # driver's pins.h: IO_INT_ADDR=0x20 (internal expander, drives OE/GMODE/SPV/TPS_*, same
@@ -163,10 +152,7 @@ class _Inkplate:
 
         cls._on = False  # whether panel is powered on or not
 
-        if len(_Inkplate.byte2gpio) == 0:
-            _Inkplate.gen_byte2gpio()
-
-    # _expander_write_cb is invoked from C (epd_bitbang.c, via expander_bridge.c) to
+    # _expander_write_cb is invoked from C (epd_control.c, via expander_bridge.c) to
     # toggle an expander-controlled line (currently only SPV) -- routes by I2C address
     # to whichever expander instance owns that address. Works for either chip since both
     # PCAL6416A and MCP23017 expose the same .addr / .digital_write(pin, value) shape.
@@ -235,7 +221,7 @@ class _Inkplate:
     # ===== Methods that are independent of pixel bit depth
 
     # vscan_start/vscan_write/vscan_end/fill_screen are implemented in C
-    # (firmware/usermods/inkplate/epd_bitbang.c) as of Phase 2 -- see
+    # (firmware/usermods/inkplate/epd_control.c) as of Phase 2 -- see
     # docs/refactor_plan.md step 7. Same names/signatures as before, so
     # inkplate_mono.py/inkplate_gs.py/inkplate_partial.py need no changes.
     @classmethod
@@ -269,23 +255,6 @@ class _Inkplate:
     @staticmethod
     def partial_display(old_fb, new_fb):
         inkplate.partial_display(old_fb, new_fb)
-
-    # byte2gpio converts a byte of data for the screen to 32 bits of gpio0..31
-    # (oh, e-radionica, why didn't you group the gpios better?!)
-    byte2gpio = []
-
-    @classmethod
-    def gen_byte2gpio(cls):
-        cls.byte2gpio = array("L", bytes(4 * 256))
-        for b in range(256):
-            cls.byte2gpio[b] = (
-                (b & 0x3) << 4 | (b & 0xC) << 16 | (b & 0x10) << 19 | (b & 0xE0) << 20
-            )
-        # sanity check that all EPD_DATA bits got set at some point and no more
-        union = 0
-        for i in range(256):
-            union |= cls.byte2gpio[i]
-        assert union == EPD_DATA
 
     @staticmethod
     def fill_screen(data: int):
@@ -352,10 +321,8 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_off()
 
     @staticmethod
-    @micropython.viper
-    def clear(fb: ptr8):
-        for ix in range(1200 * 825 // 8):
-            fb[ix] = 0x00
+    def clear(fb):
+        inkplate.gfx_buf_fill(fb, 0x00)
 
 
 class InkplateGS2(framebuf.FrameBuffer):
@@ -404,10 +371,8 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.power_off()
 
     @staticmethod
-    @micropython.viper
-    def clear(fb: ptr8):
-        for ix in range(1200 * 825 // 2):
-            fb[ix] = 0x77  # both nibbles = raw level 7 (white)
+    def clear(fb):
+        inkplate.gfx_buf_fill(fb, 0x77)  # both nibbles = raw level 7 (white)
 
 
 class InkplatePartial:
@@ -674,88 +639,23 @@ class Inkplate:
     def start_write(self):
         pass
 
-    @micropython.native
     def write_pixel(self, x, y, c):
-        if self.display_mode == 0:
-            Inkplate.write_pixel_viper(
-                self.ipm._framebuf, x, y, c, self.rotation, self.display_mode
-            )
-        else:
-            Inkplate.write_pixel_viper(
-                self.ipg._framebuf, x, y, c, self.rotation, self.display_mode
-            )
-
-    @staticmethod
-    @micropython.viper
-    def write_pixel_viper(fb: ptr8, x: int, y: int, c: int, rot: int, display_mode: int):
-        w = 1200  # physical width
-        h = 825  # physical height
-
-        # Logical bounds (swap for 90°/270° so we never address past h)
-        if rot & 1:  # 1 or 3 -> 90°/270°
-            if x < 0 or y < 0 or x >= h or y >= w:
-                return
-        else:
-            if x < 0 or y < 0 or x >= w or y >= h:
-                return
-
-        # Map (x,y) -> physical (px,py) inside w×h
-        if rot == 0:  # 0°
-            px = x
-            py = y
-        elif rot == 1:  # 90° CW
-            px = y
-            py = h - 1 - x
-        elif rot == 2:  # 180°
-            px = w - 1 - x
-            py = h - 1 - y
-        else:  # 270° CCW (rot == 3)
-            px = w - 1 - y
-            py = x
-        if display_mode == 0:  # 1bpp
-            idx = (py * w + px) >> 3  # 8 pixels per byte
-            shift = px & 7
-            if c:
-                fb[idx] = fb[idx] | (1 << shift)
-            else:
-                fb[idx] = fb[idx] & ~(1 << shift)
-
-        else:
-            c &= 0x07  # raw 0-7 (3-bit/8-level storage, GS4_HMSB)
-
-            # Find byte index (2 pixels/byte)
-            byte_index = py * 600 + (px >> 1)
-
-            # Which pixel inside this byte (0..1)
-            pixel_index = px & 1
-            shift = pixel_index * 4
-
-            # Load current byte
-            temp = fb[byte_index]
-
-            # Clear and write the new pixel
-            fb[byte_index] = (temp & int(pixel_mask_glut[pixel_index])) | (c << shift)
+        inkplate.gfx_set_pixel(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, c
+        )
 
     def draw_bitmap(self, x, y, data, w, h, c=1):
-        byte_width = (w + 7) // 8
-        byte = 0
-        self.start_write()
-        for j in range(h):
-            for i in range(w):
-                if i & 7:
-                    byte <<= 1
-                else:
-                    byte = data[j * byte_width + i // 8]
-                if byte & 0x80:
-                    self.write_pixel(x + i, y + j, c)
-        self.end_write()
+        inkplate.gfx_draw_bitmap(
+            self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, data, w, h, c
+        )
 
     # write_fill_rect/write_fast_hline/write_fast_vline predate shared/gfx.py's GFX class
     # (GFX.fill_rect/hline/vline are bound to these, not the other way around) so they were
     # out of scope for the initial gfx C port -- ported here as a direct follow-up since
     # gfx_fill_rect/gfx_hline/gfx_vline already exist and are already tested: collapsing
     # these from an O(w*h)/O(n) per-pixel Python loop into a single C call is the actual win
-    # (write_pixel itself is already a viper function, so it wasn't worth touching).
+    # (write_pixel/draw_bitmap themselves were unified onto the C gfx path separately,
+    # see docs/refactor_plan.md Phase 12 step 41).
     def write_fill_rect(self, x, y, w, h, c):
         inkplate.gfx_fill_rect(
             self._framebuf(), D_COLS, D_ROWS, self.rotation, self.display_mode, x, y, w, h, c

@@ -4,7 +4,7 @@ target_sources(usermod_inkplate INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/inkplatemodule.c
     ${CMAKE_CURRENT_LIST_DIR}/display/expander_bridge.c
     ${CMAKE_CURRENT_LIST_DIR}/display/board_config.c
-    ${CMAKE_CURRENT_LIST_DIR}/display/epd_bitbang.c
+    ${CMAKE_CURRENT_LIST_DIR}/display/epd_control.c
     ${CMAKE_CURRENT_LIST_DIR}/display/epd_i2s.c
     ${CMAKE_CURRENT_LIST_DIR}/display/epd_partial_lut.c
     ${CMAKE_CURRENT_LIST_DIR}/display/waveform.c

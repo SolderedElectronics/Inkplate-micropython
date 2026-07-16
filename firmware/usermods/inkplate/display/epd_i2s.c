@@ -14,7 +14,7 @@
 // hardware that doesn't have it.
 #if CONFIG_IDF_TARGET_ESP32
 
-#include "epd_bitbang.h"
+#include "epd_control.h"
 #include "driver/gpio.h"
 #include "esp_heap_caps.h"
 #include "esp_private/periph_ctrl.h"
@@ -139,7 +139,7 @@ void epd_i2s_init(const board_config_t *cfg)
 
 void epd_i2s_deinit(const board_config_t *cfg)
 {
-    // Undo the matrix routing from epd_i2s_init() so epd_bitbang.c's direct GPIO writes
+    // Undo the matrix routing from epd_i2s_init() so epd_control.c's direct GPIO writes
     // reach these pins again.
     for (int i = 0; i < 8; i++) {
         esp_rom_gpio_connect_out_signal(cfg->data_pins[i], SIG_GPIO_OUT_IDX, false, false);
@@ -182,7 +182,7 @@ static void epd_i2s_start_row(const board_config_t *cfg, uint8_t idx)
     I2S1.out_link.start = 1;
 
     // CKV is left as-is here (already high, held by epd_vscan_start/epd_vscan_write --
-    // see epd_bitbang.c) -- only frame the data shift with SPH.
+    // see epd_control.c) -- only frame the data shift with SPH.
     epd_fast_pin_clear(sph);
     I2S1.conf.tx_start = 1;
 

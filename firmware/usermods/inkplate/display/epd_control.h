@@ -1,18 +1,18 @@
-// Bit-banged control-line driver for the classic-ESP32 parallel EPD bus.
-// De-risking step (Phase 2 of docs/REFACTOR-PLAN.md): proves the C port can drive the
-// panel via direct GPIO register writes before I2S/DMA (Phase 3) is introduced.
-// No DMA, no framebuffer/data-path here -- only the SPH/CL/LE/CKV/SPV control-line
-// sequencing that scans one row at a time, matching boards/inkplate10/inkplate10.py's
-// vscan_start/vscan_write/vscan_end/fill_screen byte-for-byte.
-#ifndef INKPLATE_EPD_BITBANG_H
-#define INKPLATE_EPD_BITBANG_H
+// Bit-banged control-line driver for the classic-ESP32 parallel EPD bus (SPH/CL/LE/CKV/
+// SPV via direct GPIO register writes, no DMA/framebuffer here -- see epd_i2s.c for the
+// actual pixel-data path). Originated as a Phase 2 de-risking step (docs/REFACTOR-PLAN.md)
+// proving the C port could drive the panel before I2S/DMA existed; still the live
+// row-scan/clear primitive every board's clean()/begin() sits on top of today --
+// vscan_start/vscan_write/vscan_end/fill_screen, matching
+// boards/inkplate10/inkplate10.py's original byte-for-byte.
+#ifndef INKPLATE_EPD_CONTROL_H
+#define INKPLATE_EPD_CONTROL_H
 
 #include "board_config.h"
 #include <stdint.h>
 
-// Shared by epd_bitbang.c and epd_partial.c (both bit-bang the data/CL/SPH lines
-// directly). Header-only so each translation unit gets its own inlined copy, no new
-// object file/link dependency introduced.
+// Header-only so each translation unit gets its own inlined copy, no new object
+// file/link dependency introduced.
 #include "soc/gpio_struct.h"
 
 typedef struct {
@@ -65,4 +65,4 @@ void epd_vscan_end(const board_config_t *cfg);
 // _Inkplate.fill_screen(data) it replaces.
 void epd_fill_screen(const board_config_t *cfg, uint32_t data);
 
-#endif // INKPLATE_EPD_BITBANG_H
+#endif // INKPLATE_EPD_CONTROL_H

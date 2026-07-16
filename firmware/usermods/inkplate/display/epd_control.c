@@ -1,4 +1,4 @@
-#include "epd_bitbang.h"
+#include "epd_control.h"
 #include "expander_bridge.h"
 
 #include "esp_rom_sys.h"

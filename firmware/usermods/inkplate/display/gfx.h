@@ -27,8 +27,31 @@
 // call this, so their behavior is unchanged.
 void gfx_set_mirror_x(int enable);
 
+// gfx_set_gs4_nibble_swap flips which nibble each pixel writes in GS4_HMSB packing (even x ->
+// high nibble, odd x -> low nibble, the opposite of gfx_set_pixel's default). Inkplate4TEMPERA's
+// own write_pixel_viper uses this opposite convention (confirmed from its pasted
+// writePixelInternal, docs/refactor_plan.md Phase 8 step 26) -- every other wired board uses the
+// default. Same one-time session-constant shape as gfx_set_mirror_x, not a per-call param.
+void gfx_set_gs4_nibble_swap(int enable);
+
 void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x,
                    int y, int color);
+
+// Fills the whole framebuffer with one raw byte value -- e.g. 0x00 for mono-black or
+// 0x77 (both GS4_HMSB nibbles = raw level 7) for GS-white. Rotation/display_mode-agnostic:
+// a full clear touches every byte regardless, so there's no per-pixel remap/packing to do,
+// unlike every other gfx_* primitive here. Replaces every board's identical
+// `@micropython.viper` byte-fill loop (docs/refactor_plan.md Phase 12) with a real
+// `memset()`, which can move more than one byte per instruction where the viper loop
+// couldn't.
+void gfx_buf_fill(uint8_t *fb, int len, uint8_t value);
+
+// Blits a 1bpp source bitmap (row_bytes = ceil(bmp_w/8) bytes/row, MSB-first per row) at
+// (x0,y0): draws `color` wherever the source bit is set, leaves the destination pixel
+// untouched otherwise (transparent background, matching every board's current Python
+// draw_bitmap loop). Replaces that per-set-bit write_pixel Python loop with one C call.
+void gfx_draw_bitmap(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
+                     int y0, const uint8_t *bitmap, int bmp_w, int bmp_h, int color);
 
 void gfx_hline(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                int y0, int width, int color);
