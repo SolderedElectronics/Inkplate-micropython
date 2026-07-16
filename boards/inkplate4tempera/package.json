@@ -25,6 +25,30 @@
       "github:SolderedElectronics/Inkplate-micropython/shared/frontlight.py"
     ],
     [
+      "buzzer.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/buzzer.py"
+    ],
+    [
+      "mcp4018.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/mcp4018.py"
+    ],
+    [
+      "bq27441.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/bq27441.py"
+    ],
+    [
+      "bme688.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/bme688.py"
+    ],
+    [
+      "apds9960.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/apds9960.py"
+    ],
+    [
+      "lsm6ds3.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/lsm6ds3.py"
+    ],
+    [
       "gfx_standard_font_01.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/gfx_standard_font_01.py"
     ],
