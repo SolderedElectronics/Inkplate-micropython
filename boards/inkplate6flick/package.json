@@ -5,18 +5,6 @@
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate6_flick.py"
     ],
     [
-      "inkplate_gs.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_gs.py"
-    ],
-    [
-      "inkplate_mono.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_mono.py"
-    ],
-    [
-      "inkplate_partial.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/inkplate_partial.py"
-    ],
-    [
       "touch_cypress.py",
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate6flick/touch_cypress.py"
     ],

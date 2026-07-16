@@ -4,6 +4,7 @@ import time
 import micropython
 import os
 import inkplate
+import framebuf
 from machine import ADC, I2C, Pin, SDCard
 from uarray import array
 from pcal6416a import *
@@ -251,9 +252,149 @@ class _Inkplate:
         return cls._rtc.get_data()
 
 
-from inkplate_partial import *
-from inkplate_gs import *
-from inkplate_mono import *
+class InkplateMono(framebuf.FrameBuffer):
+    def __init__(self):
+        self._framebuf = bytearray(D_ROWS * D_COLS // 8)
+        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
+
+    # display_mono sends the monochrome buffer to the display, clearing it first
+    def display(self):
+        ip = _Inkplate
+        ip.power_on()
+        ip.i2s_init()
+
+        # clean the display (I2S DMA), reps transcribed from the real Arduino
+        # Inkplate5V2Driver.cpp display1b() -- 11, not Inkplate6's 18 (own reference
+        # driver, own value, same precedent as step 22).
+        t0 = time.ticks_ms()
+        ip.clean(0, 1)
+        ip.clean(1, 11)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+        ip.clean(2, 1)
+        ip.clean(1, 11)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+
+        # the display gets written via I2S DMA + the C waveform engine
+        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 6 phases driven in C.
+        t1 = time.ticks_ms()
+        ip.mono_display(self._framebuf)
+
+        t2 = time.ticks_ms()
+        tc = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("Mono: clean %dms, draw %dms, total %dms" % (tc, td, tt))
+
+        ip.clean(2, 2)
+        ip.clean(3, 1)
+        ip.i2s_deinit()
+        ip.power_off()
+
+    @staticmethod
+    @micropython.viper
+    def clear(fb: ptr8):
+        for ix in range(1280 * 720 // 8):
+            fb[ix] = 0x00
+
+
+class InkplateGS2(framebuf.FrameBuffer):
+    """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
+
+    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real
+    3-bit/8-level waveform table natively -- no intermediate fold.
+    """
+
+    def __init__(self):
+        self._framebuf = bytearray(D_ROWS * D_COLS // 2)
+        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS4_HMSB)
+
+    # display sends the grayscale buffer to the display, clearing it first
+    def display(self):
+        ip = _Inkplate
+        ip.power_on()
+        ip.i2s_init()
+
+        # clean the display (I2S DMA), reps transcribed from the real Arduino
+        # Inkplate5V2Driver.cpp display3b() -- identical sequence to display1b() on this
+        # board (11 reps, own reference driver's own value, not Inkplate6's 18).
+        t0 = time.ticks_ms()
+        ip.clean(0, 1)
+        ip.clean(1, 11)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+        ip.clean(2, 1)
+        ip.clean(1, 11)
+        ip.clean(2, 1)
+        ip.clean(0, 11)
+
+        # the display gets written via I2S DMA + the C waveform engine
+        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C.
+        t1 = time.ticks_ms()
+        ip.gs_display(self._framebuf)
+
+        t2 = time.ticks_ms()
+        tc = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
+
+        # trailing park sequence, matches the real Arduino display3b() -- unlike
+        # Inkplate6, Inkplate5V2's own display3b() has its trailing vscan_start() call
+        # commented out (never executed), so it's deliberately not ported here either.
+        ip.clean(3, 1)
+        ip.i2s_deinit()
+        ip.power_off()
+
+    @staticmethod
+    @micropython.viper
+    def clear(fb: ptr8):
+        for ix in range(1280 * 720 // 2):
+            fb[ix] = 0x77  # both nibbles = raw level 7 (white)
+
+
+class InkplatePartial:
+    """Manages partial display updates by diffing framebuffer copies.
+
+    It starts by making a copy of the current framebuffer, then when asked to draw
+    renders the differences between the copy and the new framebuffer state. The
+    constructor needs a reference to the current/main display object
+    (InkplateMono); only InkplateMono is supported at the moment.
+    """
+
+    def __init__(self, base):
+        self._base = base
+        self._framebuf = bytearray(len(base._framebuf))
+
+    # start makes a reference copy of the current framebuffer
+    def start(self):
+        self._framebuf[:] = self._base._framebuf[:]
+
+    # display the changes between our reference copy and the current framebuffer contents
+    # -- runs over I2S DMA in C now (firmware/usermods/inkplate/epd_i2s.c's
+    # epd_i2s_push_partial_frame), matching how mono/GS/clean already work. Always walks
+    # the full frame (no region params) -- matches the real Arduino reference driver's
+    # partialUpdate(), which has none either: unchanged pixels get a skip code from the
+    # diff, there's no row-range transmission shortcut over I2S. Reps driven by
+    # board_config_t's partial_reps (4 for Inkplate5V2, transcribed from
+    # Inkplate5V2Driver.cpp's own partialUpdate() for(k<4) loop).
+    def display(self):
+        ip = _Inkplate
+        ip.power_on()
+        ip.i2s_init()
+
+        t0 = time.ticks_ms()
+        ip.partial_display(self._framebuf, self._base._framebuf)
+        t1 = time.ticks_ms()
+
+        ip.clean(2, 2)
+        ip.clean(3, 1)
+        ip.i2s_deinit()
+        ip.power_off()
+
+        td = time.ticks_diff(t1, t0)
+        print("Partial: draw %dms" % td)
 
 
 class Inkplate:

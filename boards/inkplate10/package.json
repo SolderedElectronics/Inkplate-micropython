@@ -5,18 +5,6 @@
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate10/inkplate10.py"
     ],
     [
-      "inkplate_gs.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate10/inkplate_gs.py"
-    ],
-    [
-      "inkplate_mono.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate10/inkplate_mono.py"
-    ],
-    [
-      "inkplate_partial.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate10/inkplate_partial.py"
-    ],
-    [
       "gfx_standard_font_01.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/gfx_standard_font_01.py"
     ],

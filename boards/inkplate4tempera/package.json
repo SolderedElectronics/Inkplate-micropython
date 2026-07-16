@@ -5,18 +5,6 @@
       "github:SolderedElectronics/Inkplate-micropython/boards/inkplate4tempera/inkplate4tempera.py"
     ],
     [
-      "inkplate_gs.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate4tempera/inkplate_gs.py"
-    ],
-    [
-      "inkplate_mono.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate4tempera/inkplate_mono.py"
-    ],
-    [
-      "inkplate_partial.py",
-      "github:SolderedElectronics/Inkplate-micropython/boards/inkplate4tempera/inkplate_partial.py"
-    ],
-    [
       "touch_elan.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/touch_elan.py"
     ],
