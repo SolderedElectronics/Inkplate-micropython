@@ -23,7 +23,7 @@ except OSError:
     print("Image not found on SD card: {}".format(IMAGE_PATH))
     print("Copy a PNG to that path on the SD card, or change IMAGE_PATH above.")
 else:
-    # draw_png_from_sd() prints its own read/decode/total timing (shared/
+    # draw_png_from_sd() prints its own read/decode/total timing (shared/mixins/
     # inkplate_image_gs4_mixin.py) -- no need to time it again here.
     ipk.draw_png_from_sd(
         IMAGE_PATH,

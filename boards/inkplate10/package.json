@@ -10,35 +10,35 @@
     ],
     [
       "pcal6416a.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/drivers/pcal6416a.py"
     ],
     [
       "mcp23017.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/mcp23017.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/drivers/mcp23017.py"
     ],
     [
       "tps65186.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/tps65186.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/drivers/tps65186.py"
     ],
     [
       "rtc.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/rtc.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/drivers/rtc.py"
     ],
     [
       "epd_power_pins.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/epd_power_pins.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/drivers/epd_power_pins.py"
     ],
     [
       "inkplate_gfx_mixin.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/inkplate_gfx_mixin.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/mixins/inkplate_gfx_mixin.py"
     ],
     [
       "inkplate_text_mixin.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/inkplate_text_mixin.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/mixins/inkplate_text_mixin.py"
     ],
     [
       "inkplate_image_gs4_mixin.py",
-      "github:SolderedElectronics/Inkplate-micropython/shared/inkplate_image_gs4_mixin.py"
+      "github:SolderedElectronics/Inkplate-micropython/shared/mixins/inkplate_image_gs4_mixin.py"
     ]
   ],
   "deps": [],

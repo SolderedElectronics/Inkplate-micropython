@@ -10,15 +10,15 @@
       ],
       [
         "pcal6416a.py",
-        "github:SolderedElectronics/Inkplate-micropython/shared/pcal6416a.py"
+        "github:SolderedElectronics/Inkplate-micropython/shared/drivers/pcal6416a.py"
       ],
       [
         "rtc.py",
-        "github:SolderedElectronics/Inkplate-micropython/shared/rtc.py"
+        "github:SolderedElectronics/Inkplate-micropython/shared/drivers/rtc.py"
       ],
       [
         "inkplate_image_palette_mixin.py",
-        "github:SolderedElectronics/Inkplate-micropython/shared/inkplate_image_palette_mixin.py"
+        "github:SolderedElectronics/Inkplate-micropython/shared/mixins/inkplate_image_palette_mixin.py"
       ]
     ],
     "deps": [],

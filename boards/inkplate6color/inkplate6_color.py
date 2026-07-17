@@ -70,7 +70,7 @@ IO_PIN_B7 = const(15)
 # Class-level attributes (rotation, _panel_state, _framebuf, etc.) assume a single
 # Inkplate() instance is ever created.
 # draw_bmp/png/jpg_from_sd/_from_web and draw_color_image come from
-# shared/inkplate_image_palette_mixin.py.
+# shared/mixins/inkplate_image_palette_mixin.py.
 class Inkplate(ImagePaletteMixin):
     BLACK = const(0b00000000)  # 0
     WHITE = const(0b00000001)  # 1

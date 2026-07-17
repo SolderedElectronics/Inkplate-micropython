@@ -346,7 +346,7 @@ class InkplatePartial:
         print("Partial: draw %dms" % td)
 
 
-# gfx/text/image draw methods come from shared/inkplate_{gfx,text,image_gs4}_mixin.py
+# gfx/text/image draw methods come from shared/mixins/inkplate_{gfx,text,image_gs4}_mixin.py
 # (same shared code as inkplate10/6/6plusv2/6flick/4tempera). self._d_cols/
 # self._d_rows must be set (done in __init__) before any draw call runs, or drawing
 # will be offset. This board's gfx_set_mirror_x(True) column-flip (set in

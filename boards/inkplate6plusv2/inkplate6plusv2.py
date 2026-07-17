@@ -374,7 +374,7 @@ class InkplatePartial:
         print("Partial: draw %dms" % td)
 
 
-# Gfx/text/image draw methods come from shared/inkplate_{gfx,text,image_gs4}_mixin.py;
+# Gfx/text/image draw methods come from shared/mixins/inkplate_{gfx,text,image_gs4}_mixin.py;
 # self._d_cols/self._d_rows (set in __init__) must be set before any draw call runs,
 # or drawing will look offset/corrupted.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):

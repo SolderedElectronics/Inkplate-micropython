@@ -401,7 +401,7 @@ class InkplatePartial:
 
 
 # draw_pixel/rect/circle/line/text/print/draw_image live in
-# shared/inkplate_{gfx,text,image_gs4}_mixin.py, which use self._d_cols/self._d_rows
+# shared/mixins/inkplate_{gfx,text,image_gs4}_mixin.py, which use self._d_cols/self._d_rows
 # instead of the module-level D_COLS/D_ROWS -- __init__ must run before any draw call
 # so those are set.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):

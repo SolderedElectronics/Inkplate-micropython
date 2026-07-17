@@ -96,7 +96,7 @@ IO_PIN_B7 = const(15)
 
 # Only one Inkplate() instance is ever created, so state lives on the instance rather
 # than the class. draw_bmp/png/jpg_from_sd/_from_web and draw_color_image come from
-# shared/inkplate_image_palette_mixin.py, shared with inkplate6color.
+# shared/mixins/inkplate_image_palette_mixin.py, shared with inkplate6color.
 class Inkplate(ImagePaletteMixin):
     # Color constants -- values are panel color indices.
     # User passes 0-5; _color_palette maps to actual panel values.
@@ -505,7 +505,7 @@ class Inkplate(ImagePaletteMixin):
         return GpioPin(self._PCAL6416A, pin, mode)
 
     # Same PCF85263-style RTC chip every parallel-bus board wires; delegates to
-    # shared/rtc.py.
+    # shared/drivers/rtc.py.
     def rtc_set_time(self, rtc_hour, rtc_minute, rtc_second):
         self._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
 
