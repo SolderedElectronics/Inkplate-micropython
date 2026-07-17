@@ -81,6 +81,14 @@ void dither_diffuse_error(dither_ctx_t *ctx, int x, int y, int draw_width, int d
 // after all dither_apply_error/dither_diffuse_error calls for that row.
 void dither_row_advance(dither_ctx_t *ctx);
 
+// One-pixel mono/GS quantize+diffuse+invert, the sequence every bmp/jpeg/png_draw*.c
+// caller previously duplicated inline (apply error if diffusing, quantize, diffuse the
+// residual, then XOR-invert). Pass have_dctx=0 (dctx may be NULL) for the no-diffusion
+// case -- immediate/non-dither call sites share this same tail. draw_w/draw_h/x/y are
+// the diffusion bounds/position, same convention as dither_diffuse_error.
+int dither_process_mono(dither_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
+                        int gray, int display_mode, int invert);
+
 // docs/REFACTOR-PLAN.md Phase 10 step 32: general N-color RGB palette path for the
 // SPI color/BWR panels (Inkplate2, 6COLOR, 13SPECTRA), completing the engine above
 // (mono/GS3-only) with full-RGB nearest-color search + 3-channel error diffusion.
@@ -103,14 +111,22 @@ typedef struct {
 int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *palette, int n,
                             int *out_recon_r, int *out_recon_g, int *out_recon_b);
 
-// Applies invert to an already-quantized palette `value`: swaps strictly between a
-// pure-black (0,0,0) and pure-white (255,255,255) palette entry if `value` matches
-// either one's `value`, otherwise returns `value` unchanged -- chromatic entries
-// (red, blue, ...) are deliberately left untouched. Replaces each color board's
-// current invert attempt (XOR-ing the whole nibble against the palette's index
-// range), which produces out-of-palette values whenever the entry count isn't a
-// full 16 (true for every board in scope: 3/6/7 entries).
-int dither_invert_palette_bw(int value, const dither_palette_entry_t *palette, int n);
+// Scans `palette` once for its pure-black (0,0,0) and pure-white (255,255,255) entries'
+// `value`s, returned via *out_black_value/*out_white_value (-1 if the palette has no
+// such entry). Call once per image/draw (palette is loop-invariant across every pixel
+// of a draw) and pass the results into dither_invert_palette_bw below instead of
+// re-scanning the whole palette per pixel.
+void dither_find_bw_values(const dither_palette_entry_t *palette, int n, int *out_black_value,
+                            int *out_white_value);
+
+// Applies invert to an already-quantized palette `value`: swaps strictly between
+// black_value and white_value (from dither_find_bw_values) if `value` matches either,
+// otherwise returns `value` unchanged -- chromatic entries (red, blue, ...) are
+// deliberately left untouched. Replaces each color board's current invert attempt
+// (XOR-ing the whole nibble against the palette's index range), which produces
+// out-of-palette values whenever the entry count isn't a full 16 (true for every board
+// in scope: 3/6/7 entries).
+int dither_invert_palette_bw(int value, int black_value, int white_value);
 
 // Three-channel (RGB) counterpart of dither_ctx_t/dither_apply_error/
 // dither_diffuse_error/dither_row_advance above -- palette mode diffuses the full
@@ -129,6 +145,14 @@ void dither_apply_error_rgb(const dither_rgb_ctx_t *ctx, int x, int *r, int *g, 
 void dither_diffuse_error_rgb(dither_rgb_ctx_t *ctx, int x, int y, int draw_width,
                               int draw_height, int dr, int dg, int db);
 void dither_row_advance_rgb(dither_rgb_ctx_t *ctx);
+
+// One-pixel palette/RGB quantize+diffuse+invert, the dither_process_mono counterpart
+// for the palette/color path -- same duplicated-sequence consolidation, same
+// have_dctx=0/dctx=NULL convention for no-diffusion call sites. black_value/white_value
+// come from dither_find_bw_values, computed once by the caller (loop-invariant).
+int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
+                       int r, int g, int b, const dither_palette_entry_t *palette, int n,
+                       int invert, int black_value, int white_value);
 
 // RGB565 pack/unpack for callers that buffer a full decoded image before dithering
 // (jpeg_draw.c/png_draw.c's palette-mode scratch buffers) -- storing RGB565 (2

@@ -1,5 +1,18 @@
 #include "board_config.h"
 
+// Shared pin/expander layout for every classic-ESP32 parallel-bus board in this file --
+// data bus, CL/LE/CKV/SPH GPIOs, OE/GMODE/SPV expander pins (all @ 0x20), and PMIC addr
+// are identical across all 8 variants (confirmed against each board's own pins.h). Only
+// name/width/height/waveform/partial_reps/has_touch/has_frontlight actually differ per
+// board; a board whose layout genuinely diverges should stop using this macro and spell
+// its fields out explicitly instead of forcing a fork of it.
+#define INKPLATE_CLASSIC_PINS                                                                    \
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},                                                  \
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27), .pin_cl = 0, .pin_le = 2,     \
+    .pin_ckv = 32, .pin_sph = 33, .pin_oe = {.expander_addr = 0x20, .pin = 0},                    \
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1}, .pin_spv = {.expander_addr = 0x20, .pin = 2}, \
+    .pmic_i2c_addr = 0x48
+
 // Real 3-bit/8-level waveform for Inkplate10, transcribed from the Arduino reference
 // driver's compiled-in default (waveforms.h's WAVEFORM3BIT macro == waveform1[8][9] in
 // Inkplate10Driver.cpp -- the fallback used whenever no per-device EEPROM calibration is
@@ -39,19 +52,7 @@ const board_config_t board_config_inkplate10v1 = {
     .width = 1200,
     .height = 825,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate10,
 
@@ -70,19 +71,7 @@ const board_config_t board_config_inkplate10v2 = {
     .width = 1200,
     .height = 825,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate10,
 
@@ -124,19 +113,7 @@ const board_config_t board_config_inkplate6v1 = {
     .width = 800,
     .height = 600,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate6,
 
@@ -155,19 +132,7 @@ const board_config_t board_config_inkplate6v2 = {
     .width = 800,
     .height = 600,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate6,
 
@@ -210,19 +175,7 @@ const board_config_t board_config_inkplate5v2 = {
     .width = 1280,
     .height = 720,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate5v2,
 
@@ -273,19 +226,7 @@ const board_config_t board_config_inkplate6flick = {
     .width = 1024,
     .height = 758,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate6flick,
 
@@ -342,19 +283,7 @@ const board_config_t board_config_inkplate6plusv2 = {
     .width = 1024,
     .height = 758,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate6plusv2,
 
@@ -412,19 +341,7 @@ const board_config_t board_config_inkplate4tempera = {
     .width = 600,
     .height = 600,
 
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27),
-
-    .pin_cl = 0,
-    .pin_le = 2,
-    .pin_ckv = 32,
-    .pin_sph = 33,
-
-    .pin_oe = {.expander_addr = 0x20, .pin = 0},
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1},
-    .pin_spv = {.expander_addr = 0x20, .pin = 2},
-
-    .pmic_i2c_addr = 0x48,
+    INKPLATE_CLASSIC_PINS,
 
     .waveform = &wave_3b_inkplate4tempera,
 

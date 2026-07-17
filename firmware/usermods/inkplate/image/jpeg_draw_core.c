@@ -35,17 +35,13 @@ static void jpeg_draw_core_tile_immediate(jpeg_draw_core_ctx_t *ctx, uint32_t ti
                                           uint32_t tile_y, uint32_t tile_w, uint32_t tile_h,
                                           const uint8_t *rgb)
 {
-    int inv_mask = ctx->display_mode == 0 ? 1 : 7;
     for (uint32_t ty = 0; ty < tile_h; ty++) {
         for (uint32_t tx = 0; tx < tile_w; tx++) {
             const uint8_t *px = rgb + (ty * tile_w + tx) * 3;
             // ITU-R BT.601 luma, integer approximation.
             int luma = (299 * px[0] + 587 * px[1] + 114 * px[2]) / 1000;
-            int recon;
-            int level = dither_quantize(luma, ctx->display_mode, &recon);
-            if (ctx->invert) {
-                level ^= inv_mask;
-            }
+            int level = dither_process_mono(NULL, 0, 0, 0, 0, 0, luma, ctx->display_mode,
+                                            ctx->invert);
             gfx_set_pixel(ctx->fb, ctx->phys_w, ctx->phys_h, ctx->rotation, ctx->display_mode,
                           ctx->x0 + (int)(tile_x + tx), ctx->y0 + (int)(tile_y + ty), level);
         }
@@ -60,23 +56,13 @@ void jpeg_draw_core_flush(jpeg_draw_core_ctx_t *ctx, int draw_height)
     if (ctx->have_dctx < 0) {
         ctx->have_dctx = dither_ctx_init(&ctx->dctx, ctx->band_w, ctx->kernel_type) == 0;
     }
-    int inv_mask = ctx->display_mode == 0 ? 1 : 7;
 
     for (int ty = 0; ty < ctx->band_h; ty++) {
         int y = ctx->band_y0 + ty;
         for (int x = 0; x < ctx->band_w; x++) {
             int gray = jpeg_draw_band_luma[ty * JPEG_DRAW_CORE_BAND_MAX_W + x];
-            int level, recon;
-            if (ctx->have_dctx) {
-                gray = dither_apply_error(&ctx->dctx, x, gray);
-                level = dither_quantize(gray, ctx->display_mode, &recon);
-                dither_diffuse_error(&ctx->dctx, x, y, ctx->band_w, draw_height, gray - recon);
-            } else {
-                level = dither_quantize(gray, ctx->display_mode, &recon);
-            }
-            if (ctx->invert) {
-                level ^= inv_mask;
-            }
+            int level = dither_process_mono(&ctx->dctx, ctx->have_dctx, x, y, ctx->band_w,
+                                            draw_height, gray, ctx->display_mode, ctx->invert);
             gfx_set_pixel(ctx->fb, ctx->phys_w, ctx->phys_h, ctx->rotation, ctx->display_mode,
                           ctx->x0 + x, ctx->y0 + y, level);
         }
@@ -138,6 +124,7 @@ void jpeg_draw_core_palette_init(jpeg_draw_core_palette_ctx_t *ctx, int invert, 
     ctx->kernel_type = kernel_type;
     ctx->palette = palette;
     ctx->palette_n = palette_n;
+    dither_find_bw_values(palette, palette_n, &ctx->black_value, &ctx->white_value);
     ctx->write_pixel = write_pixel;
     ctx->cb_ctx = cb_ctx;
     ctx->band_y0 = -1;
@@ -154,12 +141,9 @@ static void jpeg_draw_core_palette_tile_immediate(jpeg_draw_core_palette_ctx_t *
     for (uint32_t ty = 0; ty < tile_h; ty++) {
         for (uint32_t tx = 0; tx < tile_w; tx++) {
             const uint8_t *px = rgb + (ty * tile_w + tx) * 3;
-            int recon_r, recon_g, recon_b;
-            int value = dither_quantize_palette(px[0], px[1], px[2], ctx->palette, ctx->palette_n,
-                                                &recon_r, &recon_g, &recon_b);
-            if (ctx->invert) {
-                value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
-            }
+            int value = dither_process_rgb(NULL, 0, 0, 0, 0, 0, px[0], px[1], px[2], ctx->palette,
+                                           ctx->palette_n, ctx->invert, ctx->black_value,
+                                           ctx->white_value);
             ctx->write_pixel(ctx->cb_ctx, (int)(tile_x + tx), (int)(tile_y + ty), value);
         }
     }
@@ -180,20 +164,9 @@ void jpeg_draw_core_palette_flush(jpeg_draw_core_palette_ctx_t *ctx, int draw_he
             int r, g, b;
             dither_unpack_rgb565(jpeg_palette_band_rgb[ty * JPEG_DRAW_CORE_BAND_MAX_W + x], &r,
                                  &g, &b);
-            int value, recon_r, recon_g, recon_b;
-            if (ctx->have_dctx) {
-                dither_apply_error_rgb(&ctx->dctx, x, &r, &g, &b);
-                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
-                                                &recon_g, &recon_b);
-                dither_diffuse_error_rgb(&ctx->dctx, x, y, ctx->band_w, draw_height, r - recon_r,
-                                         g - recon_g, b - recon_b);
-            } else {
-                value = dither_quantize_palette(r, g, b, ctx->palette, ctx->palette_n, &recon_r,
-                                                &recon_g, &recon_b);
-            }
-            if (ctx->invert) {
-                value = dither_invert_palette_bw(value, ctx->palette, ctx->palette_n);
-            }
+            int value = dither_process_rgb(&ctx->dctx, ctx->have_dctx, x, y, ctx->band_w,
+                                           draw_height, r, g, b, ctx->palette, ctx->palette_n,
+                                           ctx->invert, ctx->black_value, ctx->white_value);
             ctx->write_pixel(ctx->cb_ctx, x, y, value);
         }
         if (ctx->have_dctx) {

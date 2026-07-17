@@ -76,6 +76,7 @@ typedef struct {
     int kernel_type;
     const dither_palette_entry_t *palette;
     int palette_n;
+    int black_value, white_value; // from dither_find_bw_values, computed once at init
     jpeg_draw_core_palette_write_cb write_pixel;
     void *cb_ctx;
     int band_y0;

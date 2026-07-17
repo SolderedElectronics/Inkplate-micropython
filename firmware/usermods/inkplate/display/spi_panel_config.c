@@ -1,5 +1,11 @@
 #include "spi_panel_config.h"
 
+// Shared pin layout for the single-SPI-controller-chip classic-ESP32 panels (6COLOR,
+// Inkplate2) -- both use the same VSPI pins. Inkplate13SPECTRA is a separate ESP32-S3
+// board with its own dual-chip pinout and doesn't use this macro.
+#define INKPLATE_SPI_CLASSIC_PINS                                                                \
+    .pin_rst = 19, .pin_dc = 33, .pin_cs = 27, .pin_busy = 32, .pin_clk = 18, .pin_din = 23
+
 // Inkplate6COLOR (600x448, 4bpp/7-color EPD): pins from the real Arduino reference
 // driver (Inkplate6COLORDriver.cpp/.h, pins.h -- user-supplied directly, docs/
 // REFACTOR-PLAN.md Phase 9 step 30). Single SPI-controller chip, VSPI-native pins
@@ -13,12 +19,7 @@ const spi_panel_config_t spi_panel_config_inkplate6color = {
     .width = 600,
     .height = 448,
 
-    .pin_rst = 19,
-    .pin_dc = 33,
-    .pin_cs = 27,
-    .pin_busy = 32,
-    .pin_clk = 18,
-    .pin_din = 23,
+    INKPLATE_SPI_CLASSIC_PINS,
 
     .spi_freq_hz = 2000000,
 
@@ -47,12 +48,7 @@ const spi_panel_config_t spi_panel_config_inkplate2 = {
     .width = 104,
     .height = 212,
 
-    .pin_rst = 19,
-    .pin_dc = 33,
-    .pin_cs = 27,
-    .pin_busy = 32,
-    .pin_clk = 18,
-    .pin_din = 23,
+    INKPLATE_SPI_CLASSIC_PINS,
 
     .spi_freq_hz = 1000000,
 

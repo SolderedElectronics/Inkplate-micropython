@@ -44,7 +44,6 @@ int bmp_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
     if (dither && dither_ctx_init(&dctx, (int)hdr.width, kernel_type) != 0) {
         return -1;
     }
-    int inv_mask = display_mode == 0 ? 1 : 7;
 
     for (uint32_t file_row = 0; file_row < hdr.height; file_row++) {
         const uint8_t *raw_row = buf + hdr.data_offset + (size_t)file_row * hdr.row_size;
@@ -56,18 +55,8 @@ int bmp_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
             // ITU-R BT.601 luma, integer approximation.
             int gray = (299 * px[0] + 587 * px[1] + 114 * px[2]) / 1000;
 
-            int level, recon;
-            if (dither) {
-                gray = dither_apply_error(&dctx, (int)x, gray);
-                level = dither_quantize(gray, display_mode, &recon);
-                dither_diffuse_error(&dctx, (int)x, (int)y, (int)hdr.width, (int)hdr.height,
-                                     gray - recon);
-            } else {
-                level = dither_quantize(gray, display_mode, &recon);
-            }
-            if (invert) {
-                level ^= inv_mask;
-            }
+            int level = dither_process_mono(&dctx, dither, (int)x, (int)y, (int)hdr.width,
+                                            (int)hdr.height, gray, display_mode, invert);
             gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + (int)x, y0 + (int)y,
                           level);
         }
@@ -124,6 +113,11 @@ int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
         return -1;
     }
 
+    int black_value = -1, white_value = -1;
+    if (invert) {
+        dither_find_bw_values(palette, palette_n, &black_value, &white_value);
+    }
+
     for (uint32_t file_row = 0; file_row < hdr.height; file_row++) {
         const uint8_t *raw_row = buf + hdr.data_offset + (size_t)file_row * hdr.row_size;
         bmp_decode_row(&hdr, raw_row, bmp_draw_row_rgb);
@@ -131,22 +125,10 @@ int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
         uint32_t y = hdr.flip_y ? (hdr.height - 1 - file_row) : file_row;
         for (uint32_t x = 0; x < hdr.width; x++) {
             const uint8_t *px = bmp_draw_row_rgb + x * 3;
-            int r = px[0], g = px[1], b = px[2];
 
-            int value, recon_r, recon_g, recon_b;
-            if (dither) {
-                dither_apply_error_rgb(&dctx, (int)x, &r, &g, &b);
-                value = dither_quantize_palette(r, g, b, palette, palette_n, &recon_r, &recon_g,
-                                                &recon_b);
-                dither_diffuse_error_rgb(&dctx, (int)x, (int)y, (int)hdr.width, (int)hdr.height,
-                                         r - recon_r, g - recon_g, b - recon_b);
-            } else {
-                value = dither_quantize_palette(r, g, b, palette, palette_n, &recon_r, &recon_g,
-                                                &recon_b);
-            }
-            if (invert) {
-                value = dither_invert_palette_bw(value, palette, palette_n);
-            }
+            int value = dither_process_rgb(&dctx, dither, (int)x, (int)y, (int)hdr.width,
+                                           (int)hdr.height, px[0], px[1], px[2], palette,
+                                           palette_n, invert, black_value, white_value);
             write_pixel(cb_ctx, (int)x, (int)y, value);
         }
         if (dither) {

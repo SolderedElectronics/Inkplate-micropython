@@ -23,7 +23,7 @@ display.begin()
 # - h: If True, applies a dithering algorithm to the image for better grayscale rendering.
 #
 # - data: The bitmap stored in flash in the form of a bytearray (see below)
-display.draw_color_bitmap(0, 0, 212, 104, demo_image)
+display.draw_color_image(0, 0, 212, 104, demo_image)
 
 # Display the drawn image onto the screen
 display.display()

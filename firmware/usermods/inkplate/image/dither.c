@@ -113,6 +113,23 @@ void dither_row_advance(dither_ctx_t *ctx)
     }
 }
 
+int dither_process_mono(dither_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
+                        int gray, int display_mode, int invert)
+{
+    int level, recon;
+    if (have_dctx) {
+        gray = dither_apply_error(dctx, x, gray);
+        level = dither_quantize(gray, display_mode, &recon);
+        dither_diffuse_error(dctx, x, y, draw_w, draw_h, gray - recon);
+    } else {
+        level = dither_quantize(gray, display_mode, &recon);
+    }
+    if (invert) {
+        level ^= display_mode == 0 ? 1 : 7;
+    }
+    return level;
+}
+
 int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *palette, int n,
                             int *out_recon_r, int *out_recon_g, int *out_recon_b)
 {
@@ -135,7 +152,8 @@ int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *p
     return palette[best].value;
 }
 
-int dither_invert_palette_bw(int value, const dither_palette_entry_t *palette, int n)
+void dither_find_bw_values(const dither_palette_entry_t *palette, int n, int *out_black_value,
+                           int *out_white_value)
 {
     int black_value = -1, white_value = -1;
     for (int i = 0; i < n; i++) {
@@ -145,6 +163,12 @@ int dither_invert_palette_bw(int value, const dither_palette_entry_t *palette, i
             white_value = palette[i].value;
         }
     }
+    *out_black_value = black_value;
+    *out_white_value = white_value;
+}
+
+int dither_invert_palette_bw(int value, int black_value, int white_value)
+{
     if (value == black_value && white_value >= 0) {
         return white_value;
     }
@@ -218,6 +242,25 @@ void dither_row_advance_rgb(dither_rgb_ctx_t *ctx)
     for (int i = 0; i < ctx->width * 3; i++) {
         ctx->error_next[i] = 0;
     }
+}
+
+int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
+                       int r, int g, int b, const dither_palette_entry_t *palette, int n,
+                       int invert, int black_value, int white_value)
+{
+    int value, recon_r, recon_g, recon_b;
+    if (have_dctx) {
+        dither_apply_error_rgb(dctx, x, &r, &g, &b);
+        value = dither_quantize_palette(r, g, b, palette, n, &recon_r, &recon_g, &recon_b);
+        dither_diffuse_error_rgb(dctx, x, y, draw_w, draw_h, r - recon_r, g - recon_g,
+                                 b - recon_b);
+    } else {
+        value = dither_quantize_palette(r, g, b, palette, n, &recon_r, &recon_g, &recon_b);
+    }
+    if (invert) {
+        value = dither_invert_palette_bw(value, black_value, white_value);
+    }
+    return value;
 }
 
 uint16_t dither_pack_rgb565(int r, int g, int b)

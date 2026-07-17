@@ -503,10 +503,6 @@ class Inkplate:
         cls.displayMode = mode
 
     @classmethod
-    def select_display_mode(cls, mode):
-        cls.displayMode = mode
-
-    @classmethod
     def get_display_mode(cls):
         return cls.displayMode
 

@@ -508,15 +508,6 @@ class Inkplate:
                 self.ipm.display()
             self.ipp.start()
 
-    def draw_polygon(self, x, y, coords, color):
-        import array
-
-        coords = array.array("I", coords)
-        self.fbuf.poly(x, y, coords, color, 1)
-
-    def fill(self, color):
-        self.fbuf.fill(color)
-
     def set_full_update_threshold(self, new_threshold):
         self.fullUpdateThreshold = new_threshold
 

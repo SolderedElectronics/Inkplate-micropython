@@ -159,13 +159,16 @@ static void test_quantize_palette(void)
 static void test_invert_palette_bw(void)
 {
     int n = (int)(sizeof(test_palette_6color) / sizeof(test_palette_6color[0]));
+    int black_value, white_value;
+    dither_find_bw_values(test_palette_6color, n, &black_value, &white_value);
+    assert(black_value == 0 && white_value == 1);
 
     // Black <-> white swap.
-    assert(dither_invert_palette_bw(0, test_palette_6color, n) == 1);
-    assert(dither_invert_palette_bw(1, test_palette_6color, n) == 0);
+    assert(dither_invert_palette_bw(0, black_value, white_value) == 1);
+    assert(dither_invert_palette_bw(1, black_value, white_value) == 0);
     // Chromatic entries (e.g. red=4) are left untouched.
-    assert(dither_invert_palette_bw(4, test_palette_6color, n) == 4);
-    assert(dither_invert_palette_bw(6, test_palette_6color, n) == 6);
+    assert(dither_invert_palette_bw(4, black_value, white_value) == 4);
+    assert(dither_invert_palette_bw(6, black_value, white_value) == 6);
 
     printf("test_invert_palette_bw: passed\n");
 }

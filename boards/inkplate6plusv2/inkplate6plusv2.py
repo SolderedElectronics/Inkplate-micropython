@@ -502,6 +502,9 @@ class Inkplate:
     def sd_card_sleep(self):
         _Inkplate.SD_ENABLE.digital_write(1)
 
+    def sd_card_wake(self):
+        _Inkplate.SD_ENABLE.digital_write(0)
+
     # Touchscreen -- thin delegation to touch_elan.Touch, wired to this instance in
     # begin() (so Touch can read .rotation for its coordinate remap).
     def ts_init(self, power_state=1):
@@ -571,15 +574,6 @@ class Inkplate:
                 self.partialUpdateCounter = 0
                 self.ipm.display()
             self.ipp.start()
-
-    def draw_polygon(self, x, y, coords, color):
-        import array
-
-        coords = array.array("I", coords)
-        self.fbuf.poly(x, y, coords, color, 1)
-
-    def fill(self, color):
-        self.fbuf.fill(color)
 
     def set_full_update_threshold(self, new_threshold):
         self.fullUpdateThreshold = new_threshold

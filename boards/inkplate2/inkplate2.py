@@ -294,6 +294,10 @@ class Inkplate:
         )
 
     @classmethod
+    def start_write(cls):
+        pass
+
+    @classmethod
     def end_write(cls):
         pass
 
@@ -465,6 +469,9 @@ class Inkplate:
         cls.font_family = f
         cls.font = cls.font_family._font
 
+    def reset_cursor(self):
+        self.cursor = [0, 0]
+
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
@@ -635,7 +642,7 @@ class Inkplate:
         )
 
     @classmethod
-    def draw_color_bitmap(cls, x, y, w, h, buf):
+    def draw_color_image(cls, x, y, w, h, buf):
         scaled_w = int(-(-(w / 4.0) // 1))
         for i in range(h):
             for j in range(scaled_w):
