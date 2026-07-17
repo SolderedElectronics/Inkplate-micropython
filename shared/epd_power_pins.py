@@ -1,13 +1,9 @@
-# Tri-states the e-paper bit-banged control/data bus during power_off() to stop ESP32
-# GPIOs from actively driving current into now-unpowered downstream circuitry during
-# deep sleep -- ported from the real Arduino reference driver's pinsZstate()/
-# pinsAsOutputs() (Inkplate6FLICKDriver.cpp), minus the I2S GPIO-matrix
-# connect/disconnect it also does inline: that's already handled by this project's own
-# epd_i2s_init()/epd_i2s_deinit() at the right times, so only replicated here is the
-# plain pinMode(INPUT)/pinMode(OUTPUT) toggle.
-#
-# CL/LE/CKV/SPH/D0-D7 GPIO numbers are identical across every parallel-bus board
-# (Inkplate10/6/5v2/6FLICK/6PLUSV2/4TEMPERA), confirmed from each board's own pins.h.
+"""Tri-states the e-paper bit-banged control/data bus during power_off() to stop ESP32
+GPIOs from actively driving current into now-unpowered downstream circuitry during
+deep sleep. Only the plain GPIO input/output-mode toggle is done here -- the I2S
+GPIO-matrix connect/disconnect for the same signals is already handled by this
+project's own epd_i2s_init()/epd_i2s_deinit() at the right times.
+"""
 
 from machine import Pin
 

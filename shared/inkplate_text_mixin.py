@@ -131,7 +131,6 @@ class TextMixin:
         lines = []
         for paragraph in text.split("\n"):
             while len(paragraph) > max_chars:
-                # Find last space within limit
                 wrap_at = paragraph.rfind(" ", 0, max_chars)
                 if wrap_at == -1:
                     wrap_at = max_chars
@@ -145,7 +144,7 @@ class TextMixin:
         if text_size is not None:
             self.set_text_size(text_size)
         max_width = x1 - x0
-        char_width = 6 * self.text_size  # rough estimate
+        char_width = 6 * self.text_size  # Rough estimate
         max_chars = max_width // char_width
         lines = self.wrap_text(text, max_chars)
         y = y0

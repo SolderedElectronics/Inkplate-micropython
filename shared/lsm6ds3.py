@@ -1,40 +1,30 @@
-"""MicroPython driver for the ST LSM6DS3(TR-C) accelerometer+gyro, used on
-Inkplate4TEMPERA (`INKPLATE_ACCELEROMETER` sensor-select bit in the pasted
-pins.h). I2C address 0x6B (the real SparkFun library's own default), fixed --
-matches the real board wrapper's `Soldered_LSM6DS3(uint8_t inputArg = 0x6B) :
-LSM6DS3(I2C_MODE, inputArg)`.
+"""MicroPython driver for the LSM6DS3(TR-C) accelerometer+gyro, used on
+Inkplate4TEMPERA (`INKPLATE_ACCELEROMETER` sensor-select bit). I2C address
+0x6B, fixed (the only address this board wires up).
 
-Ported from the real SparkFun_LSM6DS3_Arduino_Library (vendored in this repo
-under Soldered's `LSM6DS3-SOLDERED.h`, a no-op subclass with no code of its
-own). Full accel/gyro/temp/FIFO API, matching the "port everything" precedent
-set for APDS9960/BME688 -- this sensor's real public surface is small enough
-(begin + raw/float accel/gyro X/Y/Z + temperature + FIFO) that there's no
-meaningfully-smaller useful subset to trim to, unlike APDS9960's optional
-pedometer/tap features (never exposed here to begin with -- SparkFun's own
-header doesn't declare public methods for them either).
+Full accel/gyro/temp/FIFO API is implemented -- this sensor's public surface
+is small enough (begin + raw/float accel/gyro X/Y/Z + temperature + FIFO)
+that there's no meaningfully-smaller useful subset to trim to, unlike
+APDS9960's optional pedometer/tap features (not exposed here either).
 
 Settings (gyro/accel range, sample rate, bandwidth, FIFO config, etc.) are
-plain class attributes instead of a separate settings struct passed to
-`begin()` by pointer -- set them directly (`LSM6DS3.gyro_enabled = 0`) before
-calling `begin()`, mirroring the real driver's own `myIMU.settings.xEnabled =
-1; myIMU.begin()` pattern, just without the extra struct indirection Python
-doesn't need. Confirmed against the real `Inkplate4TEMPERADriver.cpp`:
-`wakePeripheral`/`sleepPeripheral`'s `INKPLATE_ACCELEROMETER` branch *only*
-ever toggles `gyroEnabled`/`accelEnabled` before calling `begin()` again --
-every other setting stays at the class's own constructor defaults, which this
-port reproduces exactly (gyro 2000dps/416Hz/400Hz bandwidth, accel
+plain class attributes instead of a separate settings struct -- set them
+directly (`LSM6DS3.gyro_enabled = 0`) before calling `begin()` again to apply.
+Confirmed against the board file: `wake_peripheral`/`sleep_peripheral`'s
+`INKPLATE_ACCELEROMETER` branch *only* ever toggles `gyro_enabled`/
+`accel_enabled` before calling `begin()` again -- every other setting stays
+at the class's own defaults (gyro 2000dps/416Hz/400Hz bandwidth, accel
 16g/416Hz/100Hz bandwidth).
 
-Two things ported literally, not "fixed", because they're real (if odd) real-
-driver behavior, not bugs of this port's own making:
+Two things kept literally, not "fixed", because they're real (if odd) chip
+behavior, not bugs of this driver's own making:
 - `begin()` doesn't halt or raise if the WHO_AM_I register doesn't read back
-  `0x69` -- it just keeps configuring the sensor regardless (the real driver
-  tracks this as a soft error counter, never surfaced to the caller).
-- `fifoBegin()`'s `tempFIFO_CTRL5 |= settings.fifoModeWord = 6` is a real
-  assignment-inside-an-OR-expression in the vendored C++ (unconditionally
-  pins `fifoModeWord` to `6` and ORs `6` into the register regardless of
-  whatever `fifoModeWord` was previously set to) -- ported as the same
-  unconditional overwrite, not the value `fifoModeWord` otherwise implies.
+  `0x69` -- it just keeps configuring the sensor regardless (tracked as a
+  soft error counter, never surfaced to the caller).
+- `fifo_begin()`'s FIFO_CTRL5 write unconditionally pins `fifo_mode_word` to
+  `6` and ORs `6` into the register regardless of whatever `fifo_mode_word`
+  was previously set to -- kept as that same unconditional overwrite, not
+  the value `fifo_mode_word` otherwise implies.
 """
 
 import time
@@ -100,8 +90,7 @@ class LSM6DS3:
     _i2c = None
     _addr = _I2C_ADDR
 
-    # -- Settings (mirrors the real driver's SensorSettings struct + its own
-    # constructor defaults) --
+    # -- Settings (defaults mirror the sensor's default power-on configuration) --
     gyro_enabled = 1
     gyro_range = 2000  # deg/s: 125, 245, 500, 1000, 2000
     gyro_sample_rate = 416  # Hz: 13,26,52,104,208,416,833,1660
@@ -145,8 +134,7 @@ class LSM6DS3:
         return _s16(data[0] | (data[1] << 8))
 
     # Applies the current settings (gyro_enabled/accel_enabled/etc class
-    # attributes) to the sensor -- call again after changing any of them, same
-    # as the real driver's "change settings.X, then call begin() again" pattern.
+    # attributes) to the sensor -- call again after changing any of them.
     @classmethod
     def begin(cls):
         data_to_write = 0
@@ -184,13 +172,12 @@ class LSM6DS3:
                 cls.gyro_sample_rate = 104
         cls._write_reg(_REG_CTRL2_G, data_to_write)
 
-        # WHO_AM_I is read but a mismatch doesn't halt configuration, matching
-        # the real driver's own soft-error-only behavior (see module docstring)
+        # WHO_AM_I is read but a mismatch doesn't halt configuration --
+        # soft-error-only behavior, see module docstring.
         cls._read_reg(_REG_WHO_AM_I)
 
-        # Real driver: the sensor needs a few reads before it produces
-        # meaningful data -- these 3 warm-up reads (100ms apart) are that,
-        # not dead code.
+        # The sensor needs a few reads before it produces meaningful data --
+        # these 3 warm-up reads (100ms apart) are that, not dead code.
         for _ in range(3):
             cls.read_float_accel_x()
             cls.read_float_accel_y()
@@ -291,8 +278,7 @@ class LSM6DS3:
             ctrl3 |= cls.accel_fifo_decimation & 0x07
 
         ctrl5 = _ODR_FIFO.get(cls.fifo_sample_rate, _ODR_FIFO[10])
-        # real driver: `tempFIFO_CTRL5 |= settings.fifoModeWord = 6` -- an
-        # unconditional overwrite, see module docstring
+        # Unconditional overwrite of fifo_mode_word, see module docstring.
         cls.fifo_mode_word = 6
         ctrl5 |= 6
 

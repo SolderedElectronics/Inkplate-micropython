@@ -73,8 +73,9 @@ mode_input_pullup = const(2)
 mode_input_pulldown = const(3)
 
 
-# PCAL6416A is a minimal driver for an 16-bit I2C I/O expander
 class PCAL6416A:
+    """Minimal driver for the PCAL6416A 16-bit I2C I/O expander."""
+
     def __init__(self, i2c, addr=0x20):
         self.i2c = i2c
         self.addr = addr
@@ -104,19 +105,15 @@ class PCAL6416A:
         self.ioRegsInt[21] = self.read(PCAL6416A_INTSTAT_REG1)
         self.ioRegsInt[22] = self.read(PCAL6416A_OUTPORT_CONF)
 
-    # read an 8-bit register, internal method
     def read(self, reg):
         return self.i2c.readfrom_mem(self.addr, reg, 1)[0]
 
-    # write an 8-bit register, internal method
     def write(self, reg, v):
         self.i2c.writeto_mem(self.addr, reg, bytes((v,)))
 
-    # write two 8-bit registers, internal method
     def write2(self, reg, v1, v2):
         self.i2c.writeto_mem(self.addr, reg, bytes((v1, v2)))
 
-    # writebuf writes multiple bytes to the same register
     def writebuf(self, reg, v):
         self.i2c.writeto_mem(self.addr, reg, v)
 

@@ -1,5 +1,6 @@
-# PCF85263-style onboard RTC driver (I2C address 0x51). Shared across every board that
-# wires one (Inkplate10/6/5v2) -- byte-for-byte identical logic on all three.
+"""PCF85263-style onboard RTC driver (I2C address 0x51). Shared across every board
+that wires one (Inkplate10/6/5v2) -- byte-for-byte identical logic on all three.
+"""
 
 from micropython import const
 

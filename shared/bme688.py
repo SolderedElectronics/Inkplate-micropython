@@ -1,27 +1,23 @@
-"""MicroPython driver for the Bosch BME688 environmental sensor (temperature/
+"""MicroPython driver for the BME688 environmental sensor (temperature/
 pressure/humidity/gas resistance), used on Inkplate4TEMPERA (`INKPLATE_BME688`
-sensor-select bit in the pasted pins.h). I2C address 0x76 (`BME68X_I2C_ADDR_LOW`)
--- 0x77 is also valid per the chip's SDO strap, not used on this board.
+sensor-select bit). I2C address 0x76 -- 0x77 is also valid per the chip's SDO
+strap, not used on this board.
 
-Ported from the real Bosch `bme68x.c`/`bme68xLibrary.cpp` (BSD-3-Clause, vendored
-in this repo) via Soldered's `BME680-SOLDERED.cpp` wrapper, which only exercises a
-narrow slice of the full Bosch API: I2C only (no SPI), forced mode only (no
-parallel/sequential multi-profile heating), one fixed TPH-oversampling/filter/
-heater config applied once at `begin()`. Only that slice is ported -- self-test,
-SPI, the multi-profile heater API, and sequential-mode ODR are all dropped
-entirely (real driver features Inkplate4TEMPERA's own code never reaches).
+Only a narrow slice of the full sensor API is implemented: I2C only (no SPI),
+forced mode only (no parallel/sequential multi-profile heating), one fixed
+TPH-oversampling/filter/heater config applied once at `begin()`. Self-test,
+SPI, the multi-profile heater API, and sequential-mode ODR are all left out --
+Inkplate4TEMPERA's own code never reaches any of that.
 
-Floating-point compensation formulas only, matching the real driver's default
-`BME68X_USE_FPU` build (the vendored source's non-FPU integer-math variant is
-unreachable dead code on this build, never compiled by the real firmware either).
+Floating-point compensation formulas only -- the chip also supports a
+fixed-point integer-math compensation path, unused here.
 
 `init()` only stores the I2C bus/address (no traffic, mirrors bq27441.py's
 `init()`) -- actual chip bring-up (soft reset, calibration read, TPH/filter/
-heater config) is `begin()`, matching the real `Bme68x::begin()`'s name, called
-only from `wake_peripheral(INKPLATE_BME688)` in the board file, same as the real
-`EPDDriver::wakePeripheral()`'s `INKPLATE_BME688` branch (this chip has no true
-I2C-disabling shutdown like the fuel gauge -- SLEEP mode still ACKs I2C, so no
-wake-before-first-touch ordering hazard here).
+heater config) is `begin()`, called only from `wake_peripheral(INKPLATE_BME688)`
+in the board file (this chip has no true I2C-disabling shutdown like the fuel
+gauge -- SLEEP mode still ACKs I2C, so no wake-before-first-touch ordering
+hazard here).
 """
 
 import time
@@ -163,9 +159,8 @@ class BME688:
     def write_reg(cls, reg, value):
         cls._i2c.writeto_mem(cls._addr, reg, bytes((value & 0xFF,)))
 
-    # Real Bme68x::begin(): soft reset + chip-id check + calibration read, then
-    # (Soldered's own BME680-SOLDERED.cpp begin()) apply the fixed TPH 16x/16x/16x
-    # + filter-size-3 + 320C/150ms heater profile this board always uses.
+    # Soft reset + chip-id check + calibration read, then apply the fixed TPH
+    # 16x/16x/16x + filter-size-3 + 320C/150ms heater profile this board always uses.
     @classmethod
     def begin(cls):
         cls._soft_reset()
@@ -198,8 +193,8 @@ class BME688:
     def read_humidity(cls):
         return cls._read_data()[2]
 
-    # matches the real readGasResistance()'s literal /100.0f -- an odd unit
-    # scaling (unlike pressure's Pa->hPa /100), but ported as-is, not "fixed"
+    # An odd unit scaling (unlike pressure's Pa->hPa /100) -- kept as-is
+    # rather than "fixed", deliberate, not a bug.
     @classmethod
     def read_gas_resistance(cls):
         return cls._read_data()[3] / 100.0
@@ -265,7 +260,7 @@ class BME688:
 
     @classmethod
     def _set_op_mode(cls, op_mode):
-        # bounded (real driver polls unbounded every 10ms) -- 200 tries * 10ms = 2s
+        # Bounded polling: 200 tries * 10ms = 2s (not an unbounded retry loop).
         current = 0
         tries = 200
         while tries:
@@ -281,13 +276,6 @@ class BME688:
         if op_mode != _SLEEP_MODE:
             cls.write_reg(_REG_CTRL_MEAS, (current & ~_MODE_MSK) | (op_mode & _MODE_MSK))
 
-    # Real bme68x_set_regs() doesn't do a plain auto-increment burst write for
-    # multi-register writes -- it interleaves reg_addr/reg_data pairs
-    # ([addr0,data0,addr1,data1,...]) into one write transaction. Confirmed
-    # empirically (not guessed): a plain writeto_mem() burst here only landed the
-    # first byte, silently no-op'ing the rest -- this chip's I2C register map does
-    # not auto-increment through a simple multi-byte write the way the PCAL6416A/
-    # MCP4018 on this same board do.
     @classmethod
     def _write_regs(cls, addrs, data):
         buf = bytearray(2 * len(addrs))
@@ -304,7 +292,7 @@ class BME688:
         data[3] = (data[3] & ~_OST_MSK) | ((cls._os_temp << _OST_POS) & _OST_MSK)
         data[3] = (data[3] & ~_OSP_MSK) | ((cls._os_pres << _OSP_POS) & _OSP_MSK)
         data[1] = (data[1] & ~_OSH_MSK) | (cls._os_hum & _OSH_MSK)
-        # odr left at BME68X_ODR_NONE (sequential mode unused): odr20=0, odr3=1
+        # ODR left disabled (sequential mode unused): odr20=0, odr3=1.
         data[4] = data[4] & ~0xE0
         data[0] = (data[0] & ~0x80) | 0x80
         cls._write_regs((_REG_CTRL_GAS_1, _REG_CTRL_HUM, 0x73, _REG_CTRL_MEAS, _REG_CONFIG), data)
@@ -329,8 +317,8 @@ class BME688:
         )
         meas_dur = meas_cycles * 1963
         meas_dur += 477 * 4  # TPH switching duration
-        meas_dur += 477 * 5  # gas measurement duration
-        meas_dur += 1000  # wake-up duration (forced mode)
+        meas_dur += 477 * 5  # Gas measurement duration
+        meas_dur += 1000  # Wake-up duration (forced mode)
         return meas_dur
 
     @classmethod

@@ -1,42 +1,25 @@
-"""MicroPython driver for the SparkFun APDS-9960 gesture/proximity/ambient-light
-sensor, used on Inkplate4TEMPERA (`INKPLATE_APDS9960` sensor-select bit in the
-pasted pins.h). I2C address 0x39 (`APDS9960_I2C_ADDR`), fixed -- not
-configurable on the real chip either, every raw I2C call in the real driver
-hardcodes it.
+"""MicroPython driver for the APDS-9960 gesture/proximity/ambient-light
+sensor, used on Inkplate4TEMPERA (`INKPLATE_APDS9960` sensor-select bit). I2C
+address 0x39, fixed -- not configurable on the chip either.
 
-Ported from the real SparkFun_APDS9960 Arduino library (vendored in this repo
-under Soldered's `APDS9960-SOLDERED.h`, a no-op subclass with no code of its
-own). Full API surface per explicit request -- gesture detection + proximity +
-ambient light/color + interrupt config -- not a trimmed subset like the fuel
-gauge/BME688 passes. Gesture detection specifically is a nontrivial state
-machine (FIFO buffering, then first/last-sample ratio deltas -> swipe
-direction), ported as literally as MicroPython allows.
+Full API surface is implemented -- gesture detection + proximity + ambient
+light/color + interrupt config -- not a trimmed subset like the fuel gauge/
+BME688 drivers. Gesture detection specifically is a nontrivial state machine
+(FIFO buffering, then first/last-sample ratio deltas -> swipe direction).
 
-Two things collapsed from the real driver, not simplifications of behavior:
+Two things worth noting about how this is structured:
 - Every register accessor's repeated "read register, clear a bitfield mask, OR
-  in the shifted new value, write back" boilerplate is now two small helpers
-  (`_get_bits`/`_set_bits`); each (register, mask, position) triple was
-  re-derived directly from the real source, not reinvented.
-- The real driver's own `if (!wireXxx(...)) return false;` success-checking on
-  every single I2C call is dropped throughout, same precedent as every other
-  Phase 11 sensor here: a failed I2C transaction raises `OSError` naturally in
-  MicroPython, there's no silent-failure mode to guard against the way bare-
-  metal Arduino's `Wire` calls have.
+  in the shifted new value, write back" boilerplate is collapsed into two
+  small helpers (`_get_bits`/`_set_bits`); each (register, mask, position)
+  triple was derived from the chip's own register map.
+- There's no per-call success-checking on I2C transactions: a failed I2C
+  transaction raises `OSError` naturally in MicroPython, so there's no
+  silent-failure mode to guard against.
 
-Real bug found in the vendored reference while porting, not guessed, not
-ported: `wireWriteDataBlock()`'s inner loop calls `Wire.beginTransmission(val[i])`
-instead of `Wire.write(val[i])` -- and it's never actually called from anywhere
-else in that file either (dead code with a real bug baked in).
-
-Per the real driver's own top-of-file doc comment ("instantiate an APDS9960
-object, call init(), and call the appropriate functions"), `begin()` (the real
-chip bring-up: ID check + full register defaults) is left for the *caller* to
-invoke, not run automatically -- confirmed against the real
-`Inkplate4TEMPERADriver.cpp`'s `wakePeripheral(INKPLATE_APDS9960)`, which only
-calls `apds9960.enablePower()` (a plain power-on, not a full re-init), unlike
-BME688's `wakePeripheral()` which does call the real chip bring-up. So
-`wake_peripheral(INKPLATE_APDS9960)` in the board file only powers the chip on;
-call `APDS9960.begin()` yourself afterward before using gesture/proximity/light.
+`begin()` (chip bring-up: ID check + full register defaults) is left for the
+*caller* to invoke, not run automatically -- `wake_peripheral(INKPLATE_APDS9960)`
+in the board file only powers the chip on; call `APDS9960.begin()` yourself
+afterward before using gesture/proximity/light.
 """
 
 import time
@@ -241,7 +224,7 @@ class APDS9960:
         cls._write_reg(reg_low, value & 0xFF)
         cls._write_reg(reg_high, (value >> 8) & 0xFF)
 
-    # Real chip bring-up (ID check + full register defaults) -- not run
+    # Chip bring-up (ID check + full register defaults) -- not run
     # automatically, see module docstring. Call before enable_*_sensor()/reads.
     @classmethod
     def begin(cls):

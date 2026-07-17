@@ -4,10 +4,8 @@ import time
 from machine import Pin
 from pcal6416a import *
 
-# Constants
 CPYRESS_TOUCH_I2C_ADDR = 0x24
 
-# Cypress touchscreen controller I2C regs.
 CYPRESS_TOUCH_BASE_ADDR = 0x00
 CYPRESS_TOUCH_SOFT_RST_MODE = 0x01
 CYPRESS_TOUCH_SYSINFO_MODE = 0x10
@@ -15,12 +13,11 @@ CYPRESS_TOUCH_OPERATE_MODE = 0x00
 CYPRESS_TOUCH_LOW_POWER_MODE = 0x04
 CYPRESS_TOUCH_DEEP_SLEEP_MODE = 0x02
 
-# Default values
 CYPRESS_TOUCH_ACT_INTRVL_DFLT = 0x00  # ms
 CYPRESS_TOUCH_LP_INTRVL_DFLT = 0x0A  # ms
 CYPRESS_TOUCH_TCH_TMOUT_DFLT = 0xFF  # ms
 
-# Max X and Y sizes reported by the TSC.
+# Max X and Y raw values reported by the TSC, used to scale into panel coordinates.
 CYPRESS_TOUCH_MAX_X = 682
 CYPRESS_TOUCH_MAX_Y = 1023
 
@@ -28,7 +25,6 @@ TOUCHSCREEN_EN = 12
 TS_RST = 10
 TS_INT = 36
 
-# Screen dimensions
 E_INK_WIDTH = 1024
 E_INK_HEIGHT = 758
 
@@ -37,8 +33,8 @@ def _bound(low, value, high):
     return low <= value <= high
 
 
-def _arduino_map(x, in_min, in_max, out_min, out_max):
-    """Port of Arduino's map(): integer division truncates toward zero, unlike
+def _trunc_map(x, in_min, in_max, out_min, out_max):
+    """Linear range remap where integer division truncates toward zero, unlike
     Python's floor-dividing `//`, which matters for the rotation remap's
     inverted (high-to-low) ranges below."""
     num = (x - in_min) * (out_max - out_min)
@@ -49,7 +45,6 @@ def _arduino_map(x, in_min, in_max, out_min, out_max):
     return q + out_min
 
 
-# Data structures
 class CyttspBootloaderData:
     def __init__(self):
         self.bl_file_offset = 0
@@ -117,7 +112,6 @@ class CypressTouchData:
 
 
 class Touch:
-    # Class variables
     _ts_flag = False
     _ts_init_done = False
     _bl_data = CyttspBootloaderData()
@@ -127,8 +121,7 @@ class Touch:
     touch_x = [0, 0]
     touch_y = [0, 0]
 
-    # I2C, GPIO and the owning Inkplate instance (read for its .rotation, same
-    # as the real driver's Touch::begin(Inkplate*) storing _inkplate).
+    # I2C, GPIO and the owning Inkplate instance (read for its .rotation).
     _i2c = None
     _PCAL6416A_1 = None
     _inkplate = None
@@ -141,73 +134,58 @@ class Touch:
 
     @classmethod
     def ts_int(cls, pin):
-        # Only set flag if it's not already set (prevent multiple interrupts for same touch)
         if not cls._ts_flag:
             cls._ts_flag = True
 
     @classmethod
     def ts_init(cls, power_state):
-        # Set GPIO pins using PCAL6416A
-        GpioPin(cls._PCAL6416A_1, TOUCHSCREEN_EN, mode=1)  # mode_output = 1
+        GpioPin(cls._PCAL6416A_1, TOUCHSCREEN_EN, mode=1)  # mode_output
         cls._PCAL6416A_1.digital_write(TOUCHSCREEN_EN, 1)
 
-        # Set up interrupt pin
-        GpioPin(cls._PCAL6416A_1, TS_RST, mode=0)  # mode_output = 1
+        GpioPin(cls._PCAL6416A_1, TS_RST, mode=1)  # mode_output
 
         ts_intr = Pin(TS_INT, mode=Pin.IN, pull=Pin.PULL_UP)
 
         cls._PCAL6416A_1.digital_write(TS_RST, 0)
         ts_intr.irq(trigger=Pin.IRQ_FALLING, handler=cls.ts_int)
 
-        # Do hardware reset
         cls.ts_reset()
 
-        # Try to ping it
         if not cls.ts_ping(5):
             print("Ping")
             return False
 
-        # Issue a SW reset
         cls.ts_send_command(0x01)
 
-        # Read bootloader data
         if not cls.ts_load_bootloader_regs(cls._bl_data):
             print("Bootloader")
             return False
 
-        # Exit bootloader mode
         if not cls.ts_exit_boot_loader_mode():
             print("Exit Bootloader")
             return False
 
-        # Set mode to system info mode
         if not cls.ts_set_sys_info_mode(cls._sys_data):
             print("Sysinfo")
             return False
 
-        # Set system info regs
         if not cls.ts_set_sys_info_regs(cls._sys_data):
             print("InfoReg")
             return False
 
-        # Switch to operate mode
         cls.ts_send_command(CYPRESS_TOUCH_OPERATE_MODE)
 
-        # Set dist value for detection
         dist_default_value = 0xF8
         cls.ts_write_i2c_regs(0x1E, bytearray([dist_default_value]), 1)
 
-        # Wait a bit
         time.sleep_ms(50)
 
-        # Clear interrupt flag
         cls._ts_flag = False
 
         return True
 
     @classmethod
     def ts_shutdown(cls):
-        # Disable power to touchscreen
         cls.ts_power(False)
 
     @classmethod
@@ -221,7 +199,6 @@ class Touch:
         if x_pos is None or y_pos is None:
             return 0
 
-        # No new data?
         if not cls._ts_flag:
             return 0
 
@@ -234,7 +211,6 @@ class Touch:
         if touch_report.fingers == 0:
             return 0
 
-        # Scale valid data
         cls.ts_scale(touch_report, E_INK_WIDTH - 1, E_INK_HEIGHT - 1, False, True, True)
 
         for i in range(touch_report.fingers):
@@ -243,22 +219,22 @@ class Touch:
             if z is not None:
                 z[i] = touch_report.z[i]
 
-        # Rotate to match the display's current orientation -- same per-rotation
-        # remap as the real driver's getData() (rotation 0 needs no remap).
+        # Rotate to match the display's current orientation (rotation 0 needs
+        # no remap).
         rotation = cls._inkplate.rotation if cls._inkplate is not None else 0
         if rotation != 0:
             for i in range(touch_report.fingers):
                 if rotation == 1:
                     temp = x_pos[i]
-                    x_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT, 0, E_INK_HEIGHT)
-                    y_pos[i] = _arduino_map(temp, 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
+                    x_pos[i] = _trunc_map(y_pos[i], 0, E_INK_HEIGHT, 0, E_INK_HEIGHT)
+                    y_pos[i] = _trunc_map(temp, 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
                 elif rotation == 2:
-                    x_pos[i] = _arduino_map(x_pos[i], 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
-                    y_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
+                    x_pos[i] = _trunc_map(x_pos[i], 0, E_INK_WIDTH - 1, E_INK_WIDTH - 1, 0)
+                    y_pos[i] = _trunc_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
                 elif rotation == 3:
                     temp = x_pos[i]
-                    x_pos[i] = _arduino_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
-                    y_pos[i] = _arduino_map(temp, 0, E_INK_WIDTH - 1, 0, E_INK_WIDTH - 1)
+                    x_pos[i] = _trunc_map(y_pos[i], 0, E_INK_HEIGHT - 1, E_INK_HEIGHT - 1, 0)
+                    y_pos[i] = _trunc_map(temp, 0, E_INK_WIDTH - 1, 0, E_INK_WIDTH - 1)
 
         return touch_report.fingers
 
@@ -273,11 +249,8 @@ class Touch:
 
     @classmethod
     def ts_get_power_state(cls):
-        # Send subaddress for System Info
         cls._i2c.writeto(CPYRESS_TOUCH_I2C_ADDR, bytes([CYPRESS_TOUCH_BASE_ADDR]))
-
-        # First byte represents current power mode
-        data = cls._i2c.readfrom(CPYRESS_TOUCH_I2C_ADDR, 1)
+        data = cls._i2c.readfrom(CPYRESS_TOUCH_I2C_ADDR, 1)  # Byte 0 is the current power mode
         return data[0]
 
     @classmethod
@@ -316,7 +289,6 @@ class Touch:
         if not cls.ts_read_i2c_regs(CYPRESS_TOUCH_BASE_ADDR, bootloader_data, 16):
             return False
 
-        # Parse data into struct
         bl_data.bl_file_offset = bootloader_data[0]
         bl_data.bl_status = bootloader_data[1]
         bl_data.bl_error = bootloader_data[2]
@@ -334,7 +306,6 @@ class Touch:
 
     @classmethod
     def ts_exit_boot_loader_mode(cls):
-        # Bootloader command array
         bl_command_array = bytes(
             [
                 0x00,  # File offset
@@ -351,17 +322,13 @@ class Touch:
             ]
         )
 
-        # Write bootloader settings
         cls.ts_write_i2c_regs(CYPRESS_TOUCH_BASE_ADDR, bl_command_array, len(bl_command_array))
 
-        # Wait
         time.sleep_ms(500)
 
-        # Get bootloader data
         bootloader_data = CyttspBootloaderData()
         cls.ts_load_bootloader_regs(bootloader_data)
 
-        # Check if still in bootloader mode
         if (bootloader_data.bl_status & 0x10) >> 4:
             return False
 
@@ -369,14 +336,12 @@ class Touch:
 
     @classmethod
     def ts_set_sys_info_mode(cls, sys_data):
-        # Change mode to system info
         if not cls.ts_send_command(CYPRESS_TOUCH_SYSINFO_MODE):
             return False
 
         time.sleep_ms(20)
 
-        # Read system info data - need to read from the correct register
-        # System info data starts at register 0x10, not 0x00
+        # System info data starts at register 0x10, not 0x00.
         sys_info_array = bytearray(32)
         if not cls.ts_read_i2c_regs(0x10, sys_info_array, 32):
             return False
@@ -384,11 +349,10 @@ class Touch:
         sys_data.hst_mode = sys_info_array[0]
         sys_data.tts_verh = sys_info_array[2]
         sys_data.tts_verl = sys_info_array[3]
-        sys_data.act_intrvl = sys_info_array[28]  # Corrected index
-        sys_data.tch_tmout = sys_info_array[29]  # Corrected index
-        sys_data.lp_intrvl = sys_info_array[30]  # Corrected index
+        sys_data.act_intrvl = sys_info_array[28]
+        sys_data.tch_tmout = sys_info_array[29]
+        sys_data.lp_intrvl = sys_info_array[30]
 
-        # Do handshake
         cls.ts_handshake()
 
         if sys_data.tts_verh == 0 and sys_data.tts_verl == 0:
@@ -399,15 +363,12 @@ class Touch:
 
     @classmethod
     def ts_set_sys_info_regs(cls, sys_data):
-        # Modify registers to default values
         sys_data.act_intrvl = CYPRESS_TOUCH_ACT_INTRVL_DFLT
         sys_data.tch_tmout = CYPRESS_TOUCH_TCH_TMOUT_DFLT
         sys_data.lp_intrvl = CYPRESS_TOUCH_LP_INTRVL_DFLT
 
-        # Pack into array
         regs = bytes([sys_data.act_intrvl, sys_data.tch_tmout, sys_data.lp_intrvl])
 
-        # Send registers
         if not cls.ts_write_i2c_regs(0x1D, regs, 3):
             return False
 
@@ -416,11 +377,10 @@ class Touch:
 
     @classmethod
     def ts_handshake(cls):
-        # Read hst_mode register
+        # Toggling bit 7 back to the controller acks the read, per the chip's
+        # handshake protocol (it won't post a new touch report until it sees this).
         hst_mode_reg = bytearray(1)
         cls.ts_read_i2c_regs(CYPRESS_TOUCH_BASE_ADDR, hst_mode_reg, 1)
-
-        # XOR with 0x80 and write back
         hst_mode_reg[0] ^= 0x80
         cls.ts_write_i2c_regs(CYPRESS_TOUCH_BASE_ADDR, hst_mode_reg, 1)
 
@@ -446,17 +406,13 @@ class Touch:
     @classmethod
     def ts_read_i2c_regs(cls, cmd, buffer, length):
         try:
-            # Send command byte
             cls._i2c.writeto(CPYRESS_TOUCH_I2C_ADDR, bytes([cmd]))
 
-            # Read data
             index = 0
             while length > 0:
-                # Read up to 32 bytes at a time
-                i2c_len = min(length, 32)
+                i2c_len = min(length, 32)  # I2C reads are capped at 32 bytes at a time
                 data = cls._i2c.readfrom(CPYRESS_TOUCH_I2C_ADDR, i2c_len)
 
-                # Copy to buffer
                 for i in range(i2c_len):
                     if index + i < len(buffer):
                         buffer[index + i] = data[i]
@@ -471,7 +427,6 @@ class Touch:
     @classmethod
     def ts_write_i2c_regs(cls, cmd, buffer, length):
         try:
-            # Send command byte followed by data
             data = bytes([cmd]) + buffer[:length]
             cls._i2c.writeto(CPYRESS_TOUCH_I2C_ADDR, data)
             return True
@@ -489,14 +444,11 @@ class Touch:
 
         cls.ts_handshake()
 
-        # Hardware can report spurious high finger counts (e.g. palm-swipe);
-        # clamp to 2, the max both the controller and every caller's arrays support.
         fingers = min(regs[2], 2)
         if fingers == 0:
             touch_data.fingers = 0
-            return True  # tell caller "valid read, but nothing pressed"
+            return True  # Tell caller "valid read, but nothing pressed"
 
-        # Normal parse
         touch_data.fingers = fingers
         touch_data.x[0] = (regs[3] << 8) | regs[4]
         touch_data.y[0] = (regs[5] << 8) | regs[6]
@@ -510,39 +462,25 @@ class Touch:
 
     @classmethod
     def ts_scale(cls, touch_data, x_size, y_size, flip_x, flip_y, swap_xy):
-        # Check for NULL pointer
         if touch_data is None:
             return
 
-        # If the number of detected fingers is different than one or two, return
         if touch_data.fingers != 1 and touch_data.fingers != 2:
             return
 
-        # Map both touch channels
         for i in range(touch_data.fingers):
-            # Check for the flip
             if flip_x:
                 touch_data.x[i] = CYPRESS_TOUCH_MAX_X - touch_data.x[i]
             if flip_y:
                 touch_data.y[i] = CYPRESS_TOUCH_MAX_Y - touch_data.y[i]
 
-            # Check for X and Y swap
             if swap_xy:
                 temp = touch_data.x[i]
                 touch_data.x[i] = touch_data.y[i]
                 touch_data.y[i] = temp
 
-            # Map X/Y value to screen size. When swap_xy is set, x[i]/y[i] now hold
-            # the *other* channel's raw reading (from the swap above), so the raw
-            # max used here must swap too -- else e.g. x[i] (really raw Y, native
-            # range 0-1023) gets divided by CYPRESS_TOUCH_MAX_X (682), overscaling
-            # past the panel's own width (found via real HIL testing).
             x_raw_max = CYPRESS_TOUCH_MAX_Y if swap_xy else CYPRESS_TOUCH_MAX_X
             y_raw_max = CYPRESS_TOUCH_MAX_X if swap_xy else CYPRESS_TOUCH_MAX_Y
-            # Clamp: real edge touches read slightly past the raw max constants
-            # (sensor overscan near the bezel, confirmed via HIL -- e.g. y read
-            # ~829 against a 757 screen max), so the un-clamped scale can run
-            # a few px past the panel's own bounds.
             mapped_x = int((touch_data.x[i] * x_size) / x_raw_max)
             mapped_y = int((touch_data.y[i] * y_size) / y_raw_max)
             touch_data.x[i] = max(0, min(x_size, mapped_x))
@@ -553,7 +491,6 @@ class Touch:
         x2 = x1 + w
         y2 = y1 + h
 
-        # Check if there's a new touch event
         if cls.ts_available():
             x = [0, 0]
             y = [0, 0]
@@ -562,7 +499,7 @@ class Touch:
             # ts_get_data() already scales to display resolution and applies
             # rotation -- no further rescale needed here.
 
-            # Workaround for multiple INT events
+            # Workaround for multiple INT events firing for the same physical touch.
             _ts_int_timeout = time.ticks_ms()
             while time.ticks_diff(time.ticks_ms(), _ts_int_timeout) < 100:
                 if cls._ts_flag:
@@ -576,10 +513,9 @@ class Touch:
                 cls.touch_x = x.copy()
                 cls.touch_y = y.copy()
             else:
-                cls.touch_n = 0  # mark as released, but don’t overwrite coords
+                cls.touch_n = 0  # Mark as released, but don't overwrite coords
                 return
 
-            # Check if this touch is in the specified area
             if n == 1 and _bound(x1, x[0], x2) and _bound(y1, y[0], y2):
                 return True
             if n == 2 and (
@@ -589,7 +525,6 @@ class Touch:
                 return True
             return False
 
-        # If no new touch, check if we have a recent touch that's still valid
         elif time.ticks_diff(time.ticks_ms(), cls.touch_t) < 150:
             if (
                 cls.touch_n == 1

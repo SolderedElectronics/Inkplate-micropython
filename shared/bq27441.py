@@ -1,24 +1,17 @@
 """MicroPython driver for the BQ27441-G1 LiPo fuel gauge, used on
 Inkplate4TEMPERA for battery monitoring (`INKPLATE_FUEL_GAUGE` sensor-select
-bit / `FG_GPOUT` pin in the pasted pins.h -- this pass only wires the plain
-I2C reads, not the GPOUT interrupt pin, same precedent as deferring
-INT_APDS/INT1_LSM/INT2_LSM until their own sensors are ported).
+bit / `FG_GPOUT` pin -- this pass only wires the plain I2C reads, not the
+GPOUT interrupt pin, same precedent as deferring INT_APDS/INT1_LSM/INT2_LSM
+until their own sensors are wired up).
 
-Ported from the real SparkFun_BQ27441_Arduino_Library (vendored here under
-Soldered's `BQ27441-G1-SOLDERED` wrapper, which subclasses it with no added
-functionality of its own). Default I2C address 0x55 (`BQ72441_I2C_ADDRESS`).
+Default I2C address 0x55.
 
-Two of the reference driver's own conditionals are dead code, verified by
-reading the whole reference source rather than guessed, and simplified away
-here rather than ported literally:
-- `i2cReadBytes()`/`i2cWriteBytes()` always return a truthy/`true` value (a
-  `timeout` local that's initialized then never decremented, and a bare
-  `return true`), so every `if (i2cReadBytes(...))`/`if (i2cWriteBytes(...))`
-  guard built on top of them (`readControlWord`, `executeControlWord`,
-  `blockDataControl`) is unreachable-false and always takes the true branch.
-`_unseal()`'s own `if (readControlWord(UNSEAL_KEY))` is different -- that
-checks the actual 16-bit word read back from the chip, a real (if unlikely)
-conditional -- and is kept as a real `if` below.
+The register I2C helpers here don't guard against a false return from the
+underlying I2C calls: a failed I2C transaction raises OSError naturally, and
+there's no other failure mode worth catching, so no such guard was added.
+`_unseal()` is the one place with a genuine conditional: it checks the
+actual 16-bit word read back from the chip, a real (if unlikely) check, and
+is kept as one below.
 """
 
 import time
@@ -321,7 +314,7 @@ class BQ27441:
 
         if cls._sealed():
             cls._seal_flag = True
-            cls._unseal()  # must be unsealed before making changes
+            cls._unseal()  # Must be unsealed before making changes
 
         cls._execute_control_word(_CTRL_SET_CFGUPDATE)
         timeout = _TIMEOUT_MS
@@ -332,8 +325,8 @@ class BQ27441:
 
     @classmethod
     def exit_config(cls, resim=True):
-        # real driver's SOFT_RESET path (resim=True) forces a fresh OCV measurement
-        # and SoC resimulation; EXIT_CFGUPDATE (resim=False) skips both
+        # SOFT_RESET path (resim=True) forces a fresh OCV measurement and SoC
+        # resimulation; EXIT_CFGUPDATE (resim=False) skips both.
         if not resim:
             return cls._execute_control_word(_CTRL_EXIT_CFGUPDATE)
 
@@ -345,7 +338,7 @@ class BQ27441:
         if timeout <= 0:
             return False
         if cls._seal_flag:
-            cls._seal()  # seal back up if the IC was sealed coming in
+            cls._seal()  # Seal back up if the IC was sealed coming in
         return True
 
     @classmethod
@@ -373,8 +366,8 @@ class BQ27441:
 
     @classmethod
     def _unseal(cls):
-        # real driver writes the unseal key twice in a row, but only attempts the
-        # second write if the first one's readback came back nonzero
+        # The unseal key is written twice in a row, but the second write only
+        # happens if the first one's readback came back nonzero.
         if cls._read_control_word(_UNSEAL_KEY):
             return cls._read_control_word(_UNSEAL_KEY)
         return False
@@ -449,8 +442,8 @@ class BQ27441:
         cls._block_data_control()
         cls._block_data_class(class_id)
         cls._block_data_offset(offset // 32)
-        # real driver computes+reads the checksum here but never uses either
-        # result before the actual data read below -- dead code, ported as-is
+        # Checksum is computed+read here but neither result is used before the
+        # actual data read below -- dead code, kept as-is rather than removed.
         cls._compute_block_checksum()
         cls._block_data_checksum()
         ret = cls._read_block_data(offset % 32)
@@ -471,7 +464,7 @@ class BQ27441:
         cls._block_data_control()
         cls._block_data_class(class_id)
         cls._block_data_offset(offset // 32)
-        cls._compute_block_checksum()  # dead read, same as _read_extended_data above
+        cls._compute_block_checksum()  # Dead read, same as _read_extended_data above
 
         for i, byte in enumerate(data):
             cls._write_block_data((offset % 32) + i, byte)

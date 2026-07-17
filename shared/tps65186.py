@@ -1,8 +1,8 @@
-# TPS65186 e-paper power-management IC driver (I2C address 0x48). Shared across every
-# parallel-bus board (Inkplate10/6/6V2/5v2/6FLICK/6PLUSV2/4TEMPERA) -- same chip, same
-# register sequence, ported from the real Arduino reference driver (TPS65186.cpp/.h).
-# The Arduino source guards its I2C transactions with a semaphore (shared with something
-# else on the same bus); not needed here since this project's I2C bus is single-owner.
+"""TPS65186 e-paper power-management IC driver (I2C address 0x48). Shared across every
+parallel-bus board (Inkplate10/6/6V2/5v2/6FLICK/6PLUSV2/4TEMPERA) -- same chip, same
+register sequence. A semaphore guarding I2C transactions (shared with something else
+on the same bus) isn't needed here since this project's I2C bus is single-owner.
+"""
 
 import time
 
@@ -99,7 +99,7 @@ class TPS65186:
         self.write_reg(_REG_TMST1, 0x80)
         time.sleep_ms(5)
         temp = self.read_reg(_REG_TEMP)
-        if temp > 127:  # int8_t cast, per the real driver
+        if temp > 127:  # Raw register is a signed int8
             temp -= 256
 
         if wake_for_temp:
@@ -121,13 +121,11 @@ def read_battery_voltage(vbat_adc, vbat_en_pin):
 
 
 # Reads battery voltage via the same ESP32 ADC + resistor-divider scheme, but
-# auto-detects which battery-MOSFET polarity the board uses instead of assuming one
-# fixed revision: older boards pull the enable pin high at rest (PMOS-only), newer
-# boards pull it low (PMOS+NMOS) -- ported from the real Arduino readBattery()
-# (Inkplate6FLICK/Inkplate6PLUSV2). Takes the raw expander object (not a GpioPin
-# wrapper) since the pin's mode must flip between input/output every call. Uses the
-# ADC's calibrated microvolt reading (read_uv()), matching the Arduino driver's own
-# analogReadMilliVolts(), rather than the raw-code/magic-constant formula above.
+# auto-detects the board's battery-MOSFET polarity instead of assuming one fixed
+# revision. Takes the raw expander object (not a GpioPin wrapper) since the pin's
+# mode must flip between input/output every call. Uses the ADC's calibrated
+# microvolt reading (read_uv()) rather than the raw-code/magic-constant formula
+# above.
 def read_battery_voltage_autodetect(expander, adc, pin=9):
     expander.pin_mode(pin, 0)  # mode_input
     state = expander.digital_read(pin)

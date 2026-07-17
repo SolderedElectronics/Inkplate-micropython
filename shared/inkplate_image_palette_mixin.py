@@ -15,17 +15,14 @@ import inkplate
 class ImagePaletteMixin:
     def draw_color_image(self, x, y, width, height, image):
         for i in range(0, len(image)):
-            # Unpack the byte into two pixel values
             pixel_value1 = (image[i] & 0b11110000) >> 4
             pixel_value2 = image[i] & 0b00001111
 
-            # Calculate the x and y coordinates of the pixels
             x1 = (2 * i) % width
             y1 = (2 * i) // width
             x2 = (2 * i + 1) % width
             y2 = (2 * i + 1) // width
 
-            # Check if the coordinates are within the image bounds
             if x1 < width and y1 < height:
                 self.write_pixel(x1 + x, y1 + y, pixel_value1)
             if x2 < width and y2 < height:
@@ -67,11 +64,8 @@ class ImagePaletteMixin:
     def draw_png_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         with open(path, "rb") as f:
             png_data = f.read()
-        # No scratch buffer passed: png_draw_palette only needs one for a rare
-        # Adam7-interlaced source (dithers non-interlaced PNGs -- the common case --
-        # inline, per pixel, no whole-image buffer at all). Pre-allocating one here
-        # unconditionally used to reliably MemoryError on real hardware for completely
-        # ordinary photos -- worse than the rare case this was meant to serve.
+        # No scratch buffer passed: only needed for a rare Adam7-interlaced source
+        # (non-interlaced PNGs dither inline, per pixel, no whole-image buffer at all).
         inkplate.png_draw_palette(
             self._framebuf,
             None,
