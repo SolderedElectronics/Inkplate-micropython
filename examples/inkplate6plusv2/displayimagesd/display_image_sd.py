@@ -51,7 +51,7 @@ print(listdir("/sd"))
 #       Inkplate.KERNEL_BURKES          = 3
 #
 # Example usage:
-IMAGE_PATH = "sd/coastal.png"
+IMAGE_PATH = "sd/image.png"
 try:
     stat(IMAGE_PATH)
 except OSError:

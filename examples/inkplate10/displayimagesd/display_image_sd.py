@@ -56,7 +56,7 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-IMAGE_PATH = "sd/coastal.png"
+IMAGE_PATH = "sd/image.jpg"
 try:
     stat(IMAGE_PATH)
 except OSError:

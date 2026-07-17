@@ -1,13 +1,10 @@
 """MicroPython driver for the Inkplate 4TEMPERA e-paper display.
 
-Display-path + SD card + touch -- this pass deliberately does not port
-setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue/readTemperature, same
-precedent as Inkplate6FLICK/6PLUSV2's own first pass (docs/refactor_plan.md
-Phase 8 steps 24/25/26).
-Touch (Elan controller, shared with Inkplate6PLUS/6PLUSV2), frontlight (shared with
-Inkplate6PLUS/6PLUSV2/6FLICK), buzzer, fuel gauge, BME688, APDS9960, and the
-LSM6DS3 accelerometer/gyro (all Inkplate4TEMPERA-only except touch/frontlight)
-wired in Phase 11 -- every sensor named in this board's pins.h is now ported.
+Display path, SD card, and touch are implemented; setVCOM, writeVCOMToPanelEEPROM,
+getStoredVCOM, getVCOMValue, and readTemperature are not ported.
+Touch (Elan controller) and frontlight are shared with Inkplate6PLUS/6PLUSV2/6FLICK.
+Buzzer, fuel gauge, BME688, APDS9960, and the LSM6DS3 accelerometer/gyro are
+Inkplate4TEMPERA-only.
 """
 
 import time
@@ -36,35 +33,30 @@ import gfx_standard_font_01 as montserrat_black
 import machine
 
 machine.freq(240000000)
-# Raw display constants for Inkplate 4TEMPERA -- first square panel wired in this repo.
+# Raw display constants for the Inkplate 4TEMPERA (a square 600x600 panel).
 D_ROWS = const(600)
 D_COLS = const(600)
 
 
-# IO_EXT_ADDR straight from the pasted Inkplate4TEMPERA pins.h -- this is
-# TOUCHSCREEN_IO_EXPANDER, i.e. touch EN/RST live here (see touch_elan.py), not on
-# the internal expander (0x20) used for OE/GMODE/SPV/TPS65186/SD.
+# Touchscreen IO expander address -- touch EN/RST live here (see touch_elan.py),
+# not on the internal expander (0x20) used for OE/GMODE/SPV/TPS65186/SD.
 _EXPANDER2_ADDR = 0x21
 
-# Fuel Gauge GPOUT pin, internal expander (0x20) -- confirmed via the real
-# EPDDriver::wakePeripheral/sleepPeripheral (INKPLATE_FUEL_GAUGE branch, both
-# operate on `expander1`).
+# Fuel gauge GPOUT pin, on the internal expander (0x20) -- used by
+# wake_peripheral/sleep_peripheral's fuel-gauge branch.
 _FG_GPOUT_PIN = const(15)
 
-# BME688's own ctrl_meas register (0x74) -- straight from the pasted pins.h's
-# BME_CONTROL_ADDR, used only by wake_peripheral/sleep_peripheral's INKPLATE_BME688
-# branch to poke the mode bits directly (real EPDDriver::wakePeripheral/
-# sleepPeripheral). Not the sensor's I2C address (0x76, see bme688.py) -- this is
-# a register offset on the sensor itself.
+# BME688's ctrl_meas register (0x74), used by wake_peripheral/sleep_peripheral's
+# BME688 branch to poke the mode bits directly. Not the sensor's I2C address
+# (0x76, see bme688.py) -- this is a register offset on the sensor itself.
 _BME_CONTROL_ADDR = const(0x74)
 
 # Peripheral select bitmasks (INKPLATE_BUZZER/ACCELEROMETER/BME688/APDS9960/
 # FUEL_GAUGE) live as plain int attributes on the Inkplate class below, not
 # module-level micropython.const()s -- MicroPython's const() inlines every
 # reference to the bare name, including an assignment target of the same name,
-# which broke `Inkplate.INKPLATE_BUZZER = INKPLATE_BUZZER`-style class-attribute
-# mirroring (turned into `0x01 = 0x01`, a real on-device SyntaxError caught via
-# HIL, not guessed).
+# which would break `Inkplate.INKPLATE_BUZZER = INKPLATE_BUZZER`-style
+# class-attribute mirroring (turns into `0x01 = 0x01`, a SyntaxError).
 
 # Inkplate provides access to the pins of the Inkplate 4TEMPERA as well as to low-level
 # display functions.
@@ -83,8 +75,8 @@ class _Inkplate:
         Pin(33, Pin.OUT, value=1)  # EPD_SPH
         inkplate.select_board("inkplate4tempera")
         inkplate.set_expander_write_cb(cls._expander_write_cb)
-        # This board's own pasted writePixelInternal() packs GS4_HMSB nibbles opposite to
-        # every other wired board (pixelMaskGLUT={0xF,0xF0}, even x -> high nibble) --
+        # This board packs GS4_HMSB nibbles with the opposite even/odd-pixel
+        # convention from every other board (even x -> high nibble) --
         # gfx_set_pixel needs telling, since it defaults to the common convention.
         inkplate.gfx_set_gs4_nibble_swap(True)
 
@@ -116,15 +108,14 @@ class _Inkplate:
         cls.TPS_VCOM = GpioPin(cls._PCAL6416A_1, 5, mode_output)
         cls.TPS_VCOM.digital_write(0)
 
-        # SD card P-MOS enable -- pin 11 (SD_PMOS_PIN in the pasted Arduino reference
-        # driver's pins.h), on this same expander (0x20). Different pin number from
-        # Inkplate6/5v2's own SD_ENABLE (pin 10) or Inkplate6PLUSV2's (pin 13) --
-        # board-specific wiring, transcribed directly from this board's own pins.h.
+        # SD card P-MOS enable, pin 11 on the internal expander (0x20). Different
+        # pin number from Inkplate6/5v2's SD_ENABLE (pin 10) or Inkplate6PLUSV2's
+        # (pin 13) -- board-specific wiring.
         cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 11, mode_output)
 
-        # Fuel Gauge GPOUT -- initial pull-up matches the real gpioInit(); flipped to
-        # pulldown by sleep_peripheral(INKPLATE_FUEL_GAUGE) below once begin() runs
-        # (real driver puts every sensor to sleep by default at boot).
+        # Fuel gauge GPOUT -- initial pull-up, flipped to pulldown by
+        # sleep_peripheral(INKPLATE_FUEL_GAUGE) below once begin() runs (every
+        # sensor sleeps by default at boot).
         cls._PCAL6416A_1.pin_mode(_FG_GPOUT_PIN, mode_input_pullup)
 
         cls._on = False  # whether panel is powered on or not
@@ -165,10 +156,9 @@ class _Inkplate:
             return
         cls._on = True
         restore_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
-        # 500ms (default is 250ms) -- observed marginal on a current-limited laptop USB
-        # port under rapid repeated power on/off cycling (HIL session, 2026-07-17);
-        # PWR_GOOD came up fine on every cycle before that, so this is tolerating a
-        # slower-charging rail under load, not masking a rail that never comes up.
+        # 500ms (default is 250ms) -- tolerates a slower-charging rail under load
+        # (e.g. a current-limited USB port during rapid power on/off cycling), not
+        # masking a rail that never comes up.
         if not cls._tps.power_up(timeout_ms=500):
             raise RuntimeError("TPS65186 power-up timed out (PWR_GOOD not OK)")
         # wake-up display
@@ -188,8 +178,8 @@ class _Inkplate:
         cls.EPD_OE.digital_write(0)
 
         cls._tps.power_down(timeout_ms=500)
-        # Tri-state the bit-banged control/data bus to stop current leakage during deep
-        # sleep -- ported from the real Arduino reference driver's pinsZstate().
+        # Tri-state the bit-banged control/data bus to stop current leakage during
+        # deep sleep.
         tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
 
     # ===== Methods that are independent of pixel bit depth
@@ -243,41 +233,36 @@ class _Inkplate:
         for i in range(rep):
             inkplate.i2s_push_frame(c)
 
-    # Sensors are asleep by default (real EPDDriver::initDriver() ends with a
-    # sleepPeripheral() call covering all of them) -- call wake_peripheral() before
-    # using one.
+    # Sensors are asleep by default -- call wake_peripheral() before using one.
     @classmethod
     def wake_peripheral(cls, peripheral):
         if peripheral & Inkplate.INKPLATE_FUEL_GAUGE:
-            # rising edge on GPOUT wakes the fuel gauge -- relies on the pin already
-            # being pulldown from a prior sleep_peripheral() call, same as the real
-            # driver (no explicit pulldown-first step there either)
+            # Rising edge on GPOUT wakes the fuel gauge -- relies on the pin
+            # already being pulldown from a prior sleep_peripheral() call.
             cls._PCAL6416A_1.pin_mode(_FG_GPOUT_PIN, mode_input_pullup)
             time.sleep_us(250)
 
         if peripheral & Inkplate.INKPLATE_BME688:
-            # real wakePeripheral(): nudge ctrl_meas bit0, then re-run the full
-            # begin() (soft reset + calib + TPH/filter/heater config) -- the ctrl_meas
-            # nudge looks redundant given begin()'s own soft reset immediately
-            # overwrites it, but ported literally rather than dropped as dead code,
-            # since it's plausibly a real "wake the I2C bus" requirement on this
-            # chip's power domain (same class of surprise the fuel gauge had).
+            # Nudges ctrl_meas bit0, then re-runs the full begin() (soft reset +
+            # calib + TPH/filter/heater config). The ctrl_meas nudge looks
+            # redundant since begin()'s own soft reset immediately overwrites it,
+            # but is kept since it may be a real "wake the I2C bus" requirement
+            # on this chip's power domain.
             ctrl = BME688.read_reg(_BME_CONTROL_ADDR)
             BME688.write_reg(_BME_CONTROL_ADDR, ctrl | 0x01)
             BME688.begin()
 
         if peripheral & Inkplate.INKPLATE_APDS9960:
-            # real wakePeripheral(): just powers the chip on (apds9960.enablePower()),
-            # unlike BME688's wake which re-runs the full chip bring-up -- APDS9960's
-            # own real chip-config (begin()) is left for the caller to invoke
-            # explicitly, per the real SparkFun library's own documented contract
-            # (see apds9960.py's docstring).
+            # Only powers the chip on (does not re-run init/calibration), unlike
+            # BME688's wake which re-runs the full chip bring-up. APDS9960's own
+            # begin() is left for the caller to invoke explicitly (see
+            # apds9960.py's docstring).
             APDS9960.enable_power()
 
         if peripheral & Inkplate.INKPLATE_ACCELEROMETER:
-            # real wakePeripheral(): sets gyroEnabled/accelEnabled=1 then calls
-            # begin() again -- begin() is both the chip-bringup AND the apply-
-            # settings function on this driver, unlike BME688/APDS9960's separate
+            # Sets gyro_enabled/accel_enabled = 1, then calls begin() again --
+            # begin() is both the chip bring-up AND the apply-settings function
+            # on this driver, unlike BME688/APDS9960's separate
             # init-vs-power-gate split.
             LSM6DS3.gyro_enabled = 1
             LSM6DS3.accel_enabled = 1
@@ -289,26 +274,26 @@ class _Inkplate:
             try:
                 cls._PCAL6416A_1.pin_mode(_FG_GPOUT_PIN, mode_input_pulldown)
             except OSError:
-                # intermittent NAK observed right after TPS65186.begin()'s power-rail
-                # bring-up (charge pump/VCOM DAC switching noise) -- same
-                # "begin() must never crash over an optional peripheral" rule as every
-                # other branch in this function; worst case this one begin() cycle
-                # skips priming the pulldown for the fuel gauge's wake-on-rising-edge.
+                # Intermittent NAK observed right after TPS65186.begin()'s
+                # power-rail bring-up (charge pump/VCOM DAC switching noise) --
+                # begin() must never crash over an optional peripheral; worst
+                # case this one begin() cycle skips priming the pulldown for
+                # the fuel gauge's wake-on-rising-edge.
                 pass
             try:
                 BQ27441.shutdown()
             except OSError:
-                # already shut down (its I2C bus is disabled in shutdown mode, so a
-                # redundant shutdown() while already asleep NAKs) -- harmless, this
-                # call's whole point is making sure it ends up asleep either way
+                # Already shut down (its I2C bus is disabled in shutdown mode,
+                # so a redundant shutdown() while already asleep NAKs) --
+                # harmless, this call's whole point is making sure it ends up
+                # asleep either way.
                 pass
 
         if peripheral & Inkplate.INKPLATE_BME688:
-            # clears ctrl_meas's mode bits -> BME68X_SLEEP_MODE; no re-init needed,
-            # this chip stays I2C-responsive in sleep mode (unlike the fuel gauge).
-            # Same "begin() must never crash over an optional peripheral" rule as
-            # the fuel gauge above -- hit a real OSError here too, on a unit where
-            # BME688 didn't ACK at all.
+            # Clears ctrl_meas's mode bits -> BME68X_SLEEP_MODE. No re-init
+            # needed -- this chip stays I2C-responsive in sleep mode (unlike
+            # the fuel gauge). begin() must never crash over an optional
+            # peripheral.
             try:
                 ctrl = BME688.read_reg(_BME_CONTROL_ADDR)
                 BME688.write_reg(_BME_CONTROL_ADDR, ctrl & ~0x03)
@@ -341,9 +326,7 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (I2S DMA), reps transcribed directly from the real
-        # Inkplate4TEMPERADriver.cpp display1b() pre-clean sequence (identical to
-        # display3b()'s own sequence on this board).
+        # Clean the display (I2S DMA) -- same pre-clean sequence as the GS2 display().
         t0 = time.ticks_ms()
         ip.clean(0, 5)
         ip.clean(1, 15)
@@ -351,13 +334,11 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.clean(1, 15)
         ip.clean(0, 15)
 
-        # the display gets written via I2S DMA + the C waveform engine
-        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 10 black-push phases + 1
-        # final black/white phase driven in C. inkplatemodule.c's inkplate_mono_display
-        # special-cases this board onto black_phases=10 (standard inkplate_gen_mono_wave
-        # scheme, not the reversed-role Inkplate6PLUSV2 variant -- confirmed by this
-        # board's own GraphicsDefs.h LUTB/LUT2 being byte-identical to the standard
-        # op_blk/op_bw tables, not hand-waved from the unusual phase count alone).
+        # The display gets written via I2S DMA + the C waveform engine
+        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 10 black-push
+        # phases + 1 final black/white phase driven in C. This board uses the
+        # standard mono waveform scheme (black_phases=10), not the
+        # reversed-role variant used by Inkplate6PLUSV2.
         t1 = time.ticks_ms()
         ip.mono_display(self._framebuf)
 
@@ -367,9 +348,8 @@ class InkplateMono(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("Mono: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
-        # trailing park sequence, matches the real Arduino display1b() tail exactly
-        # (clean(2, 1); clean(3, 1); vscan_start();) -- note this is clean(2, 1), not
-        # clean(2, 2) like Inkplate6PLUSV2's own tail.
+        # Trailing park sequence: clean(2, 1); clean(3, 1); vscan_start(). Note
+        # this is clean(2, 1), not clean(2, 2) like Inkplate6PLUSV2's own tail.
         ip.clean(2, 1)
         ip.clean(3, 1)
         ip.vscan_start()
@@ -384,7 +364,7 @@ class InkplateMono(framebuf.FrameBuffer):
 class InkplateGS2(framebuf.FrameBuffer):
     """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
-    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real
+    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the
     3-bit/8-level waveform table natively -- no intermediate fold.
     """
 
@@ -398,9 +378,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (I2S DMA), reps transcribed directly from the real
-        # Inkplate4TEMPERADriver.cpp display3b() pre-clean sequence -- identical to
-        # display1b()'s own sequence on this board.
+        # Clean the display (I2S DMA) -- same pre-clean sequence as the mono display().
         t0 = time.ticks_ms()
         ip.clean(0, 5)
         ip.clean(1, 15)
@@ -408,12 +386,12 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(1, 15)
         ip.clean(0, 15)
 
-        # the display gets written via I2S DMA + the C waveform engine
-        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C,
-        # same as every other board. This board's real display3b() loops for(k<8), one
-        # short of the 9 stored here, but the 9th (final) phase is all-zero/no-op, so
-        # pushing it as a harmless extra pass keeps this consistent with every other
-        # board's waveform.phases=9 instead of a one-off 8.
+        # The display gets written via I2S DMA + the C waveform engine
+        # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven
+        # in C, same as every other board. This board's waveform data only has
+        # 8 meaningful phases; the 9th (final) phase is all-zero/no-op, so
+        # pushing it as a harmless extra pass keeps this consistent with every
+        # other board's waveform.phases=9 instead of a one-off 8.
         t1 = time.ticks_ms()
         ip.gs_display(self._framebuf)
 
@@ -423,8 +401,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
-        # trailing park sequence, matches the real Arduino display3b() tail
-        # (clean(3, 1); vscan_start();).
+        # Trailing park sequence: clean(3, 1); vscan_start().
         ip.clean(3, 1)
         ip.i2s_deinit()
         ip.power_off()
@@ -451,12 +428,10 @@ class InkplatePartial:
     def start(self):
         self._framebuf[:] = self._base._framebuf[:]
 
-    # display the changes between our reference copy and the current framebuffer contents
-    # -- runs over I2S DMA in C now (firmware/usermods/inkplate/epd_i2s.c's
-    # epd_i2s_push_partial_frame, cfg->partial_reps=9 matching this board's own pasted
-    # Arduino reference driver's partialUpdate() for(k<9) loop), matching how mono/GS/clean
-    # already work. Always walks the full frame (no region params) -- matches the real
-    # Arduino reference driver's partialUpdate(), which has none either.
+    # Display the changes between our reference copy and the current framebuffer
+    # contents. Runs over I2S DMA in C (firmware/usermods/inkplate/epd_i2s.c's
+    # epd_i2s_push_partial_frame, cfg->partial_reps=9), matching how mono/GS/clean
+    # already work. Always walks the full frame; there are no region params.
     def display(self):
         ip = _Inkplate
         ip.power_on()
@@ -466,8 +441,7 @@ class InkplatePartial:
         ip.partial_display(self._framebuf, self._base._framebuf)
         t1 = time.ticks_ms()
 
-        # Tail transcribed directly from the real Inkplate4TEMPERADriver.cpp
-        # partialUpdate() (clean(2, 2); clean(3, 1); vscan_start();).
+        # Tail sequence: clean(2, 2); clean(3, 1); vscan_start().
         ip.clean(2, 2)
         ip.clean(3, 1)
         ip.vscan_start()
@@ -478,15 +452,13 @@ class InkplatePartial:
         print("Partial: draw %dms" % td)
 
 
-# NEEDS HW TEST: gfx/text/image draw methods now come from shared/inkplate_{gfx,text,
-# image_gs4}_mixin.py (same shared code as inkplate10/6/6plusv2/6flick/5v2).
-# Extraction was byte-identical to the prior inline code; only self._d_cols/
-# self._d_rows (set in __init__) replace the old direct D_COLS/D_ROWS references. If
-# drawing looks offset/corrupted, check those two got set before any draw call runs.
-# This board's gfx_set_gs4_nibble_swap(True) (set in _Inkplate.init) is untouched and
-# still applies to every gfx_* call the mixin makes.
+# Gfx/text/image draw methods come from shared/inkplate_{gfx,text,image_gs4}_mixin.py,
+# using self._d_cols/self._d_rows (set in __init__) rather than direct D_COLS/D_ROWS
+# references -- both must be set before any draw call runs, or drawing will look
+# offset/corrupted. This board's gfx_set_gs4_nibble_swap(True) (set in _Inkplate.init)
+# applies to every gfx_* call the mixin makes.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
-    # Inkplate wraper to make it more easy for use
+    # Inkplate wrapper class for easier use.
 
     INKPLATE_1BIT = 0
     INKPLATE_2BIT = 1
@@ -506,14 +478,10 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     KERNEL_STUCKI = 2
     KERNEL_BURKES = 3
 
-    # Peripheral select bitmasks straight from the pasted pins.h, used by
-    # wake_peripheral()/sleep_peripheral(). Only INKPLATE_FUEL_GAUGE is actually
-    # wired this pass -- the other three are accepted (for a future sensor's own
-    # wiring to reuse this same dispatch) but currently no-ops. NOTE: pins.h has
-    # this colliding with INKPLATE_BUZZER's 0x01 (the other three step
-    # 0x02/0x04/0x08, suggesting a 0x10 typo) -- used as literally pasted per
-    # user's explicit call, revisit if wake/sleep behavior for one bleeds into
-    # the other.
+    # Peripheral select bitmasks, used by wake_peripheral()/sleep_peripheral().
+    # NOTE: this collides with INKPLATE_BUZZER's 0x01 (the other three step
+    # 0x02/0x04/0x08, suggesting a 0x10 typo) -- revisit if wake/sleep behavior
+    # for one bleeds into the other.
     INKPLATE_BUZZER = 0x01
     INKPLATE_ACCELEROMETER = 0x02
     INKPLATE_BME688 = 0x04
@@ -546,48 +514,42 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
             xy_swapped=True,
         )
 
-        # FRONTLIGHT_EN=10 on the internal expander (0x20) -- confirmed from this
-        # board's own pasted pins.h, no collision with that expander's other pins
-        # (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/SD_ENABLE=11).
+        # FRONTLIGHT_EN=10 on the internal expander (0x20), no collision with
+        # that expander's other pins (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/
+        # VCOM=5/SD_ENABLE=11).
         Frontlight.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 10)
 
-        # BUZZ_EN=12 on the internal expander (0x20), DIGIPOT_ADDR=0x2F -- both
-        # confirmed from this board's own pasted pins.h, no collision with that
-        # expander's other pins (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/
-        # SD_ENABLE=11/FRONTLIGHT_EN=10).
+        # BUZZ_EN=12 on the internal expander (0x20), DIGIPOT_ADDR=0x2F. No
+        # collision with that expander's other pins (OE=0/GMOD=1/SPV=2/
+        # WAKEUP=3/PWRUP=4/VCOM=5/SD_ENABLE=11/FRONTLIGHT_EN=10).
         Buzzer.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 12)
 
-        # BQ27441-G1 fuel gauge, default I2C addr 0x55 -- shared i2c bus.
+        # BQ27441-G1 fuel gauge, default I2C addr 0x55 -- shared I2C bus.
         BQ27441.init(_Inkplate._i2c)
 
-        # BME688 env sensor, default I2C addr 0x76 -- shared i2c bus. Bus-only, no
-        # chip traffic yet (matches real driver: bme688.begin() is only ever called
-        # from wakePeripheral(), never from initDriver()).
+        # BME688 env sensor, default I2C addr 0x76 -- shared I2C bus. Bus-only,
+        # no chip traffic yet; bme688.begin() is only ever called from
+        # wake_peripheral(), never here.
         BME688.init(_Inkplate._i2c)
 
         # APDS9960 gesture/proximity/light sensor, default I2C addr 0x39 -- shared
-        # i2c bus. Bus-only here too; its own begin() is left for the caller (see
+        # I2C bus. Bus-only here too; its own begin() is left for the caller (see
         # apds9960.py's docstring).
         APDS9960.init(_Inkplate._i2c)
 
-        # LSM6DS3(TR-C) accelerometer+gyro, default I2C addr 0x6B -- shared i2c
+        # LSM6DS3(TR-C) accelerometer+gyro, default I2C addr 0x6B -- shared I2C
         # bus. Bus-only; its own begin() (chip bring-up + apply gyro/accel
-        # enable state) only ever runs via wake_peripheral/sleep_peripheral,
-        # matching the real driver.
+        # enable state) only ever runs via wake_peripheral/sleep_peripheral.
         LSM6DS3.init(_Inkplate._i2c)
 
-        # Real EPDDriver::initDriver() ends by sleeping every sensor (they're asleep
-        # by default; wake_peripheral() must be called before using one) -- matches
-        # its own literal `sleepPeripheral(BUZZER|APDS9960|BME688|ACCELEROMETER|
-        # FUEL_GAUGE)` call now that every sensor it names is ported. Safe to
-        # include BME688/APDS9960/accelerometer here even though none of their own
-        # begin() was ever called before this: their sleep paths ACK from cold
-        # boot same as any other register (unlike the fuel gauge's real shutdown
-        # mode) -- though the accelerometer's sleep_peripheral is heavier than the
-        # other two (its begin() unconditionally does 3x100ms warm-up reads
-        # regardless of enabled state, matching the real driver exactly), so this
-        # adds ~300ms+ to every board begin() call, same real cost the actual
-        # hardware pays too.
+        # Every sensor sleeps by default at boot; wake_peripheral() must be
+        # called before using one. Safe to include BME688/APDS9960/accelerometer
+        # here even though none of their own begin() was ever called before
+        # this: their sleep paths ACK from cold boot same as any other register
+        # (unlike the fuel gauge's shutdown mode). The accelerometer's
+        # sleep_peripheral is heavier than the other two -- its begin()
+        # unconditionally does 3x100ms warm-up reads regardless of enabled
+        # state, adding ~300ms+ to every board begin() call.
         _Inkplate.sleep_peripheral(
             Inkplate.INKPLATE_FUEL_GAUGE
             | Inkplate.INKPLATE_BME688
@@ -627,12 +589,9 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
                     sck=Pin(14),
                     cs=Pin(15),
                     # Same SD wiring as every other classic-ESP32 board (miso=12/mosi=13/
-                    # sck=14/cs=15), confirmed against this board's own pasted
-                    # sdCardInit() (spi2.begin(14, 12, 13, 15) / SdSpiConfig(15, ...)).
-                    # Starting at the same 4MHz value those boards settled on (their own
-                    # real driver's SdSpiConfig used 25MHz over SdFat/Arduino SPI -- not
-                    # directly applicable to MicroPython's SDCard driver); not yet
-                    # independently confirmed on real Inkplate4TEMPERA hardware.
+                    # sck=14/cs=15). Starting at the same 4MHz value those boards
+                    # settled on; not yet independently confirmed on real
+                    # Inkplate4TEMPERA hardware.
                     freq=4000000,
                 ),
                 "/sd",
@@ -707,7 +666,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         return BQ27441.soc()
 
     # BME688 -- thin delegation to bme688.BME688. Must wake_peripheral(INKPLATE_BME688)
-    # first (runs the chip's real begin()). Full BME688 API (read_pressure/humidity/
+    # first (runs the chip's begin()). Full BME688 API (read_pressure/humidity/
     # gas_resistance/altitude/sensor_data) available directly via the class.
     def read_temperature_bme(self):
         return BME688.read_temperature()
@@ -723,7 +682,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         return APDS9960.read_gesture()
 
     # Accelerometer/gyro -- thin delegation to lsm6ds3.LSM6DS3. Must
-    # wake_peripheral(INKPLATE_ACCELEROMETER) first (runs the chip's real begin()).
+    # wake_peripheral(INKPLATE_ACCELEROMETER) first (runs the chip's begin()).
     # Full LSM6DS3 API (gyro reads/temperature/FIFO) available directly via the class.
     def read_accelerometer(self):
         return (
@@ -796,7 +755,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
+    # Rotation helpers.
     def set_rotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
@@ -810,8 +769,8 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         return self.rotation
 
     # Active framebuf for the current display_mode -- shared by every gfx_* call in
-    # GfxMixin/TextMixin/ImageGS4Mixin, since C owns the whole draw now instead of a
-    # per-pixel Python callback.
+    # GfxMixin/TextMixin/ImageGS4Mixin; C owns the whole draw, not a per-pixel
+    # Python callback.
     def _framebuf(self):
         return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf
 

@@ -1,13 +1,12 @@
 """Decode a PNG from the SD card through the C PNG decode path (vendored pngle, ROM
-miniz/tinfl, docs/refactor_plan.md Phase 7 step 19) with real Floyd-Steinberg dithering
-(step 21) and draw it in grayscale. Alpha is ignored (treated fully opaque).
+miniz/tinfl) with Floyd-Steinberg dithering and draw it in grayscale. Alpha is ignored
+(treated fully opaque).
 
-Calls the high-level draw_png_from_sd() (boards/inkplate10/inkplate10.py) -- it wraps the
-same inkplate.png_draw_gs4() C binding this example called directly before step 43, plus
-the file read and a gc.collect() after.
+Calls the high-level draw_png_from_sd() (boards/inkplate10/inkplate10.py), which wraps
+the inkplate.png_draw_gs4() C binding plus the file read and a gc.collect() after.
 
-Copy any PNG onto the SD card as /sd/coastal.png before running this example -- no
-sample PNG ships in this repo (mountain.jpg is the JPEG example's sample).
+Copy any PNG onto the SD card as /sd/image.png before running this example -- no
+sample PNG ships in this repo (the JPEG example ships its own sample instead).
 """
 
 from inkplate10 import Inkplate
@@ -17,7 +16,7 @@ ipk = Inkplate(Inkplate.INKPLATE_2BIT)
 ipk.begin()
 ipk.init_sd_card(fast_boot=True)
 
-IMAGE_PATH = "/sd/coastal.png"
+IMAGE_PATH = "/sd/image.png"
 try:
     stat(IMAGE_PATH)
 except OSError:

@@ -9,39 +9,31 @@ import inkplate
 
 machine.freq(240000000)
 
-# RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C spi_panel
-# transport (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
-# -- no Python-side pin constants needed.
+# RST/DC/CS/BUSY/CLK/DIN and the SPI peripheral are owned by the C spi_panel
+# transport (firmware/usermods/inkplate/epd_spi.c) -- no Python-side pin
+# constants needed.
 
-# ePaper resolution
-# For Inkplate2 height and width are swapped in relation to the default rotation
+# ePaper resolution.
+# For Inkplate2, height and width are swapped relative to the default rotation.
 E_INK_HEIGHT = 212
 E_INK_WIDTH = 104
 
 E_INK_NUM_PIXELS = E_INK_HEIGHT * E_INK_WIDTH
 E_INK_BUFFER_SIZE = E_INK_NUM_PIXELS // 8
 
-# From the real Arduino reference driver's pins.h BUSY_TIMEOUT_MS -- used for the
-# init-wake (command 0x04) and sleep (command 0x02) busy-waits. display()'s own
-# post-refresh wait uses a separate, longer timeout (see DISPLAY_REFRESH_TIMEOUT_MS)
-# matching the reference driver's own distinct inline value there.
+# Timeout for the init-wake (command 0x04) and sleep (command 0x02) busy-waits.
+# display()'s own post-refresh wait uses a separate, longer timeout (see
+# display_refresh_timeout_ms below), since a full panel refresh takes far longer.
 busy_timeout_ms = 1000
 
-# From the real Arduino reference driver's display(): waitForEpd(60000) after sending
-# the refresh command (0x12) -- a full panel refresh takes far longer than the
-# init/sleep BUSY_TIMEOUT_MS above.
+# Timeout after sending the refresh command (0x12) -- a full panel refresh takes
+# far longer than the init/sleep timeout above.
 display_refresh_timeout_ms = 60000
 
 
-# NEEDS HW TEST: this class was converted from classmethod-style (state on the class,
-# `cls.` throughout) to normal instance methods (`self.`), to match the other 8 boards.
-# Mechanical cls->self substitution (verified no leftover `cls`/@classmethod via grep)
-# -- should be behaviorally identical since only one Inkplate() instance is ever
-# created, but this is a real code-shape change, not pure extraction, so verify
-# begin()/display()/draw_*/print* end-to-end. This board's dual BW+RED plane draw
-# methods and web-only image loading (no draw_*_from_sd at all) are genuinely unique
-# to this board and were deliberately NOT folded into a shared mixin -- see
-# _plane_colors/write_pixel for the BW/RED split.
+# This board's dual BW/RED plane draw methods and web-only image loading (no
+# draw_*_from_sd) are unique to this board and are not folded into a shared
+# mixin -- see _plane_colors/write_pixel for the BW/RED split.
 class Inkplate:
     # Colors
     WHITE = 0b00000000
@@ -56,15 +48,14 @@ class Inkplate:
     rotation = 0
     # gfx_* calls use a rotation numbering offset by 2 from this board's own `rotation`
     # (board rotation 0 is physically what gfx.c's rotation-remap calls rotation 2, same
-    # offset as Inkplate6COLOR) -- see set_rotation(). Recomputed there; begin() below
-    # never sets `rotation` directly, only via set_rotation(), so this default is
-    # overwritten before first use.
+    # offset as Inkplate6COLOR) -- see set_rotation(). begin() never sets `rotation`
+    # directly, only via set_rotation(), so this default is overwritten before first use.
     _gfx_rotation = 2
 
-    # This board's dual BW/RED 1bpp planes pack each byte MSB-first (its real SPI panel's
-    # bit order, confirmed against its pre-gfx-port write_pixel's `7 - x%8` shift) -- the
-    # opposite of gfx_set_pixel's default mode 0 (LSB-first, tuned for the parallel-bus
-    # family's waveform engine). Pass this instead of 0 as display_mode to every gfx_* call.
+    # This board's dual BW/RED 1bpp planes pack each byte MSB-first (the SPI panel's
+    # own bit order) -- the opposite of gfx_set_pixel's default mode 0 (LSB-first,
+    # tuned for the parallel-bus family's waveform engine). Pass this instead of 0
+    # as display_mode to every gfx_* call.
     _GFX_DISPLAY_MODE = 2
 
     text_size = 1
@@ -76,10 +67,9 @@ class Inkplate:
     def begin(self):
         self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
 
-        # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
-        # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
-        # docs/refactor_plan.md Phase 9 step 31) -- no more machine.SPI/Pin objects for
-        # the panel itself.
+        # RST/DC/CS/BUSY/CLK/DIN and the SPI peripheral are owned by the C spi_panel
+        # transport from here on (firmware/usermods/inkplate/epd_spi.c) -- no more
+        # machine.SPI/Pin objects for the panel itself.
         inkplate.select_spi_panel("inkplate2")
         inkplate.spi_panel_init()
 
@@ -91,14 +81,14 @@ class Inkplate:
         self.font_family = montserrat_black
         self.font = self.font_family._font
 
-        # Wake the panel and init it
+        # Wake the panel and init it.
         if not (self.set_panel_deep_sleep_state(False)):
             return False
 
-        # Put it back to sleep
+        # Put it back to sleep.
         self.set_panel_deep_sleep_state(True)
 
-        # 3 is the default rotation for Inkplate 2
+        # 3 is the default rotation for Inkplate 2.
         self.set_rotation(3)
 
         self.text_size = 1
@@ -109,8 +99,8 @@ class Inkplate:
         return self._panel_state
 
     def set_panel_deep_sleep_state(self, state):
-        # False wakes the panel up
-        # True puts it to sleep
+        # False wakes the panel up.
+        # True puts it to sleep.
         #
         # Pin config/CS+DC idle levels and the SPI bus itself are owned by the C
         # spi_panel transport (epd_spi_init(), already called once from begin()) --
@@ -120,7 +110,7 @@ class Inkplate:
         if not state:
             self.reset_panel()
 
-            # Reinit the panel
+            # Reinit the panel.
             self.send_command(0x04)
             if not inkplate.spi_panel_wait_busy(1, busy_timeout_ms):
                 return False
@@ -140,7 +130,7 @@ class Inkplate:
             return True
 
         else:
-            # Put the panel to sleep
+            # Put the panel to sleep.
             self.send_command(0x50)
             self.send_data(b"\xf7")
             self.send_command(0x02)
@@ -150,9 +140,8 @@ class Inkplate:
 
             time.sleep_ms(1)
 
-            # Hold RST asserted low while asleep (matches the real Arduino reference
-            # driver's setPanelDeepSleep(true) -- lower power than leaving it floating
-            # or driven high).
+            # Hold RST asserted low while asleep -- lower power than leaving it
+            # floating or driven high.
             inkplate.spi_panel_set_rst(0)
 
             self._panel_state = False
@@ -173,27 +162,27 @@ class Inkplate:
         self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
 
     def display(self):
-        # Wake the display
+        # Wake the display.
         self.set_panel_deep_sleep_state(False)
 
-        # Write b/w pixels
+        # Write b/w pixels.
         self.send_command(0x10)
         self.send_data(self._framebuf_BW)
 
-        # Write red pixels
+        # Write red pixels.
         self.send_command(0x13)
         self.send_data(self._framebuf_RED)
 
-        # Stop transfer
+        # Stop transfer.
         self.send_command(0x11)
         self.send_data(b"\x00")
 
-        # Refresh
+        # Refresh.
         self.send_command(0x12)
         time.sleep_us(500)
         inkplate.spi_panel_wait_busy(1, display_refresh_timeout_ms)
 
-        # Put the display back to sleep
+        # Put the display back to sleep.
         self.set_panel_deep_sleep_state(True)
 
     def width(self):
@@ -202,7 +191,7 @@ class Inkplate:
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
+    # Compatibility method names matching the common embedded graphics API.
     def set_rotation(self, x):
         self.rotation = x % 4
         self._gfx_rotation = (self.rotation + 2) % 4
@@ -219,11 +208,10 @@ class Inkplate:
     def draw_pixel(self, x, y, c):
         self.write_pixel(x, y, c)
 
-    # Maps a user color (WHITE=0/BLACK=1/RED=2) to independent 1bpp draw values for the
-    # BW and RED planes -- this board's own pre-refactor write_pixel forced both planes'
-    # bits high, then cleared exactly one plane's bit depending on c (BLACK clears BW,
-    # RED clears RED, WHITE clears neither). Returns None if c is out of range (mirrors
-    # the original per-pixel bounds check).
+    # Maps a user color (WHITE=0/BLACK=1/RED=2) to independent 1bpp draw values for
+    # the BW and RED planes: BLACK clears the BW plane's bit, RED clears the RED
+    # plane's bit, WHITE clears neither (both planes' bits start high). Returns
+    # None if c is out of range.
     def _plane_colors(self, c):
         if c > 2:
             return None
@@ -629,11 +617,9 @@ class Inkplate:
     def set_text_wrapping(self, state: bool):
         self.textWrapping = state
 
-    # Ported from this board's own gfx.py GFX._print_text/_draw_char_dual_buf, with the
-    # per-char blit routed through inkplate.gfx_draw_char (once per plane, like every
-    # other gfx_* wrapper on this board) instead of a write_pixel-per-subpixel Python
-    # loop. Color clamps to 0-2 rather than rejecting out of range, matching the
-    # original gfx.py behavior (unlike write_pixel/_plane_colors, which reject).
+    # Per-char blit routes through inkplate.gfx_draw_char (once per plane, like
+    # every other gfx_* wrapper on this board). Color clamps to 0-2 rather than
+    # rejecting out of range, unlike write_pixel/_plane_colors, which reject.
     def _print_text(self, x0, y0, string, size, color, text_wrap=False):
         display_width = self._width
         color = min(max(color, 0), 2)
@@ -739,7 +725,7 @@ class Inkplate:
         lines = []
         for paragraph in text.split("\n"):
             while len(paragraph) > max_chars:
-                # Find last space within limit
+                # Find last space within limit.
                 wrap_at = paragraph.rfind(" ", 0, max_chars)
                 if wrap_at == -1:
                     wrap_at = max_chars
@@ -815,7 +801,7 @@ class Inkplate:
 
     def draw_image(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """
-        Draw an image from either web URL or local file system
+        Draw an image from either web URL or local file system.
         Args:
             path: Either a web URL (http/https) or local file path
             x0, y0: Coordinates for top-left corner of image
@@ -823,9 +809,9 @@ class Inkplate:
             kernel_type: Dithering kernel type (0=Floyd-Steinberg, etc.)
             invert: Invert colors
         """
-        # Check if path is a web URL
+        # Check if path is a web URL.
         if path.startswith(("http://", "https://")):
-            # Determine image type from URL
+            # Determine image type from URL.
             if path.lower().endswith(".bmp"):
                 self.draw_bmp_from_web(path, x0, y0, invert, dither)
             elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
@@ -883,9 +869,8 @@ class Inkplate:
             # Adam7-interlaced source (dithers non-interlaced PNGs -- the common
             # case -- inline, per pixel, no whole-image buffer at all).
             # Pre-allocating one here unconditionally used to reliably MemoryError
-            # on real Inkplate6COLOR hardware for completely ordinary photos
-            # (docs/refactor_plan.md Phase 7 step 21's follow-up) -- worse than the
-            # rare case this was meant to serve.
+            # on Inkplate6COLOR hardware for completely ordinary photos -- worse
+            # than the rare case this was meant to serve.
             inkplate.png_draw_palette(
                 self._framebuf_BW,
                 self._framebuf_RED,
@@ -906,7 +891,7 @@ class Inkplate:
             raise
 
     def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
-        """Display a BMP image downloaded from the web
+        """Display a BMP image downloaded from the web.
 
         Args:
             bmp_data (bytes): Raw BMP file data

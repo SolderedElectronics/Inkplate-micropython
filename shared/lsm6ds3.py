@@ -10,11 +10,10 @@ APDS9960's optional pedometer/tap features (not exposed here either).
 Settings (gyro/accel range, sample rate, bandwidth, FIFO config, etc.) are
 plain class attributes instead of a separate settings struct -- set them
 directly (`LSM6DS3.gyro_enabled = 0`) before calling `begin()` again to apply.
-Confirmed against the board file: `wake_peripheral`/`sleep_peripheral`'s
-`INKPLATE_ACCELEROMETER` branch *only* ever toggles `gyro_enabled`/
-`accel_enabled` before calling `begin()` again -- every other setting stays
-at the class's own defaults (gyro 2000dps/416Hz/400Hz bandwidth, accel
-16g/416Hz/100Hz bandwidth).
+The board's `wake_peripheral`/`sleep_peripheral` `INKPLATE_ACCELEROMETER` branch
+only ever toggles `gyro_enabled`/`accel_enabled` before calling `begin()` again --
+every other setting stays at the class's own defaults (gyro 2000dps/416Hz/400Hz
+bandwidth, accel 16g/416Hz/100Hz bandwidth).
 
 Two things kept literally, not "fixed", because they're real (if odd) chip
 behavior, not bugs of this driver's own making:

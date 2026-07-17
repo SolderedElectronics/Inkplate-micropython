@@ -1,8 +1,8 @@
 """MicroPython driver for the BQ27441-G1 LiPo fuel gauge, used on
 Inkplate4TEMPERA for battery monitoring (`INKPLATE_FUEL_GAUGE` sensor-select
-bit / `FG_GPOUT` pin -- this pass only wires the plain I2C reads, not the
-GPOUT interrupt pin, same precedent as deferring INT_APDS/INT1_LSM/INT2_LSM
-until their own sensors are wired up).
+bit / `FG_GPOUT` pin -- only the plain I2C reads are wired here; the GPOUT
+interrupt pin is unused, consistent with INT_APDS/INT1_LSM/INT2_LSM staying
+unwired until their own sensors need them).
 
 Default I2C address 0x55.
 

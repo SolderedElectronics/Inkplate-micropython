@@ -1,14 +1,12 @@
 """MicroPython driver for the Inkplate 6PLUS (V2 revision) e-paper display.
 
-Display-path + SD card + battery/temperature + touch -- this pass deliberately does
-not port setVCOM/writeVCOMToPanelEEPROM/getStoredVCOM/getVCOMValue, same precedent as
-Inkplate6FLICK's own first pass (docs/refactor_plan.md Phase 8 step 24). Only the V2
-hardware revision is wired here (IO_EXT_ADDR 0x21 per the pasted Arduino reference
-driver's pins.h); the classic (non-V2) INKPLATE6PLUS uses 0x22 there and isn't
+Display-path + SD card + battery/temperature + touch. setVCOM/writeVCOMToPanelEEPROM/
+getStoredVCOM/getVCOMValue are not implemented. Only the V2 hardware revision is wired
+here (IO_EXT_ADDR 0x21); the classic (non-V2) INKPLATE6PLUS uses 0x22 there and isn't
 supported by this file -- touch is unaffected by that split (its own
 TOUCHSCREEN_IO_EXPANDER is IO_INT_ADDR, 0x20, the same on both revisions). Touch (Elan
 controller, shared with Inkplate4TEMPERA) and frontlight (shared with Inkplate4TEMPERA/
-6FLICK) wired in Phase 11.
+6FLICK) are also wired here.
 """
 
 import time
@@ -33,16 +31,13 @@ import gc
 import machine
 
 machine.freq(240000000)
-# Raw display constants for Inkplate 6PLUS -- same panel as Inkplate6FLICK (1024x758,
-# confirmed against the pasted Arduino reference driver's pins.h).
+# Raw display constants for Inkplate 6PLUS -- same panel as Inkplate6FLICK (1024x758).
 D_ROWS = const(758)
 D_COLS = const(1024)
 
-# IO_EXT_ADDR straight from the pasted Inkplate6PLUS pins.h -- 0x21 for the V2 revision
-# this file targets (0x22 for the classic/non-V2 board, not wired here). Only used for
-# touch on real hardware, which is out of scope this pass -- the expander object below
-# exists only so expander_bridge_write() can route to it if ever needed, same precedent
-# as Inkplate6/Inkplate6FLICK's own (also-unwired-for-touch) second expander.
+# IO_EXT_ADDR 0x21 is for the V2 revision this file targets (0x22 for the classic/
+# non-V2 board, not wired here). Not currently used for touch -- the expander object
+# below exists only so expander_bridge_write() can route to it if needed.
 _EXPANDER2_ADDR = 0x21
 
 # Inkplate provides access to the pins of the Inkplate 6PLUS as well as to low-level
@@ -71,7 +66,7 @@ class _Inkplate:
         # not the object it returns.
         cls.EPD_SPV = GpioPin(cls._PCAL6416A_1, 2, mode_output)
 
-        # Display data lines - we only use the Pin class to init the pins
+        # Display data lines - we only use the Pin class to init the pins.
         Pin(4, Pin.OUT)  # D0
         Pin(5, Pin.OUT)  # D1
         Pin(18, Pin.OUT)  # D2
@@ -91,19 +86,18 @@ class _Inkplate:
         cls.TPS_VCOM = GpioPin(cls._PCAL6416A_1, 5, mode_output)
         cls.TPS_VCOM.digital_write(0)
 
-        # Battery-read ADC -- real Arduino readBattery() reads this pin's resting state
-        # to auto-detect PMOS-only (older board) vs PMOS+NMOS (newer board) polarity, so
-        # its mode flips between input/output on every read (see read_battery below);
-        # no fixed-mode GpioPin wrapper here, just the pin number on the same expander.
+        # Battery-read ADC -- this pin's resting state auto-detects PMOS-only (older
+        # board) vs PMOS+NMOS (newer board) polarity, so its mode flips between
+        # input/output on every read (see read_battery below); no fixed-mode GpioPin
+        # wrapper here, just the pin number on the same expander.
         cls.VBAT_EN_PIN = 9
         cls.VBAT = ADC(Pin(35))
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
 
-        # SD card P-MOS enable -- pin 13 (SD_PMOS_PIN / IO_PIN_B5 in the pasted Arduino
-        # reference driver's pins.h), on this same expander (0x20). Different pin number
-        # from Inkplate6/5v2's own SD_ENABLE (pin 10) -- board-specific wiring, transcribed
-        # directly from this board's own pins.h, not copied from those boards.
+        # SD card P-MOS enable -- pin 13 (SD_PMOS_PIN / IO_PIN_B5), on this same
+        # expander (0x20). Different pin number from Inkplate6/5v2's own SD_ENABLE
+        # (pin 10) -- board-specific wiring.
         cls.SD_ENABLE = GpioPin(cls._PCAL6416A_1, 13, mode_output)
 
         cls._on = False  # whether panel is powered on or not
@@ -143,7 +137,7 @@ class _Inkplate:
     def rtc_get_rtc_data(cls):
         return cls._rtc.get_data()
 
-    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
+    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE).
     @classmethod
     def power_on(cls):
         if cls._on:
@@ -158,7 +152,7 @@ class _Inkplate:
 
         time.sleep_ms(50)
 
-    # power_off puts the display to sleep and cuts the power
+    # power_off puts the display to sleep and cuts the power.
     @classmethod
     def power_off(cls):
         if not cls._on:
@@ -170,7 +164,7 @@ class _Inkplate:
 
         cls._tps.power_down()
         # Tri-state the bit-banged control/data bus to stop current leakage during deep
-        # sleep -- ported from the real Arduino reference driver's pinsZstate().
+        # sleep.
         tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
 
     # ===== Methods that are independent of pixel bit depth
@@ -232,19 +226,18 @@ class InkplateMono(framebuf.FrameBuffer):
 
     # display_mono sends the monochrome buffer to the display, clearing it first.
     # extra_clean runs the pre-clean sequence twice instead of once -- defaults on because the
-    # panel's prior content may be GS3 (8-level), whose per-pixel charge diversity the vendor's
-    # single-pass rep counts (tuned for same-mode transitions) don't fully flush: HIL-confirmed
-    # ghosting on a GS3->mono switch with a single pass, gone with two. Costs an extra ~570ms;
-    # pass extra_clean=False to skip it for back-to-back mono updates that don't need it.
+    # panel's prior content may be GS3 (8-level), whose per-pixel charge diversity a single-pass
+    # rep count (tuned for same-mode transitions) doesn't fully flush, causing ghosting on a
+    # GS3->mono switch with a single pass; two passes clear it. Costs an extra ~570ms; pass
+    # extra_clean=False to skip it for back-to-back mono updates that don't need it.
     def display(self, extra_clean=True):
         ip = _Inkplate
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (I2S DMA), reps transcribed directly from the real
-        # Inkplate6PLUSDriver.cpp display1b() pre-clean sequence (identical to display3b()'s
-        # own sequence on this board, matching Inkplate6's precedent of the two sequences
-        # matching, though the actual rep counts differ from Inkplate6's).
+        # Clean the display (I2S DMA) -- this pre-clean sequence is identical to the GS
+        # display's own sequence on this board, though the rep counts differ from
+        # Inkplate6's.
         t0 = time.ticks_ms()
         for _ in range(2 if extra_clean else 1):
             ip.clean(0, 1)
@@ -254,16 +247,15 @@ class InkplateMono(framebuf.FrameBuffer):
             ip.clean(2, 1)
             ip.clean(1, 15)
 
-        # the display gets written via I2S DMA + the C waveform engine
+        # The display is written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 4 white-push phases + 1
         # final black-push phase driven in C. inkplatemodule.c's inkplate_mono_display
         # special-cases this board onto inkplate_gen_mono_wave_white_first instead of the
-        # usual inkplate_gen_mono_wave: this board's real display1b() also loops for(k<4),
-        # but its phase *roles* are reversed from every other wired board's (repeated
-        # phases push white/skip black, one final phase pushes black/skip white) -- HIL-
-        # confirmed after the naive black_phases=4 mapping produced a uniformly dark/washed
-        # panel, root-caused by decoding this board's own GraphicsDefs.h LUTW/LUTB against
-        # its ~dram/dram indexing scheme.
+        # usual inkplate_gen_mono_wave: this board runs the same 4-iteration phase loop as
+        # the other boards, but its phase *roles* are reversed from every other wired
+        # board's (repeated phases push white/skip black, one final phase pushes
+        # black/skip white). Do not assume this board's black_phases mapping matches the
+        # other boards' -- its own LUTW/LUTB roles must be decoded independently.
         t1 = time.ticks_ms()
         ip.mono_display(self._framebuf)
 
@@ -273,9 +265,9 @@ class InkplateMono(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("Mono: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
-        # trailing park sequence, matches the real Arduino display1b() tail
-        # (clean(2, 2); clean(3, 1); vscan_start();) -- unlike Inkplate6's own mono driver,
-        # this board's real display1b() does end with a bare vscan_start() pulse.
+        # Trailing park sequence (clean(2, 2); clean(3, 1); vscan_start();) -- unlike
+        # Inkplate6's own mono driver, this board's sequence does end with a bare
+        # vscan_start() pulse.
         ip.clean(2, 2)
         ip.clean(3, 1)
         ip.vscan_start()
@@ -290,7 +282,7 @@ class InkplateMono(framebuf.FrameBuffer):
 class InkplateGS2(framebuf.FrameBuffer):
     """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
-    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real
+    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the
     3-bit/8-level waveform table natively -- no intermediate fold.
     """
 
@@ -298,15 +290,14 @@ class InkplateGS2(framebuf.FrameBuffer):
         self._framebuf = bytearray(D_ROWS * D_COLS // 2)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS4_HMSB)
 
-    # display sends the grayscale buffer to the display, clearing it first
+    # display sends the grayscale buffer to the display, clearing it first.
     def display(self):
         ip = _Inkplate
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (I2S DMA), reps transcribed directly from the real
-        # Inkplate6PLUSDriver.cpp display3b() pre-clean sequence -- identical to
-        # display1b()'s own sequence on this board.
+        # Clean the display (I2S DMA) -- identical pre-clean sequence to the mono
+        # display's on this board.
         t0 = time.ticks_ms()
         ip.clean(0, 1)
         ip.clean(1, 15)
@@ -315,7 +306,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(2, 1)
         ip.clean(1, 15)
 
-        # the display gets written via I2S DMA + the C waveform engine
+        # The display is written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C.
         t1 = time.ticks_ms()
         ip.gs_display(self._framebuf)
@@ -326,8 +317,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
-        # trailing park sequence, matches the real Arduino display3b() tail
-        # (clean(3, 1); vscan_start();).
+        # Trailing park sequence (clean(3, 1); vscan_start();).
         ip.clean(3, 1)
         ip.vscan_start()
         ip.i2s_deinit()
@@ -351,21 +341,19 @@ class InkplatePartial:
         self._base = base
         self._framebuf = bytearray(len(base._framebuf))
 
-    # start makes a reference copy of the current framebuffer
+    # start makes a reference copy of the current framebuffer.
     def start(self):
         self._framebuf[:] = self._base._framebuf[:]
 
     # display the changes between our reference copy and the current framebuffer contents
-    # -- runs over I2S DMA in C now (firmware/usermods/inkplate/epd_i2s.c's
-    # epd_i2s_push_partial_frame, cfg->partial_reps=5 matching this board's own pasted
-    # Arduino reference driver's partialUpdate() for(k<5) loop), matching how mono/GS/clean
-    # already work. Always walks the full frame (no region params) -- matches the real
-    # Arduino reference driver's partialUpdate(), which has none either.
+    # -- runs over I2S DMA in C (firmware/usermods/inkplate/epd_i2s.c's
+    # epd_i2s_push_partial_frame, cfg->partial_reps=5), matching how mono/GS/clean already
+    # work. Always walks the full frame (no region params).
     #
-    # No pre-clean here (matches the real partialUpdate(), which has none) -- this only
-    # nudges pixels that changed vs the reference snapshot. Caller must ensure the physical
-    # panel already matches that snapshot; a full mono display() must run at least once after
-    # any GS3 display() before this is safe to call, or it ghosts badly (HIL-confirmed).
+    # No pre-clean here -- this only nudges pixels that changed vs the reference snapshot.
+    # Caller must ensure the physical panel already matches that snapshot; a full mono
+    # display() must run at least once after any GS3 display() before this is safe to call,
+    # or it ghosts badly.
     def display(self):
         ip = _Inkplate
         ip.power_on()
@@ -375,8 +363,7 @@ class InkplatePartial:
         ip.partial_display(self._framebuf, self._base._framebuf)
         t1 = time.ticks_ms()
 
-        # Tail transcribed directly from the real Inkplate6PLUSDriver.cpp partialUpdate()
-        # (clean(2, 2); clean(3, 1); vscan_start();).
+        # Tail sequence (clean(2, 2); clean(3, 1); vscan_start();).
         ip.clean(2, 2)
         ip.clean(3, 1)
         ip.vscan_start()
@@ -387,16 +374,11 @@ class InkplatePartial:
         print("Partial: draw %dms" % td)
 
 
-# NEEDS HW TEST: gfx/text/image draw methods now come from shared/inkplate_{gfx,text,
-# image_gs4}_mixin.py (same shared code as inkplate10/6/6flick/5v2/4tempera).
-# Extraction was byte-identical to the prior inline code; only self._d_cols/
-# self._d_rows (set in __init__) replace the old direct D_COLS/D_ROWS references. If
-# drawing looks offset/corrupted, check those two got set before any draw call runs.
-# Unrelated to this change but worth re-confirming alongside it: the extra_clean=True
-# default on mono display() and the GS3->mono ghosting caveat noted on partial_update()
-# below are untouched by this refactor.
+# Gfx/text/image draw methods come from shared/inkplate_{gfx,text,image_gs4}_mixin.py;
+# self._d_cols/self._d_rows (set in __init__) must be set before any draw call runs,
+# or drawing will look offset/corrupted.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
-    # Inkplate wraper to make it more easy for use
+    # Inkplate wrapper class for easier use.
 
     INKPLATE_1BIT = 0
     INKPLATE_2BIT = 1
@@ -430,17 +412,15 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
-        # EN=12/RST=10 on the *internal* expander (0x20, IO_INT_ADDR) -- confirmed from
-        # this board's own pasted pins.h (TOUCHSCREEN_IO_EXPANDER=IO_INT_ADDR), same on
-        # both the classic and V2 revision. No collision with this expander's other
-        # pins (OE=0/GMOD=1/SPV=2/TPS_WAKEUP=3/PWRUP=4/VCOM=5/FRONTLIGHT_EN=11/
+        # EN=12/RST=10 on the *internal* expander (0x20, IO_INT_ADDR), same on both the
+        # classic and V2 revision. No collision with this expander's other pins
+        # (OE=0/GMOD=1/SPV=2/TPS_WAKEUP=3/PWRUP=4/VCOM=5/FRONTLIGHT_EN=11/
         # SD_ENABLE=13), unlike Inkplate4TEMPERA's touch wiring.
         #
-        # HIL-measured on real hardware: a 4-corner test showed decoded_x/y both
-        # mirrored against true screen position at every corner (decoded_x ==
-        # (width-1)-true_x, decoded_y == (height-1)-true_y), no axis swap involved --
-        # a different bug shape than Inkplate4TEMPERA's (flip+swap), confirming this
-        # really is per-board and not reusable without its own measurement.
+        # Touch coordinates are mirrored against true screen position at every corner
+        # (decoded_x == (width-1)-true_x, decoded_y == (height-1)-true_y), no axis swap
+        # involved -- a different bug shape than Inkplate4TEMPERA's (flip+swap), so this
+        # is per-board and not reusable without its own measurement.
         Touch.init(
             _Inkplate._i2c,
             _Inkplate._PCAL6416A_1,
@@ -452,10 +432,9 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
             xy_flipped=True,
         )
 
-        # FRONTLIGHT_EN=11 on the internal expander (0x20) -- confirmed from this
-        # board's own pasted pins.h, no collision with that expander's other pins
-        # (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/VBAT_EN=9/touch RST=10/EN=12/
-        # SD_ENABLE=13).
+        # FRONTLIGHT_EN=11 on the internal expander (0x20), no collision with that
+        # expander's other pins (OE=0/GMOD=1/SPV=2/WAKEUP=3/PWRUP=4/VCOM=5/VBAT_EN=9/
+        # touch RST=10/EN=12/SD_ENABLE=13).
         Frontlight.init(_Inkplate._i2c, _Inkplate._PCAL6416A_1, 11)
 
         self.ipg = InkplateGS2()
@@ -489,14 +468,10 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
                     mosi=Pin(13),
                     sck=Pin(14),
                     cs=Pin(15),
-                    # Same SD wiring as Inkplate6/10/5v2 (miso=12/mosi=13/sck=14/cs=15),
-                    # confirmed against this board's own pasted sdCardInit()
-                    # (spi2.begin(14, 12, 13, 15)). Starting at the same 4MHz value those
-                    # boards settled on (their own real driver's SdSpiConfig used 25MHz,
-                    # over SdFat/Arduino SPI -- not directly applicable to MicroPython's
-                    # SDCard driver); not yet independently confirmed on real
-                    # Inkplate6PLUSV2 hardware. Re-verify during HIL and raise if 4MHz
-                    # proves unnecessarily conservative here.
+                    # Same SD wiring as Inkplate6/10/5v2 (miso=12/mosi=13/sck=14/cs=15).
+                    # Starting at the same 4MHz value those boards settled on; not yet
+                    # independently confirmed on Inkplate6PLUSV2 hardware -- raise if
+                    # 4MHz proves unnecessarily conservative here.
                     freq=4000000,
                 ),
                 "/sd",
@@ -572,10 +547,10 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
 
     # CAUTION: unlike display(), this never runs a pre-clean and never resyncs ipp's reference
     # snapshot on its own -- both only happen inside display(). Calling this as the first mono
-    # operation after a GS3 display() ghosts badly (HIL-confirmed, worse than a plain mono
-    # display() with extra_clean=False): the physical panel still shows the GS3 frame and
-    # there's no baseline to diff against. Always call display() at least once after switching
-    # away from GS mode before relying on partial_update().
+    # operation after a GS3 display() ghosts badly (worse than a plain mono display() with
+    # extra_clean=False): the physical panel still shows the GS3 frame and there's no baseline
+    # to diff against. Always call display() at least once after switching away from GS mode
+    # before relying on partial_update().
     def partial_update(self):
         if self.display_mode == 1:
             return
@@ -618,7 +593,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
+    # Compatibility functions
     def set_rotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
@@ -632,7 +607,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         return self.rotation
 
     # Active framebuf for the current display_mode -- shared by every gfx_* call in
-    # GfxMixin/TextMixin/ImageGS4Mixin, since C owns the whole draw now instead of a
+    # GfxMixin/TextMixin/ImageGS4Mixin, since C owns the whole draw instead of a
     # per-pixel Python callback.
     def _framebuf(self):
         return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf

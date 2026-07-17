@@ -32,8 +32,7 @@ class Frontlight:
         cls._en_pin.digital_write(1 if enable else 0)
         if enable:
             # Digital pot needs time to power up off EN before it'll ACK on I2C --
-            # measured as an outright NAK at 0ms, reliably fine at 50ms, on
-            # Inkplate6FLICK (HIL, 2026-07-17). Tempera/6PLUSv2 never showed this
-            # with no delay, so their regulator/pot combo is just faster, but this
-            # covers all three since it's the shared driver.
+            # NAKs at 0ms, reliably fine at 50ms on the slowest of the 3 boards
+            # sharing this driver; the others don't need the delay but aren't
+            # hurt by it.
             time.sleep_ms(50)

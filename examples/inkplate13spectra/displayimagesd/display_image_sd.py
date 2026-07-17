@@ -54,7 +54,7 @@ print(listdir("/sd"))
 # - JPG: ~52 seconds (or ~90s with dithering)
 #
 # Example usage:
-IMAGE_PATH = "sd/coastal.png"
+IMAGE_PATH = "sd/image.jpg"
 try:
     stat(IMAGE_PATH)
 except OSError:

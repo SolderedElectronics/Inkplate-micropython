@@ -14,12 +14,11 @@ import inkplate
 machine.freq(240000000)
 # ===== Constants that change between the Inkplate 6 and 10
 
-# RST/DC/CS/BUSY/CLK/DIN pins are owned by the C spi_panel transport now (see
-# firmware/usermods/inkplate/spi_panel_config.c) -- no Python-side pin constants needed.
+# RST/DC/CS/BUSY/CLK/DIN pins are owned by the C spi_panel transport
+# (firmware/usermods/inkplate/spi_panel_config.c); no Python-side pin constants needed.
 VBAT_PIN = const(35)
 
-# Timeout for init of epaper(1.5 sec in this case)
-# INIT_TIMEOUT 1500
+# Timeout for init of epaper (1.5 sec in this case).
 
 # Epaper registers
 PANEL_SET_REGISTER = 0x00
@@ -68,15 +67,10 @@ IO_PIN_B6 = const(14)
 IO_PIN_B7 = const(15)
 
 
-# NEEDS HW TEST: this class was converted from classmethod-style (state on the class,
-# `cls.` throughout) to normal instance methods (`self.`), to match the other 8 boards
-# and let it share ImagePaletteMixin. Mechanical cls->self substitution (verified no
-# leftover `cls`/@classmethod via grep) -- should be behaviorally identical since only
-# one Inkplate() instance is ever created, but this is a real code-shape change, not
-# pure extraction, so verify begin()/display()/draw_*/print* all still work end-to-end.
-# draw_bmp/png/jpg_from_sd/_from_web and draw_color_image now come from
-# shared/inkplate_image_palette_mixin.py (identical code, shared with inkplate13spectra
-# -- both boards' versions were byte-for-byte the same before this change).
+# Class-level attributes (rotation, _panel_state, _framebuf, etc.) assume a single
+# Inkplate() instance is ever created.
+# draw_bmp/png/jpg_from_sd/_from_web and draw_color_image come from
+# shared/inkplate_image_palette_mixin.py.
 class Inkplate(ImagePaletteMixin):
     BLACK = const(0b00000000)  # 0
     WHITE = const(0b00000001)  # 1
@@ -112,17 +106,15 @@ class Inkplate(ImagePaletteMixin):
         self._PCAL6416A = PCAL6416A(self.wire)
         self._rtc = RTC(self.wire)
 
-        # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
-        # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
-        # docs/refactor_plan.md Phase 9 step 30) -- no more machine.SPI/Pin objects for
-        # the panel itself.
+        # RST/DC/CS/BUSY/CLK/DIN and the SPI peripheral itself are owned by the C
+        # spi_panel transport (firmware/usermods/inkplate/epd_spi.c); no more
+        # machine.SPI/Pin objects for the panel itself.
         inkplate.select_spi_panel("inkplate6color")
         inkplate.spi_panel_init()
 
-        # This panel's 4bpp framebuffer packs even physical x into the HIGH nibble --
-        # the opposite of gfx_set_pixel's default (confirmed from this board's own
-        # pre-refactor write_pixel/pixel_mask_glut). Session-constant, set once here like
-        # Inkplate4TEMPERA's own gfx_set_gs4_nibble_swap(True) call.
+        # This panel's 4bpp framebuffer packs even physical x into the high nibble,
+        # the opposite of gfx_set_pixel's default; the swap is a session-constant
+        # flag, set once here.
         inkplate.gfx_set_gs4_nibble_swap(True)
 
         self.VBAT = ADC(Pin(35))
@@ -131,9 +123,8 @@ class Inkplate(ImagePaletteMixin):
         self.VBAT_EN = GpioPin(self._PCAL6416A, 9, mode_output)
         self.VBAT_EN.digital_write(0)
 
-        # SD_PMOS_PIN (pins.h) -- internal-expander pin 10, active-low P-MOS gate, same
-        # pin/polarity/expander-vs-external split every parallel-bus board already uses
-        # for its own SD_ENABLE (e.g. boards/inkplate10/inkplate10.py).
+        # Internal-expander pin 10 (IO_PIN_B2) drives an active-low P-MOS gate for
+        # SD card power.
         self.SD_ENABLE = GpioPin(self._PCAL6416A, IO_PIN_B2, mode_output)
 
         self.cursor = [0, 0]
@@ -186,10 +177,8 @@ class Inkplate(ImagePaletteMixin):
 
     def init_sd_card(self, fast_boot=False):
         # SD's machine.SDCard(slot=3) runs on HSPI/SPI2_HOST; the panel (epd_spi.c) runs
-        # on VSPI/SPI3_HOST -- two genuinely separate ESP32 SPI peripherals, so no claim/
-        # release dance is needed here (see epd_spi.c's EPD_SPI_HOST comment for how this
-        # was confirmed against the real ports/esp32/machine_sdcard.c source, after an
-        # earlier misreading of that same source wrongly concluded the two collided).
+        # on VSPI/SPI3_HOST. Two separate ESP32 SPI peripherals, so no claim/release
+        # dance is needed here.
         self.SD_ENABLE.digital_write(0)
         try:
             os.mount(
@@ -199,11 +188,8 @@ class Inkplate(ImagePaletteMixin):
                     mosi=Pin(13),
                     sck=Pin(14),
                     cs=Pin(15),
-                    # 4MHz, same value every parallel-bus board settled on after hitting
-                    # real hangs/mount failures at higher speeds on this same SPI-mode SD
-                    # driver (docs/refactor_plan.md Phase 7 step 21/Phase 8 step 26) --
-                    # not independently reverified on Inkplate6COLOR, but there's no
-                    # reason to expect this board's SD wiring to behave differently.
+                    # 4MHz avoids hangs/mount failures seen at higher speeds with this
+                    # SPI-mode SD driver.
                     freq=4000000,
                 ),
                 "/sd",
@@ -246,7 +232,6 @@ class Inkplate(ImagePaletteMixin):
             if not inkplate.spi_panel_wait_busy(1, 1500):
                 return False
 
-            # Send initialization commands
             self.send_command(PANEL_SET_REGISTER)
             self.send_data(bytearray([0xEF, 0x08]))
 
@@ -280,15 +265,13 @@ class Inkplate(ImagePaletteMixin):
 
             return True
         else:
-            # Put the panel to deep sleep
             time.sleep_ms(10)
             self.send_command(DEEP_SLEEP_REGISTER)
             self.send_data(bytearray([0xA5]))
             time.sleep_ms(100)
 
-            # Hold RST asserted low while asleep (matches the real Arduino reference
-            # driver's setPanelDeepSleep(true) -- lower power than leaving it floating
-            # or driven high).
+            # Hold RST asserted low while asleep; lower power than leaving it floating
+            # or driven high.
             inkplate.spi_panel_set_rst(0)
 
             return True
@@ -331,9 +314,7 @@ class Inkplate(ImagePaletteMixin):
     def gpio_expander_pin(self, pin, mode):
         return GpioPin(self._PCAL6416A, pin, mode)
 
-    # Same PCF85263-style RTC chip every parallel-bus board wires -- delegates to
-    # shared/rtc.py instead of the hand-rolled BCD conversion/I2C read-write this used to
-    # duplicate (never backported when that shared module landed).
+    # PCF85263-style RTC chip.
     def rtc_set_time(self, rtc_hour, rtc_minute, rtc_second):
         self._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
 
@@ -370,7 +351,6 @@ class Inkplate(ImagePaletteMixin):
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
     def set_rotation(self, x):
         self.rotation = x % 4
         self._gfx_rotation = (self.rotation + 2) % 4
@@ -487,9 +467,6 @@ class Inkplate(ImagePaletteMixin):
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
-    # Ported from this board's own gfx.py GFX._print_text/_draw_char_4bpp, with the
-    # per-char blit routed through inkplate.gfx_draw_char instead (same shape as
-    # boards/inkplate6/inkplate6.py's _print_text).
     def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
         display_width = self._width
         color = min(max(color, 0), 5)
@@ -603,7 +580,7 @@ class Inkplate(ImagePaletteMixin):
         if text_size is not None:
             self.set_text_size(text_size)
         max_width = x1 - x0
-        char_width = 6 * self.text_size  # rough estimate
+        char_width = 6 * self.text_size  # Rough estimate
         max_chars = max_width // char_width
         lines = self.wrap_text(text, max_chars)
         y = y0
@@ -621,7 +598,7 @@ class Inkplate(ImagePaletteMixin):
 
     def read_battery(self):
         self.VBAT_EN.digital_write(1)
-        # Probably don't need to delay since Micropython is slow, but we do it anyway
+        # Probably unnecessary since MicroPython is slow, but delay anyway.
         time.sleep_ms(5)
         value = self.VBAT.read()
         self.VBAT_EN.digital_write(0)

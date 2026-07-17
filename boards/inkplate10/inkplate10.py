@@ -30,7 +30,7 @@ D_COLS = const(1200)
 # Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
 # Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
 
-WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
+WAVE_2B = (
     (1, 1, 2, 0),
     (1, 1, 1, 0),
     (0, 2, 1, 0),
@@ -39,21 +39,16 @@ WAVE_2B = (  # original mpy driver for Ink 6, differs from arduino driver below
     (1, 1, 0, 0),
     (0, 0, 0, 0),
 )
-# Ink10 WAVEFORM3BIT from arduino driver
-# {{0,0,0,0,0,0,1,0},{0,0,2,2,2,1,1,0},{0,2,1,1,2,2,1,0},{1,2,2,1,2,2,1,0},
-#  {0,2,1,2,2,2,1,0},{2,2,2,2,2,2,1,0},{0,0,0,0,2,1,2,0},{0,0,2,2,2,2,2,0}};
 
-# Valid hardware variants for this driver -- confirmed from the real Arduino reference
-# driver's pins.h: IO_INT_ADDR=0x20 (internal expander, drives OE/GMODE/SPV/TPS_*, same
-# both variants) and IO_EXT_ADDR=0x21 for V2, 0x22 for classic INKPLATE10V1 (same split
-# as Inkplate6 v1/V2). Classic v1's internal expander is an MCP23017 (matching Inkplate6
-# v1); V2's is a PCAL6416A. Pass variant="inkplate10v1" to Inkplate() if your board is
-# the original (non-V2) revision -- that also enables TOUCH1/2/3 (v1-only, same expander
-# pins 10/11/12 that V2 repurposes for SD_ENABLE). Can't be auto-detected: neither
-# expander chip exposes an ID/WHOAMI register to probe for which one is present. Classic
-# v1 has no SD-card power MOSFET (the real pins.h's SD_PMOS_PIN and touchpad pad1 share
-# the same expander pin 10 -- same finding as classic Inkplate6), so SD is always
-# powered there; init_sd_card/sd_card_sleep/sd_card_wake are no-ops on v1.
+# Valid hardware variants for this driver. IO_INT_ADDR=0x20 (internal expander, drives
+# OE/GMODE/SPV/TPS_*) is the same on both variants; IO_EXT_ADDR=0x21 for V2, 0x22 for
+# classic. Classic's internal expander is an MCP23017; V2's is a PCAL6416A. Pass
+# variant="inkplate10v1" to Inkplate() if your board is the original (non-V2) revision
+# -- that also enables TOUCH1/2/3 (v1-only, same expander pins 10/11/12 that V2
+# repurposes for SD_ENABLE). Can't be auto-detected: neither expander chip exposes an
+# ID/WHOAMI register to probe for which one is present. Classic has no SD-card power
+# MOSFET (SD_PMOS_PIN and touchpad pad1 share the same expander pin 10), so SD is
+# always powered there; init_sd_card/sd_card_sleep/sd_card_wake are no-ops on v1.
 _DEFAULT_VARIANT = "inkplate10v2"
 _VALID_VARIANTS = ("inkplate10v1", "inkplate10v2")
 
@@ -143,9 +138,9 @@ class _Inkplate:
         cls.VBAT.atten(ADC.ATTN_11DB)
         cls.VBAT.width(ADC.WIDTH_12BIT)
 
-        # Pin 10 (and 11/12) is classic-only touchpads vs V2-only SD_ENABLE -- the real
-        # Arduino reference driver puts both on the same expander pin per variant, they
-        # aren't simultaneously present on either board (same precedent as Inkplate6).
+        # Pin 10 (and 11/12) is classic-only touchpads vs V2-only SD_ENABLE -- both
+        # variants put these on the same expander pin, and touchpads/SD_ENABLE are
+        # never simultaneously present on either board.
         if cls._is_classic:
             cls.TOUCH1 = GpioPin(cls._expander1, 10, mode_input)
             cls.TOUCH2 = GpioPin(cls._expander1, 11, mode_input)
@@ -179,7 +174,7 @@ class _Inkplate:
     def read_temperature(cls):
         return cls._tps.read_temperature()
 
-    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE)
+    # power_on turns the voltage regulator on and wakes up the display (GMODE and OE).
     @classmethod
     def power_on(cls):
         if cls._on:
@@ -194,27 +189,26 @@ class _Inkplate:
 
         time.sleep_ms(50)
 
-    # power_off puts the display to sleep and cuts the power
+    # power_off puts the display to sleep and cuts the power.
     @classmethod
     def power_off(cls):
         if not cls._on:
             return
         cls._on = False
-        # put display to sleep
+        # Put display to sleep.
         cls.EPD_GMODE.digital_write(0)
         cls.EPD_OE.digital_write(0)
 
         cls._tps.power_down()
         # Tri-state the bit-banged control/data bus to stop current leakage during deep
-        # sleep -- ported from the real Arduino reference driver's pinsZstate().
+        # sleep.
         tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
 
     # ===== Methods that are independent of pixel bit depth
 
     # vscan_start/vscan_write/vscan_end/fill_screen are implemented in C
-    # (firmware/usermods/inkplate/epd_control.c) as of Phase 2 -- see
-    # docs/refactor_plan.md step 7. Same names/signatures as before, so
-    # inkplate_mono.py/inkplate_gs.py/inkplate_partial.py need no changes.
+    # (firmware/usermods/inkplate/epd_control.c); kept under these names since
+    # inkplate_mono.py/inkplate_gs.py/inkplate_partial.py call them directly.
     @classmethod
     def vscan_start(cls):
         inkplate.vscan_start()
@@ -278,13 +272,13 @@ class InkplateMono(framebuf.FrameBuffer):
         self._framebuf = bytearray(D_ROWS * D_COLS // 8)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
 
-    # display_mono sends the monochrome buffer to the display, clearing it first
+    # display_mono sends the monochrome buffer to the display, clearing it first.
     def display(self):
         ip = _Inkplate
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (now driven via I2S DMA -- docs/refactor_plan.md step 12)
+        # clean the display (driven via I2S DMA)
         t0 = time.ticks_ms()
         ip.clean(0, 1)
         ip.clean(1, 12)
@@ -295,7 +289,7 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.clean(2, 1)
         ip.clean(0, 11)
 
-        # the display gets written via I2S DMA + the C waveform engine
+        # The display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 6 phases driven in C.
         t1 = time.ticks_ms()
         ip.mono_display(self._framebuf)
@@ -319,21 +313,21 @@ class InkplateMono(framebuf.FrameBuffer):
 class InkplateGS2(framebuf.FrameBuffer):
     """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
-    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the real
-    3-bit/8-level waveform table natively -- no intermediate fold.
+    The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the
+    actual 3-bit/8-level waveform table directly -- no intermediate fold.
     """
 
     def __init__(self):
         self._framebuf = bytearray(D_ROWS * D_COLS // 2)
         super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS4_HMSB)
 
-    # display sends the grayscale buffer to the display, clearing it first
+    # display sends the grayscale buffer to the display, clearing it first.
     def display(self):
         ip = _Inkplate
         ip.power_on()
         ip.i2s_init()
 
-        # clean the display (now driven via I2S DMA -- docs/refactor_plan.md step 12)
+        # clean the display (driven via I2S DMA)
         t0 = time.ticks_ms()
         ip.clean(1, 1)
         ip.clean(0, 10)
@@ -344,7 +338,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         ip.clean(2, 1)
         ip.clean(1, 10)
 
-        # the display gets written via I2S DMA + the C waveform engine
+        # The display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C.
         t1 = time.ticks_ms()
         ip.gs_display(self._framebuf)
@@ -355,7 +349,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         tt = time.ticks_diff(t2, t0)
         print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
-        # trailing park sequence, matches the real Arduino display3b()
+        # Trailing park sequence before power-down.
         ip.clean(3, 1)
         ip.vscan_start()
         ip.i2s_deinit()
@@ -363,7 +357,7 @@ class InkplateGS2(framebuf.FrameBuffer):
 
     @staticmethod
     def clear(fb):
-        inkplate.gfx_buf_fill(fb, 0x77)  # both nibbles = raw level 7 (white)
+        inkplate.gfx_buf_fill(fb, 0x77)  # Both nibbles = raw level 7 (white)
 
 
 class InkplatePartial:
@@ -379,16 +373,15 @@ class InkplatePartial:
         self._base = base
         self._framebuf = bytearray(len(base._framebuf))
 
-    # start makes a reference copy of the current framebuffer
+    # start makes a reference copy of the current framebuffer.
     def start(self):
         self._framebuf[:] = self._base._framebuf[:]
 
-    # display the changes between our reference copy and the current framebuffer contents
-    # -- runs over I2S DMA in C now (firmware/usermods/inkplate/epd_i2s.c's
-    # epd_i2s_push_partial_frame, docs/refactor_plan.md step 16), matching how mono/GS/clean
-    # already work. Always walks the full frame (no region params) -- matches the real
-    # Arduino reference driver's partialUpdate(), which has none either: unchanged pixels
-    # get a skip code from the diff, there's no row-range transmission shortcut over I2S.
+    # Display the changes between our reference copy and the current framebuffer contents
+    # -- runs over I2S DMA in C (firmware/usermods/inkplate/epd_i2s.c's
+    # epd_i2s_push_partial_frame), matching how mono/GS/clean work. Always walks the
+    # full frame (no region params): unchanged pixels get a skip code from the diff,
+    # there's no row-range transmission shortcut over I2S.
     def display(self):
         ip = _Inkplate
         ip.power_on()
@@ -407,15 +400,12 @@ class InkplatePartial:
         print("Partial: draw %dms" % td)
 
 
-# NEEDS HW TEST: draw_pixel/rect/circle/line/text/print/draw_image family moved to
-# shared/inkplate_{gfx,text,image_gs4}_mixin.py (same for inkplate6/6plusv2/6flick/5v2/
-# 4tempera). Extraction was byte-identical to the prior inline code, so logic risk is
-# low; the one behavior-adjacent change is D_COLS/D_ROWS -> self._d_cols/self._d_rows
-# (set in __init__) so the mixins don't need this module's globals. If drawing looks
-# offset/corrupted after this change, check self._d_cols/self._d_rows are set before
-# any gfx_*/text/image call runs (i.e. __init__ ran before begin()/draw calls).
+# draw_pixel/rect/circle/line/text/print/draw_image live in
+# shared/inkplate_{gfx,text,image_gs4}_mixin.py, which use self._d_cols/self._d_rows
+# instead of the module-level D_COLS/D_ROWS -- __init__ must run before any draw call
+# so those are set.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
-    # Inkplate wraper to make it more easy for use
+    # Inkplate wrapper class for easier use.
 
     INKPLATE_1BIT = 0
     INKPLATE_2BIT = 1
@@ -472,9 +462,8 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         self.font = self.font_family._font
 
     def init_sd_card(self, fast_boot=False):
-        # Classic v1 has no SD-card power MOSFET (SD_PMOS_PIN shares pin 10 with
-        # touchpad pad1 in the real Arduino reference driver -- same finding as classic
-        # Inkplate6) -- SD is always powered, nothing to enable.
+        # Classic has no SD-card power MOSFET (SD_PMOS_PIN shares pin 10 with touchpad
+        # pad1) -- SD is always powered, nothing to enable.
         if not _Inkplate._is_classic:
             _Inkplate.SD_ENABLE.digital_write(0)
         try:
@@ -485,24 +474,23 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
                     mosi=Pin(13),
                     sck=Pin(14),
                     cs=Pin(15),
-                    # 80MHz (the original value) failed to mount with OSError(16) on real
-                    # hardware -- SPI-mode SD cards top out well below that. `freq` here
-                    # only caps the post-identification data-transfer clock: ESP-IDF's
-                    # sdspi host driver always runs the CMD0/CMD8/ACMD41 identification
-                    # sequence at its own <=400kHz internally regardless of this value,
-                    # so 400kHz previously throttled every read/write too, not just
-                    # mounting. 20MHz (step 20's value, byte-identical reads confirmed up
-                    # to 25MHz at the time) later reproducibly hung the board mid-read on
-                    # this same hardware for files over ~900KB (coastal.png, coastal.bmp
-                    # -- confirmed with plain f.read()/readinto(), no decode/dither code
-                    # involved), surviving multiple power-cycles and an SD card reseat, so
-                    # not a loose-contact fluke. Dropped to 4MHz (reads of both files
-                    # confirmed hang-free at this speed, docs/refactor_plan.md Phase 7
-                    # step 21 HIL) -- slower, but this board/card/cable combination no
-                    # longer reliably sustains 20MHz for large transfers. Revisit if a
-                    # faster reliable speed is found later; don't assume the regression is
-                    # understood (card wear, cable, or connector are equally plausible
-                    # explanations as a marginal driver setting).
+                    # 80MHz failed to mount with OSError(16) on real hardware -- SPI-mode
+                    # SD cards top out well below that. `freq` here only caps the
+                    # post-identification data-transfer clock: ESP-IDF's sdspi host
+                    # driver always runs the CMD0/CMD8/ACMD41 identification sequence at
+                    # its own <=400kHz internally regardless of this value, so 400kHz
+                    # previously throttled every read/write too, not just mounting.
+                    # 20MHz (byte-identical reads confirmed up to 25MHz at the time)
+                    # later reproducibly hung the board mid-read on this same hardware
+                    # for files over ~900KB (confirmed with plain f.read()/readinto(),
+                    # no decode/dither code involved),
+                    # surviving multiple power-cycles and an SD card reseat, so not a
+                    # loose-contact fluke. Dropped to 4MHz (reads of both files confirmed
+                    # hang-free at this speed) -- slower, but this board/card/cable
+                    # combination no longer reliably sustains 20MHz for large transfers.
+                    # Revisit if a faster reliable speed is found later; don't assume the
+                    # regression is understood (card wear, cable, or connector are
+                    # equally plausible explanations as a marginal driver setting).
                     freq=4000000,
                 ),
                 "/sd",
@@ -560,7 +548,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         elif self.display_mode == 1:
             self.ipg.display()
 
-        self.ipp.start()  # making framebuffer copy for partial update
+        self.ipp.start()  # Making framebuffer copy for partial update
 
     def partial_update(self):
         if self.display_mode == 1:
@@ -609,7 +597,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
+    # Naming kept for API compatibility.
     def set_rotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
@@ -623,7 +611,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         return self.rotation
 
     # Active framebuf for the current display_mode -- shared by every gfx_* call in
-    # GfxMixin/TextMixin/ImageGS4Mixin, since C owns the whole draw now instead of a
+    # GfxMixin/TextMixin/ImageGS4Mixin, since C owns the whole draw instead of a
     # per-pixel Python callback.
     def _framebuf(self):
         return self.ipm._framebuf if self.display_mode == 0 else self.ipg._framebuf

@@ -1,10 +1,8 @@
-"""Decode mountain.jpg from the SD card through the C JPEG decode path (ROM tjpgd,
-docs/refactor_plan.md Phase 7 step 18) with real Floyd-Steinberg dithering (step 21) and
-draw it in grayscale.
+"""Decode a JPEG from the SD card through the C JPEG decode path (ROM tjpgd) with
+Floyd-Steinberg dithering and draw it in grayscale.
 
-Calls the high-level draw_jpg_from_sd() (boards/inkplate10/inkplate10.py) -- it wraps the
-same inkplate.jpeg_draw_gs4() C binding this example called directly before step 43, plus
-the file read and a gc.collect() after.
+Calls the high-level draw_jpg_from_sd() (boards/inkplate10/inkplate10.py), which wraps
+the inkplate.jpeg_draw_gs4() C binding plus the file read and a gc.collect() after.
 """
 
 from inkplate10 import Inkplate
@@ -14,7 +12,7 @@ ipk = Inkplate(Inkplate.INKPLATE_2BIT)
 ipk.begin()
 ipk.init_sd_card(fast_boot=True)
 
-IMAGE_PATH = "/sd/mountain.jpg"
+IMAGE_PATH = "/sd/image.jpg"
 try:
     stat(IMAGE_PATH)
 except OSError:

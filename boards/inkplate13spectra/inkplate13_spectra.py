@@ -1,7 +1,4 @@
-"""MicroPython driver for the Inkplate 13 SPECTRA e-paper display.
-
-Ported from the Arduino Inkplate13Driver implementation.
-"""
+"""MicroPython driver for the Inkplate 13 SPECTRA e-paper display."""
 
 import time
 import os
@@ -17,11 +14,10 @@ import inkplate
 machine.freq(240000000)
 
 # RST/DC/CS_M/CS_S/BUSY/CLK/DIN, PWR_EN, BS0/BS1 and the SPI peripheral itself are owned
-# by the C dual-chip spi transport (firmware/usermods/inkplate/epd_spi.c's epd_spi_dual_*
-# functions, docs/refactor_plan.md Phase 9 step 31) -- no Python-side pin constants
-# needed for the panel.
+# by the C dual-chip SPI transport (firmware/usermods/inkplate/epd_spi.c's epd_spi_dual_*
+# functions) -- no Python-side pin constants needed for the panel.
 
-# Spectra133 register addresses
+# Spectra133 register addresses.
 SPECTRA133_REG_PSR = const(0x00)
 SPECTRA133_REG_PWR = const(0x01)
 SPECTRA133_REG_POF = const(0x02)
@@ -48,7 +44,7 @@ SPECTRA133_REG_CMD66 = const(0xF0)
 # display_partial() instead of a full refresh.
 SPECTRA133_REG_PTLW = const(0x83)
 
-# Spectra133 register values (from manufacturer)
+# Spectra133 register values.
 REG_PSR_V = bytes([0xDF, 0x6B])
 REG_PWR_V = bytes([0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38])
 REG_POF_V = bytes([0x00])
@@ -69,16 +65,16 @@ REG_BTST_N_V = bytes([0xD8, 0x18])
 REG_BUCK_BOOST_VDDN_V = bytes([0x01])
 REG_TFT_VCOM_POWER_V = bytes([0x02])
 
-# Epaper resolution
+# Epaper resolution.
 D_COLS = const(1200)
 D_ROWS = const(1600)
 
-# Chip select targets for dual-driver architecture
+# Chip select targets for dual-driver architecture.
 CHIP_MASTER = const(1)
 CHIP_SLAVE = const(2)
 CHIP_BOTH = const(3)
 
-# User pins on PCAL6416A for Inkplate COLOR
+# User pins on PCAL6416A for Inkplate COLOR.
 IO_PIN_A0 = const(0)
 IO_PIN_A1 = const(1)
 IO_PIN_A2 = const(2)
@@ -98,20 +94,12 @@ IO_PIN_B6 = const(14)
 IO_PIN_B7 = const(15)
 
 
-# NEEDS HW TEST: this class was converted from classmethod-style (state on the class,
-# `cls.` throughout) to normal instance methods (`self.`), to match the other 8 boards
-# and let it share ImagePaletteMixin. Mechanical cls->self substitution (verified no
-# leftover `cls`/@classmethod via grep) -- should be behaviorally identical since only
-# one Inkplate() instance is ever created, but this is a real code-shape change, not
-# pure extraction, so verify begin()/display()/display_partial()/draw_*/print* all
-# still work end-to-end -- display_partial()'s PTLW alignment math is unchanged but
-# worth double-checking given how easy an off-by-one is to introduce in a mass edit.
-# draw_bmp/png/jpg_from_sd/_from_web and draw_color_image now come from
-# shared/inkplate_image_palette_mixin.py (identical code, shared with inkplate6color --
-# both boards' versions were byte-for-byte the same before this change).
+# Only one Inkplate() instance is ever created, so state lives on the instance rather
+# than the class. draw_bmp/png/jpg_from_sd/_from_web and draw_color_image come from
+# shared/inkplate_image_palette_mixin.py, shared with inkplate6color.
 class Inkplate(ImagePaletteMixin):
-    # Color constants - values are panel color indices
-    # User passes 0-5, _color_palette maps to actual panel values
+    # Color constants -- values are panel color indices.
+    # User passes 0-5; _color_palette maps to actual panel values.
     BLACK = const(0)
     WHITE = const(1)
     YELLOW = const(2)
@@ -119,7 +107,7 @@ class Inkplate(ImagePaletteMixin):
     BLUE = const(4)
     GREEN = const(5)
 
-    # Maps user color index (0-5) to panel register value
+    # Maps user color index (0-5) to panel register value.
     _color_palette = [0, 1, 2, 3, 5, 6]
 
     KERNEL_FLOYD_STEINBERG = 0
@@ -131,12 +119,11 @@ class Inkplate(ImagePaletteMixin):
     _height = D_ROWS
 
     rotation = 0
-    # gfx_* calls use a rotation numbering mirrored from this board's own `rotation`
-    # (board rotation 0 is physically what gfx.c's rotation-remap calls rotation 2, and
-    # 1/3 swap relative to Inkplate6COLOR/Inkplate2's own +2 offset -- confirmed against
-    # this board's own pre-refactor write_pixel). Kept separate from `rotation` itself
-    # since the dual-chip palette image-decode path still expects this board's native
-    # rotation numbering unchanged. See set_rotation().
+    # gfx_* calls use a rotation numbering mirrored from this board's own `rotation`:
+    # board rotation 0 corresponds to gfx.c rotation 2, and 1/3 swap relative to
+    # Inkplate6COLOR's/Inkplate2's own +2 offset. Kept separate from `rotation` itself
+    # since the dual-chip palette image-decode path expects this board's native rotation
+    # numbering unchanged. See set_rotation().
     _gfx_rotation = 2
     text_size = 1
 
@@ -150,20 +137,17 @@ class Inkplate(ImagePaletteMixin):
         self._rtc = RTC(self.wire)
 
         # RST/DC/CS_M/CS_S/BUSY/CLK/DIN/PWR_EN/BS0/BS1 + the SPI peripheral itself are
-        # owned by the C dual-chip spi transport from here on
-        # (firmware/usermods/inkplate/epd_spi.c, docs/refactor_plan.md Phase 9 step 31)
-        # -- no more machine.SPI/Pin objects for the panel itself.
+        # owned by the C dual-chip SPI transport from here on
+        # (firmware/usermods/inkplate/epd_spi.c) -- no more machine.SPI/Pin objects
+        # for the panel itself.
         inkplate.select_spi_panel("inkplate13spectra")
 
-        # This panel's 4bpp framebuffer packs even physical x into the HIGH nibble --
-        # the opposite of gfx_set_pixel's default (confirmed from this board's own
-        # pre-refactor write_pixel/pixel_mask_glut). Session-constant, set once here like
-        # Inkplate4TEMPERA's own gfx_set_gs4_nibble_swap(True) call.
+        # This panel's 4bpp framebuffer packs even physical x into the high nibble, the
+        # opposite of gfx_set_pixel's default. Session-constant, set once here.
         inkplate.gfx_set_gs4_nibble_swap(True)
 
-        # Discharge panel capacitors first, matching the real Arduino reference driver's
-        # initDriver() -- setIO() (which brings up the SPI bus itself) only runs later,
-        # on the first set_panel_state(True).
+        # Discharge panel capacitors first; setIO() (which brings up the SPI bus itself)
+        # only runs later, on the first set_panel_state(True).
         self.set_panel_pins_to_low()
 
         self.VBAT = ADC(Pin(1))
@@ -178,11 +162,11 @@ class Inkplate(ImagePaletteMixin):
 
         self.SD_ENABLE = GpioPin(self._PCAL6416A, 10, mode_output)
 
-        # Allocate framebuffer (4bpp, 2 pixels per byte)
-        # Single C-level bytes multiply + bytearray copy - no Python loop
+        # Allocate framebuffer (4bpp, 2 pixels per byte).
+        # Single C-level bytes multiply + bytearray copy, no Python loop.
         self._framebuf = bytearray(b"\x11" * (D_COLS * D_ROWS // 2))
 
-        # Set default rotation (landscape, matching Arduino initDriver)
+        # Set default rotation (landscape).
         self.rotation = 1
         self._gfx_rotation = (2 - self.rotation) % 4
         self._width = D_ROWS
@@ -242,10 +226,8 @@ class Inkplate(ImagePaletteMixin):
         """Hardware reset of the panel.
 
         Reuses the single-chip family's epd_spi_reset() (100ms low / 200ms recovery)
-        rather than a dual-chip-specific 100ms/100ms pulse -- the real Arduino reference
-        driver's own resetPanel() only asks for 100ms/100ms, and a longer recovery delay
-        can't hurt, same reasoning already applied to Inkplate2's reset pulse width
-        (docs/refactor_plan.md Phase 9 step 31).
+        rather than a dual-chip-specific 100ms/100ms pulse; a longer recovery delay
+        does not hurt.
         """
         inkplate.spi_panel_reset()
 
@@ -283,9 +265,8 @@ class Inkplate(ImagePaletteMixin):
             self.set_panel_pins_to_low()
             time.sleep_ms(50)
 
-            # Configure GPIOs (also (re)inits the SPI bus/device, matching the real
-            # Arduino reference driver's setIO(), which reconstructs its SPI object here
-            # too -- see epd_spi_dual_power_up_io()'s own comment)
+            # Configure GPIOs (also (re)inits the SPI bus/device -- see
+            # epd_spi_dual_power_up_io()'s own comment)
             self.set_io()
 
             # Enable power
@@ -308,8 +289,7 @@ class Inkplate(ImagePaletteMixin):
             self.wait_for_busy()
 
             # Float DC/CS_M/CS_S/RST/BUSY/PWR_EN to save power (BS0/BS1 deliberately left
-            # alone, matching the real Arduino reference driver -- see
-            # epd_spi_dual_power_down_io()'s own comment).
+            # alone -- see epd_spi_dual_power_down_io()'s own comment).
             inkplate.spi_dual_power_down_io()
 
         self._panel_state = state
@@ -363,14 +343,13 @@ class Inkplate(ImagePaletteMixin):
         if not leave_on:
             self.set_panel_state(False)
 
-    # Ported from the real Arduino reference driver's EPDDriver::displayPartial() --
-    # refreshes only a sub-rectangle of the panel via the GDEP133C02 controller's PTLW
+    # Refreshes only a sub-rectangle of the panel via the GDEP133C02 controller's PTLW
     # (Partial Load Window) register, instead of a full-frame refresh. Unlike
     # Inkplate10's InkplatePartial (which diffs an old/new framebuffer pair pixel-by-
     # pixel to suppress ghosting), this does no diffing at all -- it unconditionally
-    # re-sends the current framebuffer contents inside the given window, exactly
-    # matching the Arduino driver's own behavior. x/y/w/h are in this board's normal
-    # rotation-aware user-space coordinates (same space as draw_rect/write_pixel/etc).
+    # re-sends the current framebuffer contents inside the given window. x/y/w/h are in
+    # this board's normal rotation-aware user-space coordinates (same space as
+    # draw_rect/write_pixel/etc).
     def display_partial(self, x, y, w, h, leave_on=False):
         # Clip to the screen bounds for the current rotation.
         if x < 0:
@@ -387,11 +366,8 @@ class Inkplate(ImagePaletteMixin):
             return
 
         # Map user rectangle to panel-native rectangle (col: 0..D_COLS-1, row:
-        # 0..D_ROWS-1). Each case mirrors write_pixel's pre-gfx-port rotation
-        # transform -- this uses `self.rotation` (this board's own Arduino-compatible
-        # numbering), NOT `_gfx_rotation` (gfx.c's offset numbering used by the
-        # drawing primitives) -- these are the same cases the real Arduino driver's
-        # displayPartial() itself switches on.
+        # 0..D_ROWS-1). Uses `self.rotation`, NOT `_gfx_rotation` (gfx.c's offset
+        # numbering used by the drawing primitives).
         r = self.rotation
         if r == 0:
             # User space: D_COLS x D_ROWS. panel_col = (D_COLS-1)-x, panel_row = (D_ROWS-1)-y.
@@ -528,9 +504,8 @@ class Inkplate(ImagePaletteMixin):
     def gpio_expander_pin(self, pin, mode):
         return GpioPin(self._PCAL6416A, pin, mode)
 
-    # Same PCF85263-style RTC chip every parallel-bus board wires -- delegates to
-    # shared/rtc.py instead of the hand-rolled BCD conversion/I2C read-write this used to
-    # duplicate (never backported when that shared module landed).
+    # Same PCF85263-style RTC chip every parallel-bus board wires; delegates to
+    # shared/rtc.py.
     def rtc_set_time(self, rtc_hour, rtc_minute, rtc_second):
         self._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
 
@@ -576,7 +551,6 @@ class Inkplate(ImagePaletteMixin):
     def height(self):
         return self._height
 
-    # Arduino compatibility functions
     def set_rotation(self, x):
         self.rotation = x % 4
         self._gfx_rotation = (2 - self.rotation) % 4
@@ -599,9 +573,8 @@ class Inkplate(ImagePaletteMixin):
         pass
 
     # Maps a user color index (0-5) to the panel's real register value, or None if out
-    # of range -- every gfx_* wrapper below does this once per call instead of once per
-    # pixel (this board's own pre-refactor write_pixel did the equivalent check/lookup
-    # per pixel, since every shape was drawn via a write_pixel-per-point Python loop).
+    # of range. Every gfx_* wrapper below does this once per call instead of once per
+    # pixel.
     def _map_color(self, c):
         if c > 5:
             return None
@@ -738,10 +711,8 @@ class Inkplate(ImagePaletteMixin):
     def set_cursor(self, x, y):
         self.cursor = [x, y]
 
-    # Ported from this board's own gfx.py GFX._print_text/_draw_char_4bpp, with the
-    # per-char blit routed through inkplate.gfx_draw_char instead (same shape as
-    # boards/inkplate6/inkplate6.py's _print_text). Color goes through _color_palette
-    # once here instead of once per pixel, like every other gfx_* wrapper on this board.
+    # Color goes through _color_palette once here instead of once per pixel, like
+    # every other gfx_* wrapper on this board.
     def _print_text(self, framebuf, x0, y0, string, size, color, text_wrap=False):
         display_width = self._width
         color = self._color_palette[min(max(color, 0), 5)]
@@ -873,7 +844,7 @@ class Inkplate(ImagePaletteMixin):
 
     def read_battery(self):
         self.VBAT_EN.digital_write(1)
-        # Probably don't need to delay since Micropython is slow, but we do it anyway
+        # Probably don't need to delay since MicroPython is slow, but we do it anyway.
         time.sleep_ms(1)
         value = self.VBAT.read()
         self.VBAT_EN.digital_write(0)

@@ -12,7 +12,7 @@ display = Inkplate(Inkplate.INKPLATE_1BIT)
 display.begin()
 
 # Sensors are asleep by default -- wake_peripheral() only powers the chip on;
-# the real SparkFun library expects the caller to init()/begin() it themselves
+# begin()/enable_*() must still be called explicitly to configure it
 display.wake_peripheral(Inkplate.INKPLATE_APDS9960)
 APDS9960.begin()
 APDS9960.enable_proximity_sensor()
