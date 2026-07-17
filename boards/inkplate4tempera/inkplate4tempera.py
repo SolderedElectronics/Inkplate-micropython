@@ -31,7 +31,6 @@ from inkplate_gfx_mixin import GfxMixin
 from inkplate_text_mixin import TextMixin
 from inkplate_image_gs4_mixin import ImageGS4Mixin
 import gfx_standard_font_01 as montserrat_black
-import gc
 
 
 import machine
@@ -166,7 +165,11 @@ class _Inkplate:
             return
         cls._on = True
         restore_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
-        if not cls._tps.power_up():
+        # 500ms (default is 250ms) -- observed marginal on a current-limited laptop USB
+        # port under rapid repeated power on/off cycling (HIL session, 2026-07-17);
+        # PWR_GOOD came up fine on every cycle before that, so this is tolerating a
+        # slower-charging rail under load, not masking a rail that never comes up.
+        if not cls._tps.power_up(timeout_ms=500):
             raise RuntimeError("TPS65186 power-up timed out (PWR_GOOD not OK)")
         # wake-up display
         cls.EPD_GMODE.digital_write(1)
@@ -184,7 +187,7 @@ class _Inkplate:
         cls.EPD_GMODE.digital_write(0)
         cls.EPD_OE.digital_write(0)
 
-        cls._tps.power_down()
+        cls._tps.power_down(timeout_ms=500)
         # Tri-state the bit-banged control/data bus to stop current leakage during deep
         # sleep -- ported from the real Arduino reference driver's pinsZstate().
         tristate_display_pins(cls.EPD_OE, cls.EPD_GMODE, cls.EPD_SPV)
@@ -283,7 +286,15 @@ class _Inkplate:
     @classmethod
     def sleep_peripheral(cls, peripheral):
         if peripheral & Inkplate.INKPLATE_FUEL_GAUGE:
-            cls._PCAL6416A_1.pin_mode(_FG_GPOUT_PIN, mode_input_pulldown)
+            try:
+                cls._PCAL6416A_1.pin_mode(_FG_GPOUT_PIN, mode_input_pulldown)
+            except OSError:
+                # intermittent NAK observed right after TPS65186.begin()'s power-rail
+                # bring-up (charge pump/VCOM DAC switching noise) -- same
+                # "begin() must never crash over an optional peripheral" rule as every
+                # other branch in this function; worst case this one begin() cycle
+                # skips priming the pulldown for the fuel gauge's wake-on-rising-edge.
+                pass
             try:
                 BQ27441.shutdown()
             except OSError:

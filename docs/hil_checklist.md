@@ -29,7 +29,7 @@ N/A elsewhere.
 | Inkplate5v2       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
 | Inkplate6FLICK    | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | [ ]         | [ ]        |
 | Inkplate6PLUSv2   | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | [ ]         | [ ]        |
-| Inkplate4TEMPERA  | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | [ ]         | [ ]        |
+| Inkplate4TEMPERA  | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate2         | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
 | Inkplate6COLOR    | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
 | Inkplate13SPECTRA | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
