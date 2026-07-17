@@ -8,6 +8,7 @@ Host class contract -- must provide before any of these are called:
 """
 
 import gc
+import time
 
 import inkplate
 
@@ -54,16 +55,25 @@ class ImagePaletteMixin:
                 raise ValueError("Unsupported local image format. Must be .bmp, .jpg, or .png")
 
     def draw_jpg_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        t0 = time.ticks_ms()
         with open(path, "rb") as f:
             jpg_data = f.read()
+        t1 = time.ticks_ms()
         inkplate.jpeg_draw_palette(
             self._framebuf, None, self.rotation, x0, y0, invert, dither, kernel_type, jpg_data
         )
+        t2 = time.ticks_ms()
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("JPEG: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_png_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        t0 = time.ticks_ms()
         with open(path, "rb") as f:
             png_data = f.read()
+        t1 = time.ticks_ms()
         # No scratch buffer passed: only needed for a rare Adam7-interlaced source
         # (non-interlaced PNGs dither inline, per pixel, no whole-image buffer at all).
         inkplate.png_draw_palette(
@@ -78,18 +88,25 @@ class ImagePaletteMixin:
             png_data,
             None,
         )
+        t2 = time.ticks_ms()
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("PNG: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_png_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             png_data = response.content
             response.close()
+            t1 = time.ticks_ms()
 
             # See draw_png_from_sd's identical comment on why no scratch buffer.
             inkplate.png_draw_palette(
@@ -104,7 +121,12 @@ class ImagePaletteMixin:
                 png_data,
                 None,
             )
+            t2 = time.ticks_ms()
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("PNG: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_png_from_web:", e)
             if "response" in locals():
@@ -115,12 +137,14 @@ class ImagePaletteMixin:
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=20)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             jpg_data = response.content
             response.close()
+            t1 = time.ticks_ms()
 
             inkplate.jpeg_draw_palette(
                 self._framebuf,
@@ -133,7 +157,12 @@ class ImagePaletteMixin:
                 kernel_type,
                 jpg_data,
             )
+            t2 = time.ticks_ms()
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("JPEG: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_jpg_from_web:", e)
             if "response" in locals():
@@ -142,25 +171,34 @@ class ImagePaletteMixin:
 
     def draw_bmp_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         gc.collect()
+        t0 = time.ticks_ms()
         with open(path, "rb") as f:
             bmp_data = f.read()
+        t1 = time.ticks_ms()
 
         inkplate.bmp_draw_palette(
             self._framebuf, None, self.rotation, x0, y0, invert, dither, kernel_type, bmp_data
         )
+        t2 = time.ticks_ms()
         del bmp_data
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("BMP: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             bmp_data = response.content
             response.close()
+            t1 = time.ticks_ms()
 
             inkplate.bmp_draw_palette(
                 self._framebuf,
@@ -173,8 +211,13 @@ class ImagePaletteMixin:
                 kernel_type,
                 bmp_data,
             )
+            t2 = time.ticks_ms()
             del bmp_data
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("BMP: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_bmp_from_web:", e)
             if "response" in locals():

@@ -20,13 +20,13 @@ full-refresh-only — grayscale ramp and partial update are N/A.
 (Elan touch controller on PLUSv2/4TEMPERA, Cypress on 6FLICK) — extra columns,
 N/A elsewhere.
 
-| Board            | Clear | Mono text | Grayscale ramp | Photo (dithered) | Partial update | Touchscreen | Frontlight |
+| Board             | Clear | Mono text | Grayscale ramp | Photo (dithered) | Partial update  | Touchscreen | Frontlight |
 |-------------------|-------|-----------|----------------|------------------|-----------------|-------------|------------|
-| Inkplate10v1      | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
-| Inkplate10v2      | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
-| Inkplate6v1       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
-| Inkplate6v2       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
-| Inkplate5v2       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
+| Inkplate10v1      | [x]   | [x]       | [x]            | [x]              | [x]             | N/A         | N/A        |
+| Inkplate10v2      | [x]   | [x]       | [x]            | [x]              | [x]             | N/A         | N/A        |
+| Inkplate6v1       | [x]   | [x]       | [x]            | [x]              | [x]             | N/A         | N/A        |
+| Inkplate6v2       | [x]   | [x]       | [x]            | [x]              | [x]             | N/A         | N/A        |
+| Inkplate5v2       | [x]   | [x]       | [x]            | [x]              | [x]             | N/A         | N/A        |
 | Inkplate6FLICK    | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate6PLUSv2   | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate4TEMPERA  | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |

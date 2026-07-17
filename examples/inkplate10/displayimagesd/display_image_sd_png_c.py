@@ -11,23 +11,30 @@ sample PNG ships in this repo (mountain.jpg is the JPEG example's sample).
 """
 
 from inkplate10 import Inkplate
-import time
+from os import stat
 
 ipk = Inkplate(Inkplate.INKPLATE_2BIT)
 ipk.begin()
 ipk.init_sd_card(fast_boot=True)
 
-t0 = time.ticks_ms()
-ipk.draw_png_from_sd(
-    "/sd/coastal.png",
-    0,
-    0,
-    invert=False,
-    dither=True,
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
-)
-print("decoded+drew PNG in {} ms".format(time.ticks_diff(time.ticks_ms(), t0)))
+IMAGE_PATH = "/sd/coastal.png"
+try:
+    stat(IMAGE_PATH)
+except OSError:
+    print("Image not found on SD card: {}".format(IMAGE_PATH))
+    print("Copy a PNG to that path on the SD card, or change IMAGE_PATH above.")
+else:
+    # draw_png_from_sd() prints its own read/decode/total timing (shared/
+    # inkplate_image_gs4_mixin.py) -- no need to time it again here.
+    ipk.draw_png_from_sd(
+        IMAGE_PATH,
+        0,
+        0,
+        invert=False,
+        dither=True,
+        kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
+    )
 
-ipk.display()
+    ipk.display()
 
 ipk.sd_card_sleep()

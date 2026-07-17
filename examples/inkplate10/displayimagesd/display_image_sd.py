@@ -2,8 +2,7 @@
 
 # Include needed libraries
 from inkplate10 import Inkplate
-import time
-from os import listdir
+from os import listdir, stat
 
 # Create Inkplate object in 2-bit (grayscale) mode
 inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
@@ -57,17 +56,24 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-draw_length = time.ticks_ms()
-inkplate.draw_image(
-    "sd/mountain.jpg",
-    0,
-    0,
-    invert=False,
-    dither=True,
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
-)
-draw_length = time.ticks_ms() - draw_length
-print("time it took to draw to buffer: {} ms ".format(draw_length))
+IMAGE_PATH = "sd/coastal.png"
+try:
+    stat(IMAGE_PATH)
+except OSError:
+    print("Image not found on SD card: {}".format(IMAGE_PATH))
+    print("Copy an image to that path on the SD card, or change IMAGE_PATH above.")
+else:
+    # draw_image() dispatches to draw_bmp/png/jpg_from_sd, which print their own
+    # read/decode/total timing (shared/inkplate_image_gs4_mixin.py) -- no need to
+    # time it again here.
+    inkplate.draw_image(
+        IMAGE_PATH,
+        0,
+        0,
+        invert=False,
+        dither=True,
+        kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
+    )
 # Show the image from the buffer
 inkplate.display()
 

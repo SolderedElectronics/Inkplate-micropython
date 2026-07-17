@@ -3,7 +3,7 @@
 # Include needed libraries
 from inkplate6_color import Inkplate
 
-from os import listdir
+from os import listdir, stat
 
 # Create Inkplate object
 inkplate = Inkplate()
@@ -22,7 +22,7 @@ inkplate.begin()
 # Note:
 # - This function must be called before accessing files on the SD card.
 # - The fastboot option has no effect if the device is already running.
-inkplate.init_sd_card(fastBoot=True)
+inkplate.init_sd_card(fast_boot=True)
 
 # This prints all the files on card
 print(listdir("/sd"))
@@ -57,14 +57,21 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-inkplate.draw_image(
-    "sd/lake.jpg",
-    0,
-    0,
-    invert=False,
-    dither=True,
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
-)
+IMAGE_PATH = "sd/coastal.png"
+try:
+    stat(IMAGE_PATH)
+except OSError:
+    print("Image not found on SD card: {}".format(IMAGE_PATH))
+    print("Copy an image to that path on the SD card, or change IMAGE_PATH above.")
+else:
+    inkplate.draw_image(
+        IMAGE_PATH,
+        0,
+        0,
+        invert=False,
+        dither=True,
+        kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
+    )
 
 # Show the image from the buffer
 inkplate.display()

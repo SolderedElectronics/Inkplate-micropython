@@ -3,7 +3,7 @@
 # Include needed libraries
 from inkplate6 import Inkplate
 
-from os import listdir
+from os import listdir, stat
 
 # Create Inkplate object in 2-bit (grayscale) mode
 inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
@@ -57,14 +57,21 @@ print(listdir("/sd"))
 # - Maximum image file size: ~800kB
 #
 # Example usage:
-inkplate.draw_image(
-    "sd/coastal.jpg",
-    0,
-    0,
-    invert=False,
-    dither=True,
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
-)
+IMAGE_PATH = "sd/coastal.png"
+try:
+    stat(IMAGE_PATH)
+except OSError:
+    print("Image not found on SD card: {}".format(IMAGE_PATH))
+    print("Copy an image to that path on the SD card, or change IMAGE_PATH above.")
+else:
+    inkplate.draw_image(
+        IMAGE_PATH,
+        0,
+        0,
+        invert=False,
+        dither=True,
+        kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
+    )
 
 # Show the image from the buffer
 inkplate.display()

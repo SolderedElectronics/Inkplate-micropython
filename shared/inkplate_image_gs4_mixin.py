@@ -10,6 +10,7 @@ Host class contract -- must provide before any of these are called:
 
 import os
 import gc
+import time
 
 import inkplate
 
@@ -41,6 +42,7 @@ class ImageGS4Mixin:
                 raise ValueError("Unsupported local image format. Must be .bmp, .jpg, or .png")
 
     def draw_bmp_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        t0 = time.ticks_ms()
         bmp_size = os.stat(path)[6]
         bmp_data = bytearray(bmp_size)
         with open(path, "rb") as f:
@@ -49,6 +51,7 @@ class ImageGS4Mixin:
             # more than the final size, MemoryError-ing on files a pre-sized allocation
             # handles fine.
             f.readinto(bmp_data)
+        t1 = time.ticks_ms()
         inkplate.bmp_draw_gs4(
             self._framebuf(),
             self._d_cols,
@@ -62,18 +65,25 @@ class ImageGS4Mixin:
             dither,
             kernel_type,
         )
+        t2 = time.ticks_ms()
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("BMP: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_bmp_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             bmp_data = response.content
             response.close()
+            t1 = time.ticks_ms()
             inkplate.bmp_draw_gs4(
                 self._framebuf(),
                 self._d_cols,
@@ -87,7 +97,12 @@ class ImageGS4Mixin:
                 dither,
                 kernel_type,
             )
+            t2 = time.ticks_ms()
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("BMP: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_bmp_from_web:", e)
             if "response" in locals():
@@ -95,8 +110,10 @@ class ImageGS4Mixin:
             raise
 
     def draw_png_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        t0 = time.ticks_ms()
         with open(path, "rb") as f:
             png_data = f.read()
+        t1 = time.ticks_ms()
         inkplate.png_draw_gs4(
             self._framebuf(),
             self._d_cols,
@@ -110,18 +127,25 @@ class ImageGS4Mixin:
             dither,
             kernel_type,
         )
+        t2 = time.ticks_ms()
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("PNG: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_png_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=10)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             png_data = response.content
             response.close()
+            t1 = time.ticks_ms()
             inkplate.png_draw_gs4(
                 self._framebuf(),
                 self._d_cols,
@@ -135,7 +159,12 @@ class ImageGS4Mixin:
                 dither,
                 kernel_type,
             )
+            t2 = time.ticks_ms()
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("PNG: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_png_from_web:", e)
             if "response" in locals():
@@ -143,8 +172,10 @@ class ImageGS4Mixin:
             raise
 
     def draw_jpg_from_sd(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
+        t0 = time.ticks_ms()
         with open(path, "rb") as f:
             jpg_data = f.read()
+        t1 = time.ticks_ms()
         inkplate.jpeg_draw_gs4(
             self._framebuf(),
             self._d_cols,
@@ -158,18 +189,25 @@ class ImageGS4Mixin:
             dither,
             kernel_type,
         )
+        t2 = time.ticks_ms()
         gc.collect()
+        tr = time.ticks_diff(t1, t0)
+        td = time.ticks_diff(t2, t1)
+        tt = time.ticks_diff(t2, t0)
+        print("JPEG: read %dms, decode %dms, total %dms" % (tr, td, tt))
 
     def draw_jpg_from_web(self, url, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         import urequests
 
         try:
+            t0 = time.ticks_ms()
             response = urequests.get(url, timeout=20)
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
             jpg_data = response.content
             response.close()
+            t1 = time.ticks_ms()
             inkplate.jpeg_draw_gs4(
                 self._framebuf(),
                 self._d_cols,
@@ -183,7 +221,12 @@ class ImageGS4Mixin:
                 dither,
                 kernel_type,
             )
+            t2 = time.ticks_ms()
             gc.collect()
+            tf = time.ticks_diff(t1, t0)
+            td = time.ticks_diff(t2, t1)
+            tt = time.ticks_diff(t2, t0)
+            print("JPEG: fetch %dms, decode %dms, total %dms" % (tf, td, tt))
         except Exception as e:
             print("Error in draw_jpg_from_web:", e)
             if "response" in locals():
