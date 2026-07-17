@@ -117,7 +117,7 @@ int dither_quantize_palette(int r, int g, int b, const dither_palette_entry_t *p
 // of a draw) and pass the results into dither_invert_palette_bw below instead of
 // re-scanning the whole palette per pixel.
 void dither_find_bw_values(const dither_palette_entry_t *palette, int n, int *out_black_value,
-                            int *out_white_value);
+                           int *out_white_value);
 
 // Applies invert to an already-quantized palette `value`: swaps strictly between
 // black_value and white_value (from dither_find_bw_values) if `value` matches either,
@@ -150,9 +150,9 @@ void dither_row_advance_rgb(dither_rgb_ctx_t *ctx);
 // for the palette/color path -- same duplicated-sequence consolidation, same
 // have_dctx=0/dctx=NULL convention for no-diffusion call sites. black_value/white_value
 // come from dither_find_bw_values, computed once by the caller (loop-invariant).
-int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
-                       int r, int g, int b, const dither_palette_entry_t *palette, int n,
-                       int invert, int black_value, int white_value);
+int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w,
+                       int draw_h, int r, int g, int b, const dither_palette_entry_t *palette,
+                       int n, int invert, int black_value, int white_value);
 
 // RGB565 pack/unpack for callers that buffer a full decoded image before dithering
 // (jpeg_draw.c/png_draw.c's palette-mode scratch buffers) -- storing RGB565 (2

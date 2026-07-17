@@ -244,9 +244,9 @@ void dither_row_advance_rgb(dither_rgb_ctx_t *ctx)
     }
 }
 
-int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w, int draw_h,
-                       int r, int g, int b, const dither_palette_entry_t *palette, int n,
-                       int invert, int black_value, int white_value)
+int dither_process_rgb(dither_rgb_ctx_t *dctx, int have_dctx, int x, int y, int draw_w,
+                       int draw_h, int r, int g, int b, const dither_palette_entry_t *palette,
+                       int n, int invert, int black_value, int white_value)
 {
     int value, recon_r, recon_g, recon_b;
     if (have_dctx) {

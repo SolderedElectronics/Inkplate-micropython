@@ -40,8 +40,8 @@ static void jpeg_draw_core_tile_immediate(jpeg_draw_core_ctx_t *ctx, uint32_t ti
             const uint8_t *px = rgb + (ty * tile_w + tx) * 3;
             // ITU-R BT.601 luma, integer approximation.
             int luma = (299 * px[0] + 587 * px[1] + 114 * px[2]) / 1000;
-            int level = dither_process_mono(NULL, 0, 0, 0, 0, 0, luma, ctx->display_mode,
-                                            ctx->invert);
+            int level =
+                dither_process_mono(NULL, 0, 0, 0, 0, 0, luma, ctx->display_mode, ctx->invert);
             gfx_set_pixel(ctx->fb, ctx->phys_w, ctx->phys_h, ctx->rotation, ctx->display_mode,
                           ctx->x0 + (int)(tile_x + tx), ctx->y0 + (int)(tile_y + ty), level);
         }

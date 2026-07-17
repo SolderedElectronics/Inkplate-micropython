@@ -143,9 +143,9 @@ void png_draw_core_palette_pixel(png_draw_core_palette_ctx_t *ctx, uint32_t x, u
                                  const uint8_t rgba[4])
 {
     if (!ctx->dither) {
-        int value = dither_process_rgb(NULL, 0, 0, 0, 0, 0, rgba[0], rgba[1], rgba[2],
-                                       ctx->palette, ctx->palette_n, ctx->invert,
-                                       ctx->black_value, ctx->white_value);
+        int value =
+            dither_process_rgb(NULL, 0, 0, 0, 0, 0, rgba[0], rgba[1], rgba[2], ctx->palette,
+                               ctx->palette_n, ctx->invert, ctx->black_value, ctx->white_value);
         ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
         return;
     }
@@ -224,9 +224,10 @@ void png_draw_core_palette_pixel_stream(png_draw_core_palette_stream_ctx_t *ctx,
         ctx->cur_row = (int)y;
     }
 
-    int value = dither_process_rgb(&ctx->dctx, ctx->have_dctx, (int)x, (int)y, (int)ctx->width,
-                                   (int)ctx->height, rgba[0], rgba[1], rgba[2], ctx->palette,
-                                   ctx->palette_n, ctx->invert, ctx->black_value, ctx->white_value);
+    int value =
+        dither_process_rgb(&ctx->dctx, ctx->have_dctx, (int)x, (int)y, (int)ctx->width,
+                           (int)ctx->height, rgba[0], rgba[1], rgba[2], ctx->palette,
+                           ctx->palette_n, ctx->invert, ctx->black_value, ctx->white_value);
     ctx->write_pixel(ctx->cb_ctx, (int)x, (int)y, value);
 }
 

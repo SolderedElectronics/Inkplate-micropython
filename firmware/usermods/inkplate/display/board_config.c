@@ -7,11 +7,11 @@
 // board; a board whose layout genuinely diverges should stop using this macro and spell
 // its fields out explicitly instead of forcing a fork of it.
 #define INKPLATE_CLASSIC_PINS                                                                    \
-    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},                                                  \
-    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27), .pin_cl = 0, .pin_le = 2,     \
-    .pin_ckv = 32, .pin_sph = 33, .pin_oe = {.expander_addr = 0x20, .pin = 0},                    \
-    .pin_gmode = {.expander_addr = 0x20, .pin = 1}, .pin_spv = {.expander_addr = 0x20, .pin = 2}, \
-    .pmic_i2c_addr = 0x48
+    .data_pins = {4, 5, 18, 19, 23, 25, 26, 27},                                                 \
+    .data_mask = INKPLATE_DATA_MASK8(4, 5, 18, 19, 23, 25, 26, 27), .pin_cl = 0, .pin_le = 2,    \
+    .pin_ckv = 32, .pin_sph = 33, .pin_oe = {.expander_addr = 0x20, .pin = 0},                   \
+    .pin_gmode = {.expander_addr = 0x20, .pin = 1},                                              \
+    .pin_spv = {.expander_addr = 0x20, .pin = 2}, .pmic_i2c_addr = 0x48
 
 // Real 3-bit/8-level waveform for Inkplate10, transcribed from the Arduino reference
 // driver's compiled-in default (waveforms.h's WAVEFORM3BIT macro == waveform1[8][9] in
