@@ -414,10 +414,6 @@ class BQ27441:
         cls._i2c.writeto_mem(cls._addr, _EXT_DATABLOCK, bytes((offset,)))
 
     @classmethod
-    def _block_data_checksum(cls):
-        return cls._i2c.readfrom_mem(cls._addr, _EXT_CHECKSUM, 1)[0]
-
-    @classmethod
     def _read_block_data(cls, offset):
         return cls._i2c.readfrom_mem(cls._addr, _EXT_BLOCKDATA + offset, 1)[0]
 
@@ -442,10 +438,6 @@ class BQ27441:
         cls._block_data_control()
         cls._block_data_class(class_id)
         cls._block_data_offset(offset // 32)
-        # Checksum is computed+read here but neither result is used before the
-        # actual data read below -- dead code, kept as-is rather than removed.
-        cls._compute_block_checksum()
-        cls._block_data_checksum()
         ret = cls._read_block_data(offset % 32)
 
         if not cls._user_config_control:
@@ -464,7 +456,6 @@ class BQ27441:
         cls._block_data_control()
         cls._block_data_class(class_id)
         cls._block_data_offset(offset // 32)
-        cls._compute_block_checksum()  # Dead read, same as _read_extended_data above
 
         for i, byte in enumerate(data):
             cls._write_block_data((offset % 32) + i, byte)

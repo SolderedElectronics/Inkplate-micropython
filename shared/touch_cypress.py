@@ -113,7 +113,6 @@ class CypressTouchData:
 
 class Touch:
     _ts_flag = False
-    _ts_init_done = False
     _bl_data = CyttspBootloaderData()
     _sys_data = CyttspSysinfoData()
     touch_t = 0

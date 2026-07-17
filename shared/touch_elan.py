@@ -29,7 +29,6 @@ def _c_idiv(a, b):
 
 class Touch:
     _ts_flag = False
-    _ts_init_done = False
     touch_n = 0
     touch_x = [0, 0]
     touch_y = [0, 0]
@@ -280,11 +279,7 @@ class Touch:
 
     @classmethod
     def end(cls):
-        # _ts_init_done never actually gets set True anywhere in this driver
-        # either (ts_init() never sets it) -- this detach is dead code, kept
-        # as-is rather than silently fixed.
-        if cls._ts_init_done and cls._ts_int_pin is not None:
+        if cls._ts_int_pin is not None:
             cls._ts_int_pin.irq(handler=None)
         cls._ts_flag = False
         cls.power(False)
-        cls._ts_init_done = False
