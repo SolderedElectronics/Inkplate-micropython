@@ -27,7 +27,7 @@ N/A elsewhere.
 | Inkplate6v1       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
 | Inkplate6v2       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
 | Inkplate5v2       | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | N/A         | N/A        |
-| Inkplate6FLICK    | [ ]   | [ ]       | [ ]            | [ ]              | [ ]             | [ ]         | [ ]        |
+| Inkplate6FLICK    | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate6PLUSv2   | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate4TEMPERA  | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate2         | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
