@@ -15,6 +15,10 @@
     [
       "rtc.py",
       "github:SolderedElectronics/Inkplate-micropython/shared/rtc.py"
+    ],
+    [
+      "inkplate_image_palette_mixin.py",
+      "github:SolderedElectronics/Inkplate-micropython/shared/inkplate_image_palette_mixin.py"
     ]
   ],
   "deps": [],

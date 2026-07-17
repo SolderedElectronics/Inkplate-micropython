@@ -34,6 +34,15 @@ busy_timeout_ms = 1000
 display_refresh_timeout_ms = 60000
 
 
+# NEEDS HW TEST: this class was converted from classmethod-style (state on the class,
+# `cls.` throughout) to normal instance methods (`self.`), to match the other 8 boards.
+# Mechanical cls->self substitution (verified no leftover `cls`/@classmethod via grep)
+# -- should be behaviorally identical since only one Inkplate() instance is ever
+# created, but this is a real code-shape change, not pure extraction, so verify
+# begin()/display()/draw_*/print* end-to-end. This board's dual BW+RED plane draw
+# methods and web-only image loading (no draw_*_from_sd at all) are genuinely unique
+# to this board and were deliberately NOT folded into a shared mixin -- see
+# _plane_colors/write_pixel for the BW/RED split.
 class Inkplate:
     # Colors
     WHITE = 0b00000000
@@ -58,9 +67,8 @@ class Inkplate:
 
     cursor = [0, 0]
 
-    @classmethod
-    def begin(cls):
-        cls.wire = I2C(0, scl=Pin(22), sda=Pin(21))
+    def begin(self):
+        self.wire = I2C(0, scl=Pin(22), sda=Pin(21))
 
         # RST/DC/CS/BUSY/CLK/DIN + the SPI peripheral itself are owned by the C
         # spi_panel transport from here on (firmware/usermods/inkplate/epd_spi.c,
@@ -69,34 +77,32 @@ class Inkplate:
         inkplate.select_spi_panel("inkplate2")
         inkplate.spi_panel_init()
 
-        cls._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        cls._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        cls.text_color = 1
-        cls.textWrapping = 1
+        self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        self.text_color = 1
+        self.textWrapping = 1
 
-        cls.font_family = montserrat_black
-        cls.font = cls.font_family._font
+        self.font_family = montserrat_black
+        self.font = self.font_family._font
 
         # Wake the panel and init it
-        if not (cls.set_panel_deep_sleep_state(False)):
+        if not (self.set_panel_deep_sleep_state(False)):
             return False
 
         # Put it back to sleep
-        cls.set_panel_deep_sleep_state(True)
+        self.set_panel_deep_sleep_state(True)
 
         # 3 is the default rotation for Inkplate 2
-        cls.set_rotation(3)
+        self.set_rotation(3)
 
-        cls.text_size = 1
+        self.text_size = 1
 
         return True
 
-    @classmethod
-    def get_panel_deep_sleep_state(cls):
-        return cls._panel_state
+    def get_panel_deep_sleep_state(self):
+        return self._panel_state
 
-    @classmethod
-    def set_panel_deep_sleep_state(cls, state):
+    def set_panel_deep_sleep_state(self, state):
         # False wakes the panel up
         # True puts it to sleep
         #
@@ -106,35 +112,35 @@ class Inkplate:
         # convention as boards/inkplate6color/inkplate6_color.py's own
         # set_panel_deep_sleep().
         if not state:
-            cls.reset_panel()
+            self.reset_panel()
 
             # Reinit the panel
-            cls.send_command(0x04)
+            self.send_command(0x04)
             if not inkplate.spi_panel_wait_busy(1, busy_timeout_ms):
                 return False
 
-            cls.send_command(0x00)
-            cls.send_data(b"\x0f")
-            cls.send_data(b"\x89")
-            cls.send_command(0x61)
-            cls.send_data(b"\x68")
-            cls.send_data(b"\x00")
-            cls.send_data(b"\xd4")
-            cls.send_command(0x50)
-            cls.send_data(b"\x77")
+            self.send_command(0x00)
+            self.send_data(b"\x0f")
+            self.send_data(b"\x89")
+            self.send_command(0x61)
+            self.send_data(b"\x68")
+            self.send_data(b"\x00")
+            self.send_data(b"\xd4")
+            self.send_command(0x50)
+            self.send_data(b"\x77")
 
-            cls._panel_state = True
+            self._panel_state = True
 
             return True
 
         else:
             # Put the panel to sleep
-            cls.send_command(0x50)
-            cls.send_data(b"\xf7")
-            cls.send_command(0x02)
+            self.send_command(0x50)
+            self.send_data(b"\xf7")
+            self.send_command(0x02)
             inkplate.spi_panel_wait_busy(1, busy_timeout_ms)
-            cls.send_command(0x07)
-            cls.send_data(b"\xa5")
+            self.send_command(0x07)
+            self.send_data(b"\xa5")
 
             time.sleep_ms(1)
 
@@ -143,234 +149,216 @@ class Inkplate:
             # or driven high).
             inkplate.spi_panel_set_rst(0)
 
-            cls._panel_state = False
+            self._panel_state = False
 
             return False
 
-    @classmethod
-    def reset_panel(cls):
+    def reset_panel(self):
         inkplate.spi_panel_reset()
 
-    @classmethod
-    def send_command(cls, command):
+    def send_command(self, command):
         inkplate.spi_panel_send_command(command)
 
-    @classmethod
-    def send_data(cls, data):
+    def send_data(self, data):
         inkplate.spi_panel_send_data(data)
 
-    @classmethod
-    def clear_display(cls):
-        cls._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
-        cls._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+    def clear_display(self):
+        self._framebuf_BW = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
+        self._framebuf_RED = bytearray(([0xFF] * E_INK_BUFFER_SIZE))
 
-    @classmethod
-    def display(cls):
+    def display(self):
         # Wake the display
-        cls.set_panel_deep_sleep_state(False)
+        self.set_panel_deep_sleep_state(False)
 
         # Write b/w pixels
-        cls.send_command(0x10)
-        cls.send_data(cls._framebuf_BW)
+        self.send_command(0x10)
+        self.send_data(self._framebuf_BW)
 
         # Write red pixels
-        cls.send_command(0x13)
-        cls.send_data(cls._framebuf_RED)
+        self.send_command(0x13)
+        self.send_data(self._framebuf_RED)
 
         # Stop transfer
-        cls.send_command(0x11)
-        cls.send_data(b"\x00")
+        self.send_command(0x11)
+        self.send_data(b"\x00")
 
         # Refresh
-        cls.send_command(0x12)
+        self.send_command(0x12)
         time.sleep_us(500)
         inkplate.spi_panel_wait_busy(1, display_refresh_timeout_ms)
 
         # Put the display back to sleep
-        cls.set_panel_deep_sleep_state(True)
+        self.set_panel_deep_sleep_state(True)
 
-    @classmethod
-    def width(cls):
-        return cls._width
+    def width(self):
+        return self._width
 
-    @classmethod
-    def height(cls):
-        return cls._height
+    def height(self):
+        return self._height
 
     # Arduino compatibility functions
-    @classmethod
-    def set_rotation(cls, x):
-        cls.rotation = x % 4
-        cls._gfx_rotation = (cls.rotation + 2) % 4
-        if cls.rotation == 0 or cls.rotation == 2:
-            cls._width = E_INK_WIDTH
-            cls._height = E_INK_HEIGHT
-        elif cls.rotation == 1 or cls.rotation == 3:
-            cls._width = E_INK_HEIGHT
-            cls._height = E_INK_WIDTH
+    def set_rotation(self, x):
+        self.rotation = x % 4
+        self._gfx_rotation = (self.rotation + 2) % 4
+        if self.rotation == 0 or self.rotation == 2:
+            self._width = E_INK_WIDTH
+            self._height = E_INK_HEIGHT
+        elif self.rotation == 1 or self.rotation == 3:
+            self._width = E_INK_HEIGHT
+            self._height = E_INK_WIDTH
 
-    @classmethod
-    def get_rotation(cls):
-        return cls.rotation
+    def get_rotation(self):
+        return self.rotation
 
-    @classmethod
-    def draw_pixel(cls, x, y, c):
-        cls.write_pixel(x, y, c)
+    def draw_pixel(self, x, y, c):
+        self.write_pixel(x, y, c)
 
     # Maps a user color (WHITE=0/BLACK=1/RED=2) to independent 1bpp draw values for the
     # BW and RED planes -- this board's own pre-refactor write_pixel forced both planes'
     # bits high, then cleared exactly one plane's bit depending on c (BLACK clears BW,
     # RED clears RED, WHITE clears neither). Returns None if c is out of range (mirrors
     # the original per-pixel bounds check).
-    @classmethod
-    def _plane_colors(cls, c):
+    def _plane_colors(self, c):
         if c > 2:
             return None
         return (0 if c == 1 else 1), (0 if c == 2 else 1)
 
-    @classmethod
-    def write_pixel(cls, x, y, c):
-        colors = cls._plane_colors(c)
+    def write_pixel(self, x, y, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_set_pixel(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, bw
         )
         inkplate.gfx_set_pixel(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, red
         )
 
-    @classmethod
-    def write_fill_rect(cls, x, y, w, h, c):
-        colors = cls._plane_colors(c)
+    def write_fill_rect(self, x, y, w, h, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_fill_rect(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, bw
         )
         inkplate.gfx_fill_rect(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, red
         )
 
-    @classmethod
-    def write_fast_vline(cls, x, y, h, c):
-        colors = cls._plane_colors(c)
+    def write_fast_vline(self, x, y, h, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_vline(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, h, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, h, bw
         )
         inkplate.gfx_vline(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, h, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, h, red
         )
 
-    @classmethod
-    def write_fast_hline(cls, x, y, w, c):
-        colors = cls._plane_colors(c)
+    def write_fast_hline(self, x, y, w, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_hline(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, bw
         )
         inkplate.gfx_hline(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, red
         )
 
-    @classmethod
-    def write_line(cls, x0, y0, x1, y1, c):
-        colors = cls._plane_colors(c)
+    def write_line(self, x0, y0, x1, y1, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_line(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x0, y0, x1, y1, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x0, y0, x1, y1, bw
         )
         inkplate.gfx_line(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x0, y0, x1, y1, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            0,
+            x0,
+            y0,
+            x1,
+            y1,
+            red,
         )
 
-    @classmethod
-    def start_write(cls):
+    def start_write(self):
         pass
 
-    @classmethod
-    def end_write(cls):
+    def end_write(self):
         pass
 
-    @classmethod
-    def draw_fast_vline(cls, x, y, h, c):
-        cls.write_fast_vline(x, y, h, c)
+    def draw_fast_vline(self, x, y, h, c):
+        self.write_fast_vline(x, y, h, c)
 
-    @classmethod
-    def draw_fast_hline(cls, x, y, w, c):
-        cls.write_fast_hline(x, y, w, c)
+    def draw_fast_hline(self, x, y, w, c):
+        self.write_fast_hline(x, y, w, c)
 
-    @classmethod
-    def fill_rect(cls, x, y, w, h, c):
-        cls.write_fill_rect(x, y, w, h, c)
+    def fill_rect(self, x, y, w, h, c):
+        self.write_fill_rect(x, y, w, h, c)
 
-    @classmethod
-    def fill_screen(cls, c):
-        cls.fill_rect(0, 0, cls.width(), cls.height(), c)
+    def fill_screen(self, c):
+        self.fill_rect(0, 0, self.width(), self.height(), c)
 
-    @classmethod
-    def draw_line(cls, x0, y0, x1, y1, c):
-        cls.write_line(x0, y0, x1, y1, c)
+    def draw_line(self, x0, y0, x1, y1, c):
+        self.write_line(x0, y0, x1, y1, c)
 
-    @classmethod
-    def draw_rect(cls, x, y, w, h, c):
-        colors = cls._plane_colors(c)
+    def draw_rect(self, x, y, w, h, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_rect(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, bw
         )
         inkplate.gfx_rect(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, w, h, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, red
         )
 
-    @classmethod
-    def draw_circle(cls, x, y, r, c):
-        colors = cls._plane_colors(c)
+    def draw_circle(self, x, y, r, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_circle(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, bw
         )
         inkplate.gfx_circle(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, red
         )
 
-    @classmethod
-    def fill_circle(cls, x, y, r, c):
-        colors = cls._plane_colors(c)
+    def fill_circle(self, x, y, r, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_fill_circle(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, bw
         )
         inkplate.gfx_fill_circle(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, r, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, red
         )
 
-    @classmethod
-    def draw_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        colors = cls._plane_colors(c)
+    def draw_triangle(self, x0, y0, x1, y1, x2, y2, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_triangle(
-            cls._framebuf_BW,
+            self._framebuf_BW,
             E_INK_WIDTH,
             E_INK_HEIGHT,
-            cls._gfx_rotation,
+            self._gfx_rotation,
             0,
             x0,
             y0,
@@ -381,10 +369,10 @@ class Inkplate:
             bw,
         )
         inkplate.gfx_triangle(
-            cls._framebuf_RED,
+            self._framebuf_RED,
             E_INK_WIDTH,
             E_INK_HEIGHT,
-            cls._gfx_rotation,
+            self._gfx_rotation,
             0,
             x0,
             y0,
@@ -395,17 +383,16 @@ class Inkplate:
             red,
         )
 
-    @classmethod
-    def fill_triangle(cls, x0, y0, x1, y1, x2, y2, c):
-        colors = cls._plane_colors(c)
+    def fill_triangle(self, x0, y0, x1, y1, x2, y2, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_fill_triangle(
-            cls._framebuf_BW,
+            self._framebuf_BW,
             E_INK_WIDTH,
             E_INK_HEIGHT,
-            cls._gfx_rotation,
+            self._gfx_rotation,
             0,
             x0,
             y0,
@@ -416,10 +403,10 @@ class Inkplate:
             bw,
         )
         inkplate.gfx_fill_triangle(
-            cls._framebuf_RED,
+            self._framebuf_RED,
             E_INK_WIDTH,
             E_INK_HEIGHT,
-            cls._gfx_rotation,
+            self._gfx_rotation,
             0,
             x0,
             y0,
@@ -430,44 +417,39 @@ class Inkplate:
             red,
         )
 
-    @classmethod
-    def draw_round_rect(cls, x, y, q, h, r, c):
-        colors = cls._plane_colors(c)
+    def draw_round_rect(self, x, y, q, h, r, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_round_rect(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, bw
         )
         inkplate.gfx_round_rect(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, red
         )
 
-    @classmethod
-    def fill_round_rect(cls, x, y, q, h, r, c):
-        colors = cls._plane_colors(c)
+    def fill_round_rect(self, x, y, q, h, r, c):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_fill_round_rect(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, bw
+            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, bw
         )
         inkplate.gfx_fill_round_rect(
-            cls._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, q, h, r, red
+            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, red
         )
 
-    @classmethod
-    def set_text_color(cls, c):
-        cls.text_color = c
+    def set_text_color(self, c):
+        self.text_color = c
 
-    @classmethod
-    def set_text_size(cls, s):
-        cls.text_size = s
+    def set_text_size(self, s):
+        self.text_size = s
 
-    @classmethod
-    def set_font(cls, f):
-        cls.font_family = f
-        cls.font = cls.font_family._font
+    def set_font(self, f):
+        self.font_family = f
+        self.font = self.font_family._font
 
     def reset_cursor(self):
         self.cursor = [0, 0]
@@ -618,20 +600,29 @@ class Inkplate:
             self.print_text(x0, y, line)
             y += line_height
 
-    @classmethod
-    def draw_bitmap(cls, x, y, data, w, h, c=BLACK):
-        colors = cls._plane_colors(c)
+    def draw_bitmap(self, x, y, data, w, h, c=BLACK):
+        colors = self._plane_colors(c)
         if colors is None:
             return
         bw, red = colors
         inkplate.gfx_draw_bitmap(
-            cls._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, cls._gfx_rotation, 0, x, y, data, w, h, bw
-        )
-        inkplate.gfx_draw_bitmap(
-            cls._framebuf_RED,
+            self._framebuf_BW,
             E_INK_WIDTH,
             E_INK_HEIGHT,
-            cls._gfx_rotation,
+            self._gfx_rotation,
+            0,
+            x,
+            y,
+            data,
+            w,
+            h,
+            bw,
+        )
+        inkplate.gfx_draw_bitmap(
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
             0,
             x,
             y,
@@ -641,18 +632,17 @@ class Inkplate:
             red,
         )
 
-    @classmethod
-    def draw_color_image(cls, x, y, w, h, buf):
+    def draw_color_image(self, x, y, w, h, buf):
         scaled_w = int(-(-(w / 4.0) // 1))
         for i in range(h):
             for j in range(scaled_w):
-                cls.write_pixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
+                self.write_pixel(4 * j + x, i + y, (buf[scaled_w * i + j] & 0xC0) >> 6)
                 if 4 * j + x + 1 < w:
-                    cls.write_pixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
+                    self.write_pixel(4 * j + x + 1, i + y, (buf[scaled_w * i + j] & 0x30) >> 4)
                 if 4 * j + x + 2 < w:
-                    cls.write_pixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
+                    self.write_pixel(4 * j + x + 2, i + y, (buf[scaled_w * i + j] & 0x0C) >> 2)
                 if 4 * j + x + 3 < w:
-                    cls.write_pixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))
+                    self.write_pixel(4 * j + x + 3, i + y, (buf[scaled_w * i + j] & 0x03))
 
     def draw_image(self, path, x0=0, y0=0, invert=False, dither=False, kernel_type=0):
         """
