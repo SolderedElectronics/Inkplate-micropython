@@ -249,6 +249,34 @@ static void test_set_pixel_rotation(void)
     }
 }
 
+// display_mode 2: 1bpp MSB-first per byte (boards/inkplate2/inkplate2.py's dual BW/RED
+// planes -- its real SPI panel packs the opposite bit order from display_mode 0's
+// LSB-first, which the parallel-bus family's waveform engine needs instead).
+static void test_set_pixel_mono_msb(void)
+{
+    uint8_t fb[4];
+
+    // mode 0 (LSB-first): px=3 -> bit3.
+    memset(fb, 0, sizeof(fb));
+    gfx_set_pixel(fb, 8, 4, 0, 0, 3, 1, 1);
+    assert(fb[1] == 0x08);
+
+    // mode 2 (MSB-first): same (px,py) -> bit(7-3)=bit4, opposite of mode 0.
+    memset(fb, 0, sizeof(fb));
+    gfx_set_pixel(fb, 8, 4, 0, 2, 3, 1, 1);
+    assert(fb[1] == 0x10);
+
+    // mode 2, px=0 -> bit7 (leftmost pixel of the byte is the MSB).
+    memset(fb, 0, sizeof(fb));
+    gfx_set_pixel(fb, 8, 4, 0, 2, 0, 0, 1);
+    assert(fb[0] == 0x80);
+
+    // Clearing (color=0) respects the same bit in mode 2.
+    memset(fb, 0xFF, sizeof(fb));
+    gfx_set_pixel(fb, 8, 4, 0, 2, 0, 0, 0);
+    assert(fb[0] == 0x7F);
+}
+
 // GS4_HMSB packing: even x -> low nibble, odd x -> high nibble (docs/REFACTOR-PLAN.md
 // Phase 5 step 15's fix), raw level 0-7 (not the old 2bpp 0-3 clamp).
 static void test_set_pixel_gs4_packing(void)
@@ -394,6 +422,7 @@ int main(void)
 {
     test_shapes_vs_python_reference();
     test_set_pixel_rotation();
+    test_set_pixel_mono_msb();
     test_set_pixel_gs4_packing();
     test_set_pixel_gs4_nibble_swap();
     test_draw_char_mono();

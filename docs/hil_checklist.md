@@ -30,9 +30,9 @@ N/A elsewhere.
 | Inkplate6FLICK    | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate6PLUSv2   | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
 | Inkplate4TEMPERA  | [x]   | [x]       | [x]            | [x]              | [x]             | [x]         | [x]        |
-| Inkplate2         | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
-| Inkplate6COLOR    | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
-| Inkplate13SPECTRA | [ ]   | [ ]       | N/A            | [ ]              | N/A             | N/A         | N/A        |
+| Inkplate2         | [x]   | [x]       | N/A            | [x]              | N/A             | N/A         | N/A        |
+| Inkplate6COLOR    | [x]   | [x]       | N/A            | [x]              | N/A             | N/A         | N/A        |
+| Inkplate13SPECTRA | [x]   | [x]       | N/A            | [x]              | [x]             | N/A         | N/A        |
 
 ## Check definitions
 

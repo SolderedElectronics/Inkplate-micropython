@@ -400,16 +400,18 @@ static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
 // Minimum framebuffer bytes gfx_set_pixel's own packing needs for a phys_w x phys_h buffer
 // at this display_mode. Rotation doesn't change this -- rotation only remaps logical into
 // physical (px, py) coordinates (gfx.c), the buffer's own byte layout is always phys_w x
-// phys_h. Mirrors gfx.c's indexing exactly: mono is 1bpp row-major (`(py*w+px)>>3`), GS4 is
-// 4bpp/2px-per-byte using truncating `w/2` row stride (`py*(w/2)+(px>>1)`) -- same
-// assumption every other GS4 caller in this codebase already makes about even widths, not
-// a new one introduced here.
+// phys_h. Mirrors gfx.c's indexing exactly: mono is 1bpp row-major (`(py*w+px)>>3`), same
+// byte count regardless of mode 0's LSB-first vs mode 2's MSB-first bit order within each
+// byte (Inkplate2's dual BW/RED planes -- see gfx.h); GS4 (any other display_mode, in
+// practice just 1) is 4bpp/2px-per-byte using truncating `w/2` row stride
+// (`py*(w/2)+(px>>1)`) -- same assumption every other GS4 caller in this codebase already
+// makes about even widths, not a new one introduced here.
 static size_t gfx_min_buf_len(int phys_w, int phys_h, int display_mode)
 {
     if (phys_w <= 0 || phys_h <= 0) {
         return 0;
     }
-    if (display_mode == 0) {
+    if (display_mode == 0 || display_mode == 2) {
         return ((size_t)phys_w * (size_t)phys_h + 7) / 8;
     }
     return (size_t)phys_h * (size_t)(phys_w / 2);

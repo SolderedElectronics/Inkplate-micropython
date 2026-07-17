@@ -4,9 +4,12 @@
 // boards/inkplate10/inkplate10.py's write_pixel_viper -- gfx_set_pixel below IS that
 // logic, consolidated into one place instead of being duplicated per caller.
 //
-// display_mode: 0 = 1bpp mono (INKPLATE_1BIT), non-zero = 4bpp GS4_HMSB raw 0-7 gray level
-// (INKPLATE_2BIT -- named for the old 2bpp/4-level scheme, buffer format is 4bpp since
-// docs/REFACTOR-PLAN.md Phase 5 step 14).
+// display_mode: 0 = 1bpp mono, LSB-first per byte (INKPLATE_1BIT, Inkplate10-family waveform
+// engine's expected bit order); 2 = 1bpp mono, MSB-first per byte (Inkplate2's dual BW/RED
+// planes -- its SPI panel packs the opposite bit order from the parallel-bus family); any
+// other value (in practice just 1) = 4bpp GS4_HMSB raw 0-7 gray level (INKPLATE_2BIT --
+// named for the old 2bpp/4-level scheme, buffer format is 4bpp since docs/REFACTOR-PLAN.md
+// Phase 5 step 14).
 // rotation: 0=0 deg, 1=90 deg CW, 2=180 deg, 3=270 deg CCW (logical-to-physical, matches
 // Inkplate.setRotation).
 // phys_w/phys_h: physical (unrotated) framebuffer dimensions in pixels.

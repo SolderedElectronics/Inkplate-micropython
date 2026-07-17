@@ -2,7 +2,6 @@
 
 import time
 from machine import I2C, Pin
-from micropython import const
 import gfx_standard_font_01 as montserrat_black
 
 import machine
@@ -61,6 +60,13 @@ class Inkplate:
     # never sets `rotation` directly, only via set_rotation(), so this default is
     # overwritten before first use.
     _gfx_rotation = 2
+
+    # This board's dual BW/RED 1bpp planes pack each byte MSB-first (its real SPI panel's
+    # bit order, confirmed against its pre-gfx-port write_pixel's `7 - x%8` shift) -- the
+    # opposite of gfx_set_pixel's default mode 0 (LSB-first, tuned for the parallel-bus
+    # family's waveform engine). Pass this instead of 0 as display_mode to every gfx_* call.
+    _GFX_DISPLAY_MODE = 2
+
     text_size = 1
 
     _panel_state = False
@@ -229,10 +235,24 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_set_pixel(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            bw,
         )
         inkplate.gfx_set_pixel(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            red,
         )
 
     def write_fill_rect(self, x, y, w, h, c):
@@ -241,10 +261,28 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_fill_rect(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            h,
+            bw,
         )
         inkplate.gfx_fill_rect(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            h,
+            red,
         )
 
     def write_fast_vline(self, x, y, h, c):
@@ -253,10 +291,26 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_vline(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, h, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            h,
+            bw,
         )
         inkplate.gfx_vline(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, h, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            h,
+            red,
         )
 
     def write_fast_hline(self, x, y, w, c):
@@ -265,10 +319,26 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_hline(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            bw,
         )
         inkplate.gfx_hline(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            red,
         )
 
     def write_line(self, x0, y0, x1, y1, c):
@@ -277,14 +347,23 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_line(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x0, y0, x1, y1, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x0,
+            y0,
+            x1,
+            y1,
+            bw,
         )
         inkplate.gfx_line(
             self._framebuf_RED,
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x0,
             y0,
             x1,
@@ -319,10 +398,28 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_rect(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            h,
+            bw,
         )
         inkplate.gfx_rect(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, w, h, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            w,
+            h,
+            red,
         )
 
     def draw_circle(self, x, y, r, c):
@@ -331,10 +428,26 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_circle(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            r,
+            bw,
         )
         inkplate.gfx_circle(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            r,
+            red,
         )
 
     def fill_circle(self, x, y, r, c):
@@ -343,10 +456,26 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_fill_circle(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            r,
+            bw,
         )
         inkplate.gfx_fill_circle(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, r, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            r,
+            red,
         )
 
     def draw_triangle(self, x0, y0, x1, y1, x2, y2, c):
@@ -359,7 +488,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x0,
             y0,
             x1,
@@ -373,7 +502,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x0,
             y0,
             x1,
@@ -393,7 +522,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x0,
             y0,
             x1,
@@ -407,7 +536,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x0,
             y0,
             x1,
@@ -423,10 +552,30 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_round_rect(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            q,
+            h,
+            r,
+            bw,
         )
         inkplate.gfx_round_rect(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            q,
+            h,
+            r,
+            red,
         )
 
     def fill_round_rect(self, x, y, q, h, r, c):
@@ -435,10 +584,30 @@ class Inkplate:
             return
         bw, red = colors
         inkplate.gfx_fill_round_rect(
-            self._framebuf_BW, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, bw
+            self._framebuf_BW,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            q,
+            h,
+            r,
+            bw,
         )
         inkplate.gfx_fill_round_rect(
-            self._framebuf_RED, E_INK_WIDTH, E_INK_HEIGHT, self._gfx_rotation, 0, x, y, q, h, r, red
+            self._framebuf_RED,
+            E_INK_WIDTH,
+            E_INK_HEIGHT,
+            self._gfx_rotation,
+            self._GFX_DISPLAY_MODE,
+            x,
+            y,
+            q,
+            h,
+            r,
+            red,
         )
 
     def set_text_color(self, c):
@@ -481,7 +650,7 @@ class Inkplate:
                 E_INK_WIDTH,
                 E_INK_HEIGHT,
                 self._gfx_rotation,
-                0,
+                self._GFX_DISPLAY_MODE,
                 cx,
                 cy,
                 char_data,
@@ -495,7 +664,7 @@ class Inkplate:
                 E_INK_WIDTH,
                 E_INK_HEIGHT,
                 self._gfx_rotation,
-                0,
+                self._GFX_DISPLAY_MODE,
                 cx,
                 cy,
                 char_data,
@@ -610,7 +779,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x,
             y,
             data,
@@ -623,7 +792,7 @@ class Inkplate:
             E_INK_WIDTH,
             E_INK_HEIGHT,
             self._gfx_rotation,
-            0,
+            self._GFX_DISPLAY_MODE,
             x,
             y,
             data,

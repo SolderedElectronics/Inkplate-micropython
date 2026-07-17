@@ -101,9 +101,14 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
         px = w - 1 - px;
     }
 
-    if (display_mode == 0) {
+    if (display_mode == 0 || display_mode == 2) {
         int idx = (py * w + px) >> 3;
-        int shift = px & 7;
+        int bit = px & 7;
+        // mode 0: LSB-first per byte (Inkplate10-family waveform engine, waveform.c's
+        // inkplate_gen_nibble_lut reads pixel 0 of a nibble/byte from bit 0). mode 2:
+        // MSB-first (Inkplate2's dual BW/RED planes -- its SPI panel packs the opposite
+        // bit order, confirmed against its pre-gfx-port write_pixel's `7 - x%8` shift).
+        int shift = (display_mode == 2) ? (7 - bit) : bit;
         if (color) {
             fb[idx] |= (uint8_t)(1 << shift);
         } else {
