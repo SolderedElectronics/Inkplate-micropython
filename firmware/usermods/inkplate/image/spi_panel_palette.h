@@ -1,16 +1,18 @@
-// Per-board palette tables + pixel packing for the SPI-controller-panel family's
-// color/palette image-decode path (docs/REFACTOR-PLAN.md Phase 10 step 32/33).
-//
-// Deliberately NOT routed through gfx_set_pixel's GS4 packing (gfx.c): confirmed
-// against each board's current shipped viper code that 6COLOR/13SPECTRA pack pixels
-// into a nibble in the OPPOSITE order gfx_set_pixel's GS4 branch uses (even physical
-// column -> high nibble here, vs. low nibble there), and each panel's rotation/
-// coordinate-remap formula is its own board-specific quirk (6COLOR bakes a fixed
-// "rotation 0" orientation with pre-flip done in the decode step, 13SPECTRA bakes a
-// fixed "rotation 1" mapping with its own sign convention, Inkplate2 alone honors
-// `rotation` dynamically, over two separate 1bpp bitplanes instead of one indexed
-// buffer). This module ports each of those, verbatim, per board -- it does not
-// attempt to unify them under one convention.
+/**
+ * @file spi_panel_palette.h
+ * @brief Per-board palette tables and pixel packing for the SPI-controller-panel
+ *        family's color/palette image-decode path.
+ *
+ * Deliberately not routed through gfx_set_pixel's GS4 packing (gfx.c): 6COLOR/13SPECTRA
+ * pack pixels into a nibble in the opposite order gfx_set_pixel's GS4 branch uses (even
+ * physical column -> high nibble here, vs. low nibble there), and each panel's
+ * rotation/coordinate-remap formula is its own board-specific quirk (6COLOR bakes a
+ * fixed "rotation 0" orientation with a pre-flip done in the decode step, 13SPECTRA
+ * bakes a fixed "rotation 1" mapping with its own sign convention, Inkplate2 alone
+ * honors `rotation` dynamically, over two separate 1bpp bitplanes instead of one indexed
+ * buffer). Each board is handled on its own terms rather than unified under one shared
+ * convention.
+ */
 #ifndef INKPLATE_SPI_PANEL_PALETTE_H
 #define INKPLATE_SPI_PANEL_PALETTE_H
 
@@ -24,15 +26,23 @@ enum {
     SPI_PANEL_PALETTE_INKPLATE13SPECTRA = 2,
 };
 
-// Maps a board name ("inkplate6color"/"inkplate2"/"inkplate13spectra", matching
-// spi_panel_config_t.name) to its SPI_PANEL_PALETTE_* id, or -1 if unrecognized.
+/**
+ * @brief Look up the SPI_PANEL_PALETTE_* id for a board name.
+ * @param name Board name ("inkplate6color"/"inkplate2"/"inkplate13spectra"),
+ *        matching spi_panel_config_t.name.
+ * @return SPI_PANEL_PALETTE_* id, or -1 if unrecognized.
+ */
 int spi_panel_palette_id_for_name(const char *name);
 
-// Returns the fixed nearest-color palette table for `panel` (a SPI_PANEL_PALETTE_*
-// id) via *out_n (entry count) and the return value (the table itself, static
-// storage). RGB values and their `value` outputs are transcribed verbatim from that
-// board's current viper nearest-color search -- already HIL-validated per Phase 9
-// step 30's real-image draw on 6COLOR -- not re-derived from the Arduino reference.
+// RGB values and their `value` outputs match each board's own nearest-color search
+// exactly, not re-derived generically.
+/**
+ * @brief Get the fixed nearest-color palette table for a panel.
+ * @param panel SPI_PANEL_PALETTE_* id.
+ * @param out_n Set to the number of entries in the returned table.
+ * @return Pointer to the palette table (static storage), or NULL if `panel` is
+ *         unrecognized.
+ */
 const dither_palette_entry_t *spi_panel_palette_table(int panel, int *out_n);
 
 typedef struct {
@@ -52,10 +62,16 @@ typedef struct {
     int x0, y0;        // draw offset, pre-rotation/logical coordinates
 } spi_panel_palette_ctx_t;
 
-// bmp_draw_palette_cb/jpeg_draw_palette_cb/png_draw_palette_cb-compatible callback:
-// packs `value` into ctx's framebuffer(s) at image-local (x, y), applying that
-// panel's own real coordinate remap + nibble/bitplane packing (see module comment
-// above). `ctx` must point to a spi_panel_palette_ctx_t.
+// bmp_draw_palette_cb/jpeg_draw_palette_cb/png_draw_palette_cb-compatible callback,
+// applying each panel's own coordinate remap and nibble/bitplane packing (see
+// module comment above).
+/**
+ * @brief Write a palette-indexed pixel into a panel's framebuffer(s).
+ * @param ctx Pointer to a spi_panel_palette_ctx_t.
+ * @param x Image-local x coordinate.
+ * @param y Image-local y coordinate.
+ * @param value Palette index/register value to write, per the panel's palette table.
+ */
 void spi_panel_palette_write_pixel(void *ctx, int x, int y, int value);
 
 #endif // INKPLATE_SPI_PANEL_PALETTE_H

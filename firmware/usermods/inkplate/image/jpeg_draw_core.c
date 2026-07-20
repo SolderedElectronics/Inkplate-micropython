@@ -1,13 +1,16 @@
+/**
+ * @file jpeg_draw_core.c
+ * @brief Decode-agnostic per-tile JPEG dither/quantize/blit implementation.
+ */
 #include "jpeg_draw_core.h"
 
 #include "../display/gfx.h"
 #include "dither.h"
 
-// Row-band scratch buffers, shared by the grayscale path below and the palette path
-// further down -- see jpeg_draw_core.h's band-buffer comment and jpeg_draw.c for why a
-// band (not a whole-image buffer) is enough for JPEG's raster-order MCU tiles. Static
-// singletons: only one draw operation is ever in flight at a time (same assumption the
-// pre-split jpeg_draw.c made implicitly).
+// Row-band scratch buffers, shared by the grayscale path below and the palette path further
+// down -- see jpeg_draw_core.h's band-buffer comment for why a band (not the whole image) is
+// enough for JPEG's raster-order MCU tiles. Static singletons: only one draw operation is
+// ever in flight at a time.
 static uint8_t jpeg_draw_band_luma[JPEG_DRAW_CORE_BAND_MAX_W * JPEG_DRAW_CORE_MCU_MAX_H];
 static uint16_t jpeg_palette_band_rgb[JPEG_DRAW_CORE_BAND_MAX_W * JPEG_DRAW_CORE_MCU_MAX_H];
 

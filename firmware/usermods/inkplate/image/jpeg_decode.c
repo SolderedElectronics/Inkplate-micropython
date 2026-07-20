@@ -1,17 +1,22 @@
+/**
+ * @file jpeg_decode.c
+ * @brief JPEG decoder implementation wrapping the ESP32 ROM's TJpgDec.
+ */
 #include "jpeg_decode.h"
 
 #include <stdlib.h>
 
 #include "rom/tjpgd.h"
 
-// Minimum scratch pool tjpgd needs for its Huffman tables/MCU buffer -- matches the
-// working-buffer size used by other ROM-tjpgd wrappers in the ESP-IDF ecosystem.
+// Minimum scratch pool tjpgd needs for its Huffman tables/MCU buffer; this size matches
+// the ROM decoder's documented working-buffer requirement.
 #define JPEG_WORK_POOL_SIZE 4096
 
-// Single session struct for both infunc and outfunc -- jd_decomp() still calls infunc
-// internally (via jd->infunc, stashed by jd_prepare()) to pull entropy-coded stream
-// bytes while it runs, so jd->device must stay valid as the *input* context for the
-// whole session; cb/ctx just ride alongside it instead of replacing it.
+// Single struct carries both the input-stream context and the output-tile-callback
+// context together: jd_decomp() keeps calling back into the input-stream side (via
+// jd->infunc, stashed by jd_prepare()) while it decodes, so JDEC.device must not be
+// swapped out between jd_prepare() and jd_decomp() -- cb/ctx just ride alongside the
+// input state instead of replacing it.
 typedef struct {
     const uint8_t *buf;
     size_t len;

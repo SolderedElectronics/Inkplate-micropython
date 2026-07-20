@@ -1,10 +1,14 @@
+/**
+ * @file spi_panel_palette.c
+ * @brief Palette tables and pixel-packing implementation for the SPI-controller-panel
+ *        family.
+ */
 #include "spi_panel_palette.h"
 
 #include <string.h>
 
-// Verbatim from boards/inkplate6color/inkplate6_color.py's write_image nearest-color
-// search (unrolled black/white/green/blue/red/yellow/orange comparisons) -- `value`
-// equals array index here since this panel's controller has no register-value gaps.
+// `value` equals array index here since this panel's controller has no
+// register-value gaps.
 static const dither_palette_entry_t palette_inkplate6color[] = {
     {0, 0, 0, 0},       // black
     {255, 255, 255, 1}, // white
@@ -15,9 +19,7 @@ static const dither_palette_entry_t palette_inkplate6color[] = {
     {255, 165, 0, 6},   // orange
 };
 
-// Verbatim from boards/inkplate13spectra/inkplate13_spectra.py's write_image
-// nearest-color search. Register value 4 is skipped (unused by this Spectra133
-// controller) -- matches this board's own `_color_palette = [0, 1, 2, 3, 5, 6]`.
+// Register value 4 is skipped -- unused by this Spectra133 controller.
 static const dither_palette_entry_t palette_inkplate13spectra[] = {
     {0, 0, 0, 0},       // black
     {255, 255, 255, 1}, // white
@@ -27,16 +29,8 @@ static const dither_palette_entry_t palette_inkplate13spectra[] = {
     {0, 255, 0, 6},     // green
 };
 
-// Inkplate2 is a 3-color BWR panel (WHITE=0, BLACK=1, RED=2 -- see write_pixel/the
-// class constants in boards/inkplate2/inkplate2.py); its current viper decode paths
-// use ad hoc RGB-threshold heuristics instead of a real nearest-color search (and
-// disagree with each other -- the JPEG path's classifier even swaps black/white
-// relative to the real WHITE=0/BLACK=1 constants before writing). This table is the
-// intended generalization per docs/REFACTOR-PLAN.md Phase 10 step 32 (nearest-RGB
-// search over the panel's real palette), not a byte-for-byte port of any one of
-// those inconsistent heuristics -- verify red classification against real red ink
-// on hardware (HIL), since it may shift which borderline reddish-brown pixels get
-// called red vs. black/white compared to today's heuristics.
+// Inkplate2 value encoding is WHITE=0, BLACK=1, RED=2, matching this board's real
+// class constants used by write_pixel.
 static const dither_palette_entry_t palette_inkplate2[] = {
     {255, 255, 255, 0}, // white
     {0, 0, 0, 1},       // black
@@ -76,11 +70,9 @@ const dither_palette_entry_t *spi_panel_palette_table(int panel, int *out_n)
     }
 }
 
-// 6COLOR/13SPECTRA share the same 4bpp nibble convention -- even physical column ->
-// high nibble, odd -> low nibble (boards/inkplate6color/inkplate6_color.py's
-// write_pixel pixel_mask_glut=[0xF,0xF0]/write_image pack, and 13SPECTRA's identical
-// write_pixel/write_image pack) -- the OPPOSITE of gfx_set_pixel's GS4 branch
-// (gfx.c), which puts even column in the low nibble. They differ only in the
+// 6COLOR/13SPECTRA share the same 4bpp nibble convention: even physical column ->
+// high nibble, odd -> low nibble -- the opposite of gfx_set_pixel's GS4 branch
+// (gfx.c), which puts the even column in the low nibble. They differ only in the
 // rotation-baked coordinate formula below.
 static void spi_panel_pack_nibble(uint8_t *fb, int width, int px, int py, int value)
 {
@@ -93,17 +85,12 @@ static void spi_panel_pack_nibble(uint8_t *fb, int width, int px, int py, int va
     }
 }
 
-// 6COLOR's write_image never reads rotation and places pixels with zero transform
-// of its own -- but it only gets away with that because its callers pre-flip the
-// source pixels 180 degrees during decode (bmp24_to_rgb565/png_to_rgb565's own
-// explicit "180 deg rotation: flip horizontally and vertically", and the built-in
-// `jpeg` module's `rotation=180` decoder setting). bmp_decode.c/png_decode.c/
-// jpeg_decode.c (the shared C decoders this callback is fed from) do no such
-// pre-flip -- they're generic, orientation-agnostic decoders -- so the 180 deg flip
-// has to happen here instead, at pack time, to reproduce the same net placement
-// that was already HIL-validated on real 6COLOR hardware (docs/REFACTOR-PLAN.md
-// Phase 9 step 30). This matches write_pixel's own rotation==0 case exactly
-// (`x=w-x-1, y=h-y-1`) -- this board's default/only-ever-used rotation.
+// This callback applies no transform of its own for 6COLOR and never reads
+// rotation -- the 180-degree flip needed to reproduce the panel's real pixel
+// placement happens here at pack time instead, since the shared decoders this
+// callback is fed from (bmp_decode.c/png_decode.c/jpeg_decode.c) are generic and
+// orientation-agnostic. Equivalent to rotation==0's `x=w-x-1, y=h-y-1` case --
+// this board's default/only-ever-used rotation.
 static void write_pixel_6color(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
 {
     int lx = ctx->x0 + x;
@@ -116,11 +103,9 @@ static void write_pixel_6color(const spi_panel_palette_ctx_t *ctx, int x, int y,
     spi_panel_pack_nibble(ctx->fb, ctx->width, px, py, value);
 }
 
-// Ported verbatim from write_image's baked-in "rotation 1" coordinate formula
-// (boards/inkplate13spectra/inkplate13_spectra.py: `phys_x = y0 + row`, `phys_y`
-// decrementing from `_screen_width - 1 - x0` once per column) -- also never reads
-// rotation dynamically, same reasoning as 6COLOR above. ctx->width/height here are
-// the panel's physical, unrotated dimensions (1200x1600).
+// Bakes a fixed "rotation 1" coordinate formula and never reads rotation
+// dynamically, same reasoning as 6COLOR above. ctx->width/height here are the
+// panel's physical, unrotated dimensions (1200x1600).
 static void write_pixel_13spectra(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
 {
     int phys_x = ctx->y0 + y;
@@ -131,13 +116,9 @@ static void write_pixel_13spectra(const spi_panel_palette_ctx_t *ctx, int x, int
     spi_panel_pack_nibble(ctx->fb, ctx->width, phys_x, phys_y, value);
 }
 
-// Ported verbatim from Inkplate2's write_pixel (boards/inkplate2/inkplate2.py) --
-// the only one of the three boards whose image-decode path already honors
-// `rotation` dynamically. Two separate 1bpp bitplanes (fb=BW, fb2=RED), MSB-first;
-// `value` is WHITE=0/BLACK=1/RED=2, matching this board's real class constants
-// (fixing, as a side effect of routing through this shared table instead of the old
-// per-format heuristics, the JPEG-decode path's black/white swap bug that existed in
-// the pre-port viper code).
+// The only one of the three boards whose image-decode path honors `rotation`
+// dynamically. Two separate 1bpp bitplanes (fb=BW, fb2=RED), MSB-first; `value`
+// is WHITE=0/BLACK=1/RED=2, matching this board's real class constants.
 static void write_pixel_inkplate2(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
 {
     int phys_w = ctx->width;

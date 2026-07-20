@@ -1,3 +1,7 @@
+/**
+ * @file bmp_decode.c
+ * @brief BMP decoder implementation.
+ */
 #include "bmp_decode.h"
 
 #include <string.h>
@@ -118,7 +122,7 @@ int bmp_parse_header(const uint8_t *buf, size_t len, bmp_header_t *out)
             resolve_bitfield_channel(0x7C00, &out->r_mask, &out->r_shift, &out->r_bits);
             resolve_bitfield_channel(0x03E0, &out->g_mask, &out->g_shift, &out->g_bits);
             resolve_bitfield_channel(0x001F, &out->b_mask, &out->b_shift, &out->b_bits);
-            out->bitfield_offset = 0; // already resolved, no further read needed
+            out->bitfield_offset = 0; // Already resolved, no further read needed
         } else if (compression == BMP_COMPRESSION_BITFIELDS) {
             // Masks sit at a fixed offset right after the 40-byte core header fields,
             // whether appended as a classic-header extension or baked into V4/V5's own

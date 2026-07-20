@@ -1,3 +1,7 @@
+/**
+ * @file bmp_draw.c
+ * @brief BMP decode-and-draw (with optional dithering) implementation.
+ */
 #include "bmp_draw.h"
 
 #include "bmp_decode.h"
@@ -83,10 +87,8 @@ int bmp_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
         return -1;
     }
     if (hdr.width > INKPLATE_DRAW_MAX_WIDTH) {
-        // Distinct from a generic parse/decode failure -- see bmp_draw.h's comment
-        // above (docs/REFACTOR-PLAN.md Phase 10 step 32's followup, same reasoning
-        // as jpeg/png_draw_palette's identical -2): the caller can raise a clear
-        // "image too wide" error instead of an indistinguishable "BMP decode
+        // Distinct from a generic parse/decode failure so the caller can raise a
+        // clear "image too wide" error instead of an indistinguishable "BMP decode
         // failed".
         return -2;
     }

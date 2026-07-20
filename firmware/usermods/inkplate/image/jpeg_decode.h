@@ -1,7 +1,11 @@
-// JPEG decoder, thin wrapper over ESP32 ROM's bundled TJpgDec (rom/tjpgd.h) -- no
-// external component, no porting: decode logic lives in mask ROM already. Phase 7,
-// docs/REFACTOR-PLAN.md step 18. ESP-IDF-only (links against ROM symbols) -- unlike
-// bmp_decode.c/gfx.c, this cannot be host-gcc-compiled/tested; verify is HIL-only.
+/**
+ * @file jpeg_decode.h
+ * @brief JPEG decoder wrapping the ESP32 ROM's bundled TJpgDec (rom/tjpgd.h); decode
+ *        logic lives in mask ROM, not in this file.
+ *
+ * Links against ROM symbols, so unlike bmp_decode.c/gfx.c this cannot be
+ * host-gcc-compiled or unit-tested -- verification is HIL-only.
+ */
 #ifndef INKPLATE_JPEG_DECODE_H
 #define INKPLATE_JPEG_DECODE_H
 
@@ -27,11 +31,22 @@ typedef int (*jpeg_tile_cb_t)(void *ctx, const jpeg_tile_t *tile);
 // to always proceed (skips this check entirely).
 typedef int (*jpeg_pre_decode_cb_t)(void *ctx, uint32_t width, uint32_t height);
 
-// Decodes `len` bytes of JPEG data at `buf`, streaming one tile at a time through `cb`
-// (no full-image buffer is allocated). `out_width`/`out_height` receive the image
-// dimensions on success (also set if `pre_cb` aborts the decode, since the header is
-// already parsed by then). Returns 0 on success, -1 on error (malformed/unsupported
-// JPEG, ROM decode failure, or `cb` returning 0), -2 if `pre_cb` aborted the decode.
+/**
+ * @brief Decode a JPEG buffer, streaming one MCU tile at a time via callback (no
+ * full-image buffer is allocated).
+ * @param buf Pointer to JPEG-encoded data.
+ * @param len Length of `buf` in bytes.
+ * @param pre_cb Called once after the header is parsed, before entropy decoding
+ * starts; return 0 to abort early, nonzero to proceed. Pass NULL to always proceed.
+ * @param cb Called once per decoded tile, in raster order; return 0 to abort decode.
+ * @param ctx Opaque context passed through to `pre_cb` and `cb`.
+ * @param out_width Set to the image width on success (also set if `pre_cb` aborts,
+ * since the header is already parsed by then).
+ * @param out_height Set to the image height on success (also set if `pre_cb` aborts,
+ * since the header is already parsed by then).
+ * @return 0 on success, -1 on error (malformed/unsupported JPEG, ROM decode failure,
+ * or `cb` returning 0), -2 if `pre_cb` aborted the decode.
+ */
 int jpeg_decode(const uint8_t *buf, size_t len, jpeg_pre_decode_cb_t pre_cb, jpeg_tile_cb_t cb,
                 void *ctx, uint32_t *out_width, uint32_t *out_height);
 

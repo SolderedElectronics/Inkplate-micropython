@@ -1,3 +1,7 @@
+/**
+ * @file epd_spi.c
+ * @brief SPI transport implementation for single- and dual-chip SPI panels.
+ */
 #include "epd_spi.h"
 
 #include "driver/gpio.h"
@@ -6,29 +10,20 @@
 #include <stdbool.h>
 
 // VSPI/SPI3_HOST -- matches the pre-refactor Python driver's machine.SPI(2) choice,
-// whose default pins (sck=18, mosi=23) are this panel's own pin_clk/pin_din.
-//
-// A prior version of this comment claimed machine.SDCard(slot=3) also uses VSPI_HOST,
-// citing spi_dev_defaults[1] in ports/esp32/machine_sdcard.c -- that was a misread: the
-// VSPI_HOST entry is spi_dev_defaults[0] (real slot=2, never used by this driver).
-// spi_dev_defaults[1] (real slot=3, after that file's `slot_num -= 2`) is
-// SDSPI_DEVICE_CONFIG_DEFAULT(), whose SDSPI_DEFAULT_HOST on classic ESP32 is SPI2_HOST
-// (confirmed in esp_driver_sdspi/include/driver/sdspi_host.h) -- i.e. HSPI, not VSPI.
-// So this panel (VSPI) and SD's slot=3 (HSPI) were never actually sharing a peripheral;
-// an earlier session briefly moved this panel to SPI2_HOST on the wrong theory that it
-// needed separating from SD, which instead created a real collision with SD's own HSPI
-// claim. Reverted back to VSPI here, which is correct and always was.
+// whose default pins (sck=18, mosi=23) are this panel's own pin_clk/pin_din. This panel
+// and SD's slot=3 (SPI2_HOST/HSPI, per SDSPI_DEFAULT_HOST in
+// esp_driver_sdspi/include/driver/sdspi_host.h) never share a peripheral, so no
+// separation logic is needed here.
 #define EPD_SPI_HOST SPI3_HOST
 
 // Classic ESP32 has only 2 SPI-capable DMA channels total. machine.SDCard(slot=3)
-// hardcodes DMA channel 1 for its own HSPI/SPI2_HOST bus (ports/esp32/machine_sdcard.c's
-// spi_dma_channel_defaults[1] == 1) -- letting this panel's own spi_bus_initialize()
-// auto-pick a channel (SPI_DMA_CH_AUTO) risked it grabbing channel 1 first (this panel's
-// begin() runs before SD ever inits), leaving none free for SD and breaking its mount
-// with an opaque ESP_ERR_NOT_FOUND, confirmed via HIL. Pin this panel to channel 2
-// explicitly instead -- the same channel that table's own slot=2/VSPI entry already
-// uses, so the two boards' DMA channel choices can never collide regardless of init
-// order.
+// hardcodes DMA channel 1 for its own HSPI/SPI2_HOST bus (spi_dma_channel_defaults[1] ==
+// 1 in ports/esp32/machine_sdcard.c). Letting this panel's own spi_bus_initialize()
+// auto-pick a channel (SPI_DMA_CH_AUTO) risks it grabbing channel 1 first (this panel's
+// begin() runs before SD ever inits), leaving none free for SD and breaking its mount.
+// Pin this panel to channel 2 explicitly instead -- the same channel that table's own
+// slot=2/VSPI entry already uses, so the two boards' DMA channel choices can never
+// collide regardless of init order.
 #define EPD_SPI_DMA_CHAN 2
 
 // ESP-IDF's spi_master driver caps a single spi_device_transmit() transaction at
@@ -51,10 +46,8 @@ void epd_spi_init(const spi_panel_config_t *cfg)
     };
     gpio_config(&out_conf);
 
-    // Pull-up enabled: matches Inkplate2's real Arduino reference driver
-    // (pinMode(EPAPER_BUSY_PIN, INPUT_PULLUP)) -- harmless for Inkplate6COLOR even
-    // though its own reference doesn't ask for one, since a pull-up is a no-op once
-    // the panel's controller actively drives the line.
+    // Pull-up enabled: Inkplate2 needs it on BUSY; harmless no-op for Inkplate6COLOR
+    // since a pull-up is a no-op once the panel's controller actively drives the line.
     gpio_config_t busy_conf = {
         .pin_bit_mask = (1ULL << cfg->pin_busy),
         .mode = GPIO_MODE_INPUT,
@@ -64,8 +57,7 @@ void epd_spi_init(const spi_panel_config_t *cfg)
     };
     gpio_config(&busy_conf);
 
-    // De-select the panel (and let DC settle high) before the SPI bus/device even
-    // exists, same ordering as the Arduino reference's setPanelDeepSleep(false).
+    // De-select the panel (and let DC settle high) before the SPI bus/device even exists.
     gpio_set_level(cfg->pin_dc, 1);
     gpio_set_level(cfg->pin_cs, 1);
 
@@ -81,7 +73,7 @@ void epd_spi_init(const spi_panel_config_t *cfg)
 
     spi_device_interface_config_t dev_conf = {
         .clock_speed_hz = (int)cfg->spi_freq_hz,
-        .mode = 0,          // SPI_MODE0, matches the Arduino reference's SPISettings
+        .mode = 0,          // SPI_MODE0
         .spics_io_num = -1, // CS is toggled manually below, framing DC transitions
         .queue_size = 1,
     };
@@ -118,7 +110,7 @@ int epd_spi_wait_busy(const spi_panel_config_t *cfg, int level, uint32_t timeout
     while (gpio_get_level(cfg->pin_busy) != level) {
         esp_rom_delay_us(1000);
         if (timeout_ms == 0) {
-            continue; // wait forever
+            continue; // Wait forever
         }
         waited_us += 1000;
         if (waited_us >= timeout_us) {
@@ -172,11 +164,11 @@ void epd_spi_send_data(const spi_panel_config_t *cfg, const uint8_t *data, size_
     esp_rom_delay_us(1000);
 }
 
-// --- Inkplate13SPECTRA dual-chip transport (docs/REFACTOR-PLAN.md Phase 9 step 31) ---
-// ESP32-S3 board, built as its own firmware target -- never linked into the same binary
-// as the classic-ESP32 6COLOR/Inkplate2 build, so reusing EPD_SPI_DUAL_HOST's numeric
-// value alongside EPD_SPI_HOST above is safe (only one of the two transports is ever
-// live in a given firmware image).
+// Inkplate13SPECTRA dual-chip transport: this is an ESP32-S3 board, built as its own
+// firmware target, never linked into the same binary as the classic-ESP32 6COLOR/
+// Inkplate2 build -- reusing EPD_SPI_DUAL_HOST's numeric value alongside EPD_SPI_HOST
+// above is safe since only one of the two transports is ever live in a given firmware
+// image.
 #define EPD_SPI_DUAL_HOST SPI3_HOST
 
 static spi_device_handle_t s_spi_dev_dual = NULL;
@@ -228,7 +220,7 @@ void epd_spi_dual_power_up_io(const spi_panel_config_t *cfg)
     };
     gpio_config(&busy_conf);
 
-    // Idle levels from the real Arduino reference driver's setIO().
+    // Power-up idle levels for DC/CS/CS2/RST/PWR_EN/BS0/BS1.
     gpio_set_level(cfg->pin_dc, 1);
     gpio_set_level(cfg->pin_cs, 1);
     gpio_set_level(cfg->pin_cs2, 1);
@@ -237,9 +229,9 @@ void epd_spi_dual_power_up_io(const spi_panel_config_t *cfg)
     gpio_set_level(cfg->pin_bs0, 0);
     gpio_set_level(cfg->pin_bs1, 1);
 
-    // setIO() reconstructs the Arduino SPI object every power-on cycle; do the same here,
-    // tearing down a previously-added device/bus first since ESP-IDF (unlike the Arduino
-    // SPI library) errors on re-initializing an already-initialized host.
+    // The SPI bus/device is reconstructed every power-on cycle; tear down a
+    // previously-added device/bus first since ESP-IDF errors on re-initializing an
+    // already-initialized host.
     if (s_dual_bus_initialized) {
         spi_bus_remove_device(s_spi_dev_dual);
         s_spi_dev_dual = NULL;
@@ -259,7 +251,7 @@ void epd_spi_dual_power_up_io(const spi_panel_config_t *cfg)
 
     spi_device_interface_config_t dev_conf = {
         .clock_speed_hz = (int)cfg->spi_freq_hz,
-        .mode = 0,          // SPI_MODE0, matches the Arduino reference's SPISettings
+        .mode = 0,          // SPI_MODE0
         .spics_io_num = -1, // both CS lines are toggled manually, not by the driver
         .queue_size = 1,
     };
@@ -279,8 +271,7 @@ void epd_spi_dual_power_down_io(const spi_panel_config_t *cfg)
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&in_conf);
-    // Matches the reference driver's digitalWrite(PWR_EN, LOW) issued right after the
-    // pinMode(..., INPUT) calls above -- pre-arms the output latch for the next power-up.
+    // Pre-arms the PWR_EN output latch for the next power-up.
     gpio_set_level(cfg->pin_pwr_en, 0);
 }
 

@@ -1,3 +1,7 @@
+/**
+ * @file png_draw_core.c
+ * @brief Decode-agnostic per-pixel PNG dither/quantize/blit implementation.
+ */
 #include "png_draw_core.h"
 
 #include "../display/gfx.h"

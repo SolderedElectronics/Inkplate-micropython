@@ -1,3 +1,7 @@
+/**
+ * @file epd_control.c
+ * @brief Bit-banged EPD control-line primitives (vscan_start/write/end, fill_screen).
+ */
 #include "epd_control.h"
 #include "expander_bridge.h"
 
@@ -38,13 +42,13 @@ void epd_vscan_write(const board_config_t *cfg)
     fast_pin_t ckv = epd_resolve_pin(cfg->pin_ckv);
     fast_pin_t le = epd_resolve_pin(cfg->pin_le);
 
-    epd_fast_pin_clear(ckv); // remove gate drive
-    epd_fast_pin_set(le);    // pulse to latch row
-    epd_fast_pin_set(le);    // delay a tiny bit
+    epd_fast_pin_clear(ckv); // Remove gate drive
+    epd_fast_pin_set(le);    // Pulse to latch row
+    epd_fast_pin_set(le);    // Delay a tiny bit
     epd_fast_pin_clear(le);
-    epd_fast_pin_clear(le); // delay a tiny bit
+    epd_fast_pin_clear(le); // Delay a tiny bit
     esp_rom_delay_us(0);
-    epd_fast_pin_set(ckv); // apply gate drive to next row
+    epd_fast_pin_set(ckv); // Apply gate drive to next row
 }
 
 void epd_vscan_end(const board_config_t *cfg)

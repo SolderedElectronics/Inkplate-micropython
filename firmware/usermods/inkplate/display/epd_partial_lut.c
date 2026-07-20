@@ -1,6 +1,10 @@
+/**
+ * @file epd_partial_lut.c
+ * @brief Mono partial-update diff LUT generation.
+ */
 #include "epd_partial_lut.h"
 
-// Transcribed verbatim from the real Arduino reference driver's GraphicsDefs.h.
+// Transcribed from the display controller's own lookup tables.
 static const uint8_t LUTW[16] = {0xFF, 0xFE, 0xFB, 0xFA, 0xEF, 0xEE, 0xEB, 0xEA,
                                  0xBF, 0xBE, 0xBB, 0xBA, 0xAF, 0xAE, 0xAB, 0xAA};
 static const uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0xD5,

@@ -1,3 +1,7 @@
+/**
+ * @file dither.c
+ * @brief Error-diffusion dithering implementation (kernel tables, quantizers).
+ */
 #include "dither.h"
 
 #include <stdlib.h>
@@ -10,15 +14,12 @@ typedef struct {
     int divisor;
 } dither_kernel_t;
 
-// Transcribed verbatim from boards/inkplate10/inkplate10.py's write_image
-// fs_*/jjn_*/stucki_*/burkes_* byte arrays. NOTE: the JJN and Stucki kernels there are
-// both a 2-row truncation of their textbook 3-row form (the y+2 row is missing) --
-// preserved as-is here, since that's the shipped/HIL-verified behavior being ported, not
-// re-derived. For JJN, weight sum (35) still doesn't match the textbook full-kernel
-// divisor (48) it's ported with, so its total diffused energy is under 1 (~73%) --
-// same shape of mismatch as Stucki below. Burkes only ever had 2 rows, so its ported
-// weight sum (32) does equal its divisor (32) -- it's the one kernel of the four that
-// isn't under-diffusing.
+// The JJN and Stucki kernels here are both a 2-row truncation of their textbook 3-row
+// form (the y+2 row is missing), preserved as-is rather than re-derived. For JJN, the
+// weight sum (35) still doesn't match the divisor (48) it's used with, so its total
+// diffused energy is under 1 (~73%) -- same shape of mismatch as Stucki below. Burkes
+// only ever had 2 rows, so its weight sum (32) does equal its divisor (32) -- it's the
+// one kernel of the four that isn't under-diffusing.
 static const int8_t fs_dx[] = {1, -1, 0, 1};
 static const int8_t fs_dy[] = {0, 1, 1, 1};
 static const int8_t fs_wt[] = {7, 3, 5, 1};
@@ -27,16 +28,15 @@ static const int8_t jjn_dx[] = {1, 2, -2, -1, 0, 1, 2};
 static const int8_t jjn_dy[] = {0, 0, 1, 1, 1, 1, 1};
 static const int8_t jjn_wt[] = {7, 5, 3, 5, 7, 5, 3};
 
-// Same dx/dy as JJN. weight sum (32) doesn't match the divisor (42) it's ported with --
+// Same dx/dy as JJN. Weight sum (32) doesn't match the divisor (42) it's used with --
 // the textbook Stucki kernel's full 3-row weight sum is 42, but the y+2 row (which
 // would contribute the missing 10) isn't present in this truncated 2-row table, so only
-// ~76% of each pixel's quantization error is actually diffused, not fixed here (see the
-// module-level comment in dither.h).
+// ~76% of each pixel's quantization error is actually diffused. This mismatch is
+// preserved as-is, deliberately not corrected.
 static const int8_t stucki_wt[] = {8, 4, 2, 4, 8, 4, 2};
 
-// Same dx/dy/weight as Stucki in the source, but Burkes' own textbook divisor (32)
-// happens to equal this truncated table's weight sum, so unlike Stucki this one isn't
-// under-diffusing.
+// Same dx/dy/weight as Stucki, but Burkes' own textbook divisor (32) happens to equal
+// this truncated table's weight sum, so unlike Stucki this one isn't under-diffusing.
 static const int8_t burkes_wt[] = {8, 4, 2, 4, 8, 4, 2};
 
 static const dither_kernel_t kernels[] = {

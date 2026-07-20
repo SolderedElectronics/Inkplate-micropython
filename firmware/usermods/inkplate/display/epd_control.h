@@ -1,10 +1,12 @@
-// Bit-banged control-line driver for the classic-ESP32 parallel EPD bus (SPH/CL/LE/CKV/
-// SPV via direct GPIO register writes, no DMA/framebuffer here -- see epd_i2s.c for the
-// actual pixel-data path). Originated as a Phase 2 de-risking step (docs/REFACTOR-PLAN.md)
-// proving the C port could drive the panel before I2S/DMA existed; still the live
-// row-scan/clear primitive every board's clean()/begin() sits on top of today --
-// vscan_start/vscan_write/vscan_end/fill_screen, matching
-// boards/inkplate10/inkplate10.py's original byte-for-byte.
+/**
+ * @file epd_control.h
+ * @brief Bit-banged control-line driver for the classic-ESP32 parallel EPD bus
+ *        (SPH/CL/LE/CKV/SPV via direct GPIO register writes).
+ *
+ * No DMA/framebuffer here -- see epd_i2s.c for the pixel-data path. Provides the
+ * row-scan/clear primitives (vscan_start/vscan_write/vscan_end/fill_screen) every
+ * board's clean()/begin() build on.
+ */
 #ifndef INKPLATE_EPD_CONTROL_H
 #define INKPLATE_EPD_CONTROL_H
 
@@ -21,9 +23,13 @@ typedef struct {
     uint32_t mask;
 } fast_pin_t;
 
-// Resolves a GPIO number to its W1TS/W1TC register pair + bit mask. Pins 0-31 live in
-// the low GPIO word (out_w1ts/out_w1tc), pins 32-39 in the high word
+// Pins 0-31 live in the low GPIO word (out_w1ts/out_w1tc), pins 32-39 in the high word
 // (out1_w1ts/out1_w1tc).
+/**
+ * @brief Resolves a GPIO number to its W1TS/W1TC register pair and bit mask.
+ * @param gpio_num GPIO pin number, 0-39.
+ * @return fast_pin_t encoding the pin's set/clear registers and mask.
+ */
 static inline fast_pin_t epd_resolve_pin(uint8_t gpio_num)
 {
     fast_pin_t p;
@@ -39,30 +45,50 @@ static inline fast_pin_t epd_resolve_pin(uint8_t gpio_num)
     return p;
 }
 
+/**
+ * @brief Drives a resolved GPIO pin high.
+ * @param p Fast-pin descriptor from epd_resolve_pin().
+ */
 static inline void epd_fast_pin_set(fast_pin_t p)
 {
     *p.w1ts = p.mask;
 }
 
+/**
+ * @brief Drives a resolved GPIO pin low.
+ * @param p Fast-pin descriptor from epd_resolve_pin().
+ */
 static inline void epd_fast_pin_clear(fast_pin_t p)
 {
     *p.w1tc = p.mask;
 }
 
-// Begins a vertical scan: toggles SPV (via the expander bridge) and CKV to prime the
-// panel for a new frame. Call once before the first epd_vscan_write() of a frame.
+/**
+ * @brief Begins a vertical scan, toggling SPV and CKV to prime the panel for a new frame.
+ * Call once before the first epd_vscan_write() of a frame.
+ * @param cfg Board configuration providing pin_ckv/pin_spv.
+ */
 void epd_vscan_start(const board_config_t *cfg);
 
-// Latches the current row into the display and advances the gate drive to the next row.
+/**
+ * @brief Latches the current row into the display and advances the gate drive to the
+ * next row.
+ * @param cfg Board configuration providing pin_ckv/pin_le.
+ */
 void epd_vscan_write(const board_config_t *cfg);
 
-// Ends a vertical scan by dropping SPH and pulsing LE.
+/**
+ * @brief Ends a vertical scan by dropping SPH and pulsing LE.
+ * @param cfg Board configuration providing pin_sph/pin_le.
+ */
 void epd_vscan_end(const board_config_t *cfg);
 
-// Writes the same data-bus pattern to every row of the panel -- used for full-screen
-// clean/clear passes. `data` is a W1TS0/W1TC0-register-form value, as produced by the
-// (still Python-side) byte2gpio lookup table -- same contract as the original
-// _Inkplate.fill_screen(data) it replaces.
+/**
+ * @brief Writes the same data-bus pattern to every row of the panel, for full-screen
+ * clean/clear passes.
+ * @param cfg Board configuration providing pin geometry and data_mask.
+ * @param data W1TS0/W1TC0-register-form value, as produced by the byte2gpio lookup table.
+ */
 void epd_fill_screen(const board_config_t *cfg, uint32_t data);
 
 #endif // INKPLATE_EPD_CONTROL_H

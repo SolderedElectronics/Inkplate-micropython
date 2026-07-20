@@ -1,12 +1,16 @@
+/**
+ * @file jpeg_draw.c
+ * @brief JPEG decode-and-draw (with optional dithering) implementation.
+ */
 #include "jpeg_draw.h"
 
 #include "jpeg_decode.h"
 #include "jpeg_draw_core.h"
 
-// Thin ESP-IDF-dependent wrapper: drives the real jpeg_decode() (rom/tjpgd.h, hardware-only)
-// and forwards each decoded tile to jpeg_draw_core.c's pure dither/quantize/blit logic, which
-// carries all the actual test coverage (tests/test_jpeg_draw_core.c) since this file's own
-// glue can't be host-compiled (jpeg_decode.h drags in the ROM decoder).
+// Thin ESP-IDF-dependent wrapper: drives jpeg_decode() (rom/tjpgd.h, hardware-only) and forwards
+// each decoded tile to jpeg_draw_core.c's pure dither/quantize/blit logic, which carries the
+// actual test coverage (tests/test_jpeg_draw_core.c) since this file's own glue can't be
+// host-compiled (jpeg_decode.h drags in the ROM decoder).
 
 // Checked right after the JPEG header is parsed, before any MCU decoding starts. Width can
 // only ever grow past JPEG_DRAW_CORE_BAND_MAX_W between here and the first tile, never

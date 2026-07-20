@@ -1,3 +1,7 @@
+/**
+ * @file expander_bridge.c
+ * @brief C-to-Python callback bridge for PCAL6416A expander writes.
+ */
 #include "expander_bridge.h"
 #include "py/runtime.h"
 

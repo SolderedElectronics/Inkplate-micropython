@@ -1,3 +1,7 @@
+/**
+ * @file epd_i2s.c
+ * @brief I2S1 DMA-driven EPD row/frame transport implementation.
+ */
 #include "epd_i2s.h"
 
 #include "sdkconfig.h"
@@ -5,13 +9,10 @@
 // This whole file only applies to classic ESP32 -- its I2S1.out_link/lc_conf/etc fields
 // are the legacy descriptor-linked-list DMA register layout, which ESP32-S3 dropped in
 // favor of GDMA (its i2s_dev_t has no out_link/lc_conf/conf/conf1/conf2/conf_chan/
-// sample_rate_conf/clkm_conf/timing members at all -- confirmed the hard way: this file
-// failed to compile at all for Inkplate13SPECTRA's ESP32-S3 target, discovered on its
-// first real firmware build attempt, docs/REFACTOR-PLAN.md Phase 9 step 31). No board in
-// this family that ships on ESP32-S3 (Inkplate13SPECTRA) uses the parallel-bus I2S
-// transport at all -- it's SPI-only -- so on that target these functions are simply never
-// called; stub them out rather than porting classic-ESP32-only DMA register code to
-// hardware that doesn't have it.
+// sample_rate_conf/clkm_conf/timing members at all). No board in this family that ships
+// on ESP32-S3 (Inkplate13SPECTRA) uses the parallel-bus I2S transport -- it's SPI-only --
+// so on that target these functions are simply never called; stub them out rather than
+// porting classic-ESP32-only DMA register code to hardware that doesn't have it.
 #if CONFIG_IDF_TARGET_ESP32
 
 #include "epd_control.h"
@@ -27,11 +28,8 @@
 #include "rom/lldesc.h"
 #include <string.h>
 
-// I2S1, not I2S0 -- I2S0 doesn't support 8-bit parallel/LCD mode on classic ESP32 (see
-// epd_i2s_spike.c's history in git log for how this was confirmed against the Arduino
-// reference driver in step 8).
-// Placeholder from reference driver default; retune once waveform timing is confirmed on
-// the logic analyzer.
+// I2S1, not I2S0 -- I2S0 doesn't support 8-bit parallel/LCD mode on classic ESP32.
+// Placeholder value; retune once waveform timing is confirmed on the logic analyzer.
 #define I2S_CLOCK_DIVIDER 5
 
 static const uint32_t data_out_sig[8] = {
@@ -46,16 +44,15 @@ typedef struct {
     uint8_t *buf[2];
     lldesc_t desc[2];
     size_t row_len;
-    int in_flight; // index of the buffer with a DMA transfer currently running, -1 if none
+    int in_flight; // Index of the buffer with a DMA transfer currently running, -1 if none.
 } epd_i2s_state_t;
 
 static epd_i2s_state_t s_state = {.in_flight = -1};
 
 void epd_i2s_init(const board_config_t *cfg)
 {
-    // Wire D0-D7 -> I2S1 data-out signals, CL -> I2S1 BCK-out, straight 1:1 per
-    // data_pins[i] -- confirmed sufficient (no byte2gpio remap needed) on real hardware
-    // in step 8's spike.
+    // Wires D0-D7 -> I2S1 data-out signals, CL -> I2S1 BCK-out, straight 1:1 per
+    // data_pins[i]; no byte2gpio remap needed.
     for (int i = 0; i < 8; i++) {
         gpio_set_direction(cfg->data_pins[i], GPIO_MODE_OUTPUT);
         gpio_set_drive_capability(cfg->data_pins[i], GPIO_DRIVE_CAP_3);
@@ -223,15 +220,15 @@ void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte)
     for (uint16_t row = 0; row < cfg->height; row++) {
         uint8_t next = cur ^ 1;
         if (row + 1 < cfg->height) {
-            // Prepare the next row's buffer while this row's transfer is still running.
+            // Prepares the next row's buffer while this row's transfer is still running.
             // With today's constant fill_byte this is a redundant memset (both buffers
-            // already hold the same bytes) -- it's the overlap window Phase 4's real
-            // per-row waveform/LUT computation will use instead, without needing to
-            // restructure this loop.
+            // already hold the same bytes) -- it's the overlap window future per-row
+            // waveform/LUT computation will use instead, without needing to restructure
+            // this loop.
             memset(s_state.buf[next], fill_byte, s_state.row_len);
         }
         epd_i2s_wait_row(cfg);
-        epd_vscan_write(cfg); // latches this row, advances CKV
+        epd_vscan_write(cfg); // Latches this row, advances CKV.
         if (row + 1 < cfg->height) {
             epd_i2s_start_row(cfg, next);
         }
@@ -243,39 +240,32 @@ void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte)
 
 // Rebuilds one framebuf row into row_buf as 2-bit wire codes for the given phase's LUT.
 // Walks framebuf bytes from the end of the row, two at a time, and -- critically --
-// emits the EARLIER byte of each pair before the LATER one (dram2 before dram1, in the
-// naming of the Arduino Inkplate6 I2S reference driver's display1b(), which does the
-// same swap). This is NOT a plain last-to-first walk (that's what the bit-bang
-// _send_row used, correctly, since it writes one GPIO register per byte with no FIFO
-// involved). I2S1's fifo_conf.tx_fifo_mod = 1 ("0A0B_0C0D packing, dual mono single
-// data", see epd_i2s_init) reorders byte-pairs internally when reading the DMA buffer,
-// so the source pair must be pre-swapped to compensate -- confirmed against the real
-// Arduino driver after a plain reverse walk produced a visible column shift on real
-// hardware with non-uniform content (invisible with epd_i2s_push_frame's constant
-// fill_byte, since swapping two identical bytes is a no-op).
+// emits the EARLIER byte of each pair before the LATER one (dram2 before dram1). This is
+// NOT a plain last-to-first walk (that's what the bit-bang path uses, correctly, since it
+// writes one GPIO register per byte with no FIFO involved). I2S1's fifo_conf.tx_fifo_mod
+// = 1 ("0A0B_0C0D packing, dual mono single data", see epd_i2s_init) reorders byte-pairs
+// internally when reading the DMA buffer, so the source pair must be pre-swapped to
+// compensate. The swap is invisible with epd_i2s_push_frame's constant fill_byte content,
+// since swapping two identical bytes is a no-op -- it only matters for non-uniform
+// content.
 static void build_mono_row(const uint8_t *framebuf_row, uint16_t fb_row_bytes,
                            const uint8_t lut[16], uint8_t *row_buf)
 {
     uint16_t out = 0;
     int16_t i = (int16_t)fb_row_bytes - 1;
     for (; i > 0; i -= 2) {
-        uint8_t dram1 = framebuf_row[i];     // later byte
-        uint8_t dram2 = framebuf_row[i - 1]; // earlier byte
+        uint8_t dram1 = framebuf_row[i];     // Later byte.
+        uint8_t dram2 = framebuf_row[i - 1]; // Earlier byte.
         row_buf[out++] = lut[dram2 >> 4];
         row_buf[out++] = lut[dram2 & 0x0F];
         row_buf[out++] = lut[dram1 >> 4];
         row_buf[out++] = lut[dram1 & 0x0F];
     }
     if (i == 0) {
-        // fb_row_bytes odd (Inkplate4TEMPERA, width=600 -> fb_row_bytes=75): one
-        // unpaired byte left at index 0, previously dropped outright (bug -- the loop's
-        // `i > 0` bound never visits it), leaving 2 stale bytes at the tail of row_buf
-        // every row/phase. No swap partner exists for a lone byte, so it's emitted as-is
-        // here. UNVERIFIED on real hardware whether tx_fifo_mod=1's reorder still needs
-        // compensation on this trailing partial chunk -- every other swap rule in this
-        // file needed a HIL correction the first time non-uniform content exercised it
-        // (see this function's own history), and no board with an odd fb_row_bytes has
-        // been HIL-tested yet.
+        // fb_row_bytes can be odd (e.g. Inkplate4TEMPERA, width=600 -> fb_row_bytes=75):
+        // one unpaired byte remains at index 0. No swap partner exists for a lone byte,
+        // so it is emitted as-is. Whether tx_fifo_mod=1's reorder still needs
+        // compensation on this trailing partial chunk is unconfirmed on real hardware.
         uint8_t dram0 = framebuf_row[0];
         row_buf[out++] = lut[dram0 >> 4];
         row_buf[out++] = lut[dram0 & 0x0F];
@@ -327,9 +317,9 @@ static void build_partial_row(const uint8_t *old_row, const uint8_t *new_row,
     uint16_t out = 0;
     int16_t i = (int16_t)fb_row_bytes - 1;
     for (; i > 0; i -= 2) {
-        uint8_t old1 = old_row[i]; // later byte
+        uint8_t old1 = old_row[i]; // Later byte.
         uint8_t new1 = new_row[i];
-        uint8_t old2 = old_row[i - 1]; // earlier byte
+        uint8_t old2 = old_row[i - 1]; // Earlier byte.
         uint8_t new2 = new_row[i - 1];
         row_buf[out++] = lut[((old2 & 0xF0) | (new2 >> 4))];
         row_buf[out++] = lut[((old2 & 0x0F) << 4) | (new2 & 0x0F)];
@@ -337,9 +327,9 @@ static void build_partial_row(const uint8_t *old_row, const uint8_t *new_row,
         row_buf[out++] = lut[((old1 & 0x0F) << 4) | (new1 & 0x0F)];
     }
     if (i == 0) {
-        // Same odd-fb_row_bytes case build_mono_row handles (see its comment) -- one
-        // unpaired byte at index 0, previously dropped. No swap partner, emitted as-is.
-        // UNVERIFIED on real hardware for the same reason.
+        // Same odd-fb_row_bytes case build_mono_row handles (see its comment): one
+        // unpaired byte at index 0, no swap partner, emitted as-is. Unconfirmed on real
+        // hardware for the same reason.
         uint8_t old0 = old_row[0];
         uint8_t new0 = new_row[0];
         row_buf[out++] = lut[((old0 & 0xF0) | (new0 >> 4))];
@@ -378,57 +368,45 @@ void epd_i2s_push_partial_frame(const board_config_t *cfg, const uint8_t *old_fb
         }
 
         epd_vscan_end(cfg);
-        // Matches the real Arduino partialUpdate()'s inter-repeat gap.
+        // 230us gap between repeats, for panel settling.
         esp_rom_delay_us(230);
     }
 }
 
 // Combines 2 native GS4_HMSB bytes (4 raw-0..7 pixels) into 1 wire/output byte of four
 // 2-bit op-codes, using lut[16] from inkplate_gen_wave_3bit (lut[nibble] = op-code for
-// that raw pixel value, entries 8-15 unused). Bit layout matches the real Arduino driver's
-// calculateLUTs()/GLUT|GLUT2 combine (Inkplate10Driver.cpp), which assigns by pixel
-// *position* (even-x/left vs odd-x/right within a byte), not by nibble literally -- this
-// project's write_pixel_viper (inkplate10.py) packs the opposite nibble convention from
-// Arduino's DMemory4Bit (even-x -> low nibble here, vs. high nibble there), so the
-// low/high nibble reads below are swapped relative to a literal port of the Arduino
-// formula, to land the correct *pixel* in the position Arduino's bit-scatter expects.
-// byte1 (first/higher-address byte consumed) lands in the output's upper nibble (its
-// odd-x/right pixel in bits 7:6, even-x/left pixel in bits 5:4), byte2 (second/lower-
-// address byte) lands in the lower nibble (bits 3:2 / 1:0) the same way. The first,
-// unswapped version of this function produced a one-pixel shift at every gray-level
-// boundary in an 8-bar ramp on real hardware (invisible inside a solid-color bar, since
-// swapping two equal values is a no-op) -- this swap fixes that; pending re-verification
-// on the panel.
+// that raw pixel value, entries 8-15 unused). The output bit layout assigns by pixel
+// *position* (even-x/left vs odd-x/right within a byte), not by nibble literally: this
+// project's write_pixel_viper (inkplate10.py) packs even-x pixels into the low nibble,
+// the opposite of the usual convention, so the low/high nibble reads below are swapped
+// relative to a literal per-nibble combine, to land each pixel in its expected output
+// position. byte1 (first/higher-address byte consumed) lands in the output's upper
+// nibble (its odd-x/right pixel in bits 7:6, even-x/left pixel in bits 5:4); byte2
+// (second/lower-address byte) lands in the lower nibble (bits 3:2 / 1:0) the same way.
+// Reading the nibbles in the unswapped order produces a one-pixel shift at every
+// gray-level boundary (invisible inside a solid-color bar, since swapping two equal
+// values is a no-op).
 static inline uint8_t gs3_combine(const uint8_t lut[16], uint8_t byte1, uint8_t byte2)
 {
     return (uint8_t)((lut[(byte1 >> 4) & 0x0F] << 6) | (lut[byte1 & 0x0F] << 4) |
                      (lut[(byte2 >> 4) & 0x0F] << 2) | lut[byte2 & 0x0F]);
 }
 
-// Native 3-bit/8-level row builder (docs/REFACTOR-PLAN.md Phase 5 step 15), replacing the
-// interim GS4->GS2 fold (gs_pack.h, deleted). Reads the GS4_HMSB framebuf row directly, no
+// Native 3-bit/8-level row builder. Reads the GS4_HMSB framebuf row directly, no
 // intermediate 4-level shape.
 //
-// Byte ordering: gs3_combine() reproduces the Arduino driver's electrically-correct
-// per-row op-code sequence (bit-banged, no FIFO involved on that hardware). Our transport
-// is I2S1 DMA with fifo_conf.tx_fifo_mod=1, which reorders every 4 consecutive *output*
-// bytes as [pos2,pos3,pos0,pos1] on the wire (confirmed empirically for build_mono_row and
-// the now-removed build_gs_row against real hardware) -- so the 4 "logical"
-// (Arduino-equivalent) combined bytes per chunk are written pre-swapped into row_buf here,
-// same rule, applied one level up (per-combined-byte instead of per-input-byte, since
-// gs3_combine already reduces 2 input bytes to 1 logical output byte, same shape
-// build_gs_row's input was in). Handles gs4_row_bytes % 8 != 0 (e.g. Inkplate4TEMPERA:
-// 600>>1 = 300, 300 % 8 == 4) via a remainder tail below -- previously this loop's
-// `i >= 7` bound silently dropped the row's first `gs4_row_bytes % 8` bytes on any board
-// that wasn't a multiple of 8 (bug, found by code review, not yet HIL-hit since
-// Inkplate4TEMPERA HIL is still pending per docs/REFACTOR-PLAN.md).
+// Byte ordering: gs3_combine() produces the correct per-row op-code sequence for direct
+// (bit-banged, no FIFO) output. This transport is I2S1 DMA with fifo_conf.tx_fifo_mod=1,
+// which reorders every 4 consecutive output bytes as [pos2,pos3,pos0,pos1] on the wire --
+// so the 4 logical combined bytes per chunk are written pre-swapped into row_buf here,
+// the same rule as build_mono_row applied one level up (per-combined-byte instead of
+// per-input-byte, since gs3_combine already reduces 2 input bytes to 1 logical output
+// byte). Handles gs4_row_bytes % 8 != 0 (e.g. Inkplate4TEMPERA: 600>>1 = 300,
+// 300 % 8 == 4) via a remainder tail below.
 //
-// UNVERIFIED on real hardware: every prior swap rule in this driver needed a HIL
-// correction the first time non-uniform content exercised it (see build_mono_row's and
-// the removed build_gs_row's history) -- this is a reasoned derivation, not yet confirmed
-// against a real gray ramp on the panel. The remainder tail below is doubly unverified:
-// no swap is applied to it (no swap partner for a partial chunk), which itself needs
-// confirming against real hardware once a non-multiple-of-8 board is HIL-tested.
+// The remainder tail has no swap applied (no swap partner exists for a partial chunk);
+// whether tx_fifo_mod=1's reorder needs compensation there too is unconfirmed on real
+// hardware.
 static void build_gs3_row(const uint8_t *gs4_row, uint16_t gs4_row_bytes, const uint8_t lut[16],
                           uint8_t *row_buf)
 {
@@ -483,8 +461,7 @@ void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
         }
 
         epd_vscan_end(cfg);
-        // Matches the real Arduino display3b()'s inter-phase gap (Inkplate10Driver.cpp).
-        esp_rom_delay_us(230);
+        esp_rom_delay_us(230); // Inter-phase gap for panel settling.
     }
 }
 

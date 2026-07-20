@@ -1,84 +1,107 @@
-// Real I2S1 parallel-transport component (Phase 3 step 9 of docs/REFACTOR-PLAN.md).
-// Replaces the throwaway epd_i2s_spike.{h,c} (deleted -- see that file's own header for
-// what it proved: GPIO-matrix routing needs no byte2gpio remap, confirmed on real
-// hardware in step 8). Config-driven, double-buffered: two internal-RAM DMA buffers
-// alternate so the next row can be prepared (memset today, real waveform/LUT output
-// once Phase 4 lands) while the previous row's DMA transfer is still in flight.
-//
-// Note: with today's fill-byte-only content (same byte repeated on every row), there is
-// nothing to gain from overlap -- both buffers hold identical bytes. The point of
-// building the ping-pong pipeline now is so Phase 4 can drop real per-row computation
-// into epd_i2s_push_frame()'s row loop without restructuring the transfer/latch
-// sequencing, which is fixed by hardware (a row's DMA transfer must complete and be
-// latched via epd_vscan_write() before the next row's transfer can start -- the shift
-// register and data lines are shared, so this part can never be pipelined, only the
-// CPU-side row-content prep can).
+/**
+ * @file epd_i2s.h
+ * @brief Real I2S1 parallel-transport component.
+ *
+ * Config-driven, double-buffered: two internal-RAM DMA buffers alternate so the next
+ * row's content can be prepared while the previous row's DMA transfer is still in
+ * flight. The transfer/latch sequencing is fixed by hardware -- a row's DMA transfer
+ * must complete and be latched via epd_vscan_write() before the next row's transfer can
+ * start, since the shift register and data lines are shared -- so only the CPU-side
+ * row-content prep can overlap, never the transfers themselves. This buffering lets
+ * per-row waveform/LUT computation be dropped into the row loop later without
+ * restructuring that sequencing.
+ */
 #ifndef INKPLATE_EPD_I2S_H
 #define INKPLATE_EPD_I2S_H
 
 #include "board_config.h"
 #include <stdint.h>
 
-// One-time I2S1 peripheral setup + GPIO matrix wiring (data_pins[0..7] -> I2S1
-// DATA_OUT0..7, pin_cl -> I2S1 BCK_OUT) for the given board, plus the two internal-RAM
-// DMA row buffers (sized board_config_row_bytes(cfg) bytes each). Call once before any
-// push_row/push_frame call for this board.
+/**
+ * @brief Performs one-time I2S1 peripheral setup, GPIO-matrix wiring, and DMA row-buffer allocation.
+ *
+ * Wires data_pins[0..7] to I2S1 DATA_OUT0..7 and pin_cl to I2S1 BCK_OUT, and allocates the
+ * two internal-RAM DMA row buffers (sized to board_config_row_bytes(cfg) bytes each). Call
+ * once before any push_row/push_frame call for this board.
+ * @param cfg Board configuration to initialize I2S1 for.
+ */
 void epd_i2s_init(const board_config_t *cfg);
 
-// Reconnects data_pins[0..7]/pin_cl back to plain GPIO output (undoes the matrix
-// routing from epd_i2s_init) and tears down the I2S1 peripheral + DMA buffers, so
-// epd_control.c's bit-bang path is usable again afterward.
+/**
+ * @brief Reconnects data pins to plain GPIO output and tears down the I2S1 peripheral and DMA buffers.
+ *
+ * Undoes the GPIO-matrix routing from epd_i2s_init() so epd_control.c's bit-bang path is
+ * usable again afterward.
+ * @param cfg Board configuration whose data_pins[0..7] and pin_cl are restored to GPIO mode.
+ */
 void epd_i2s_deinit(const board_config_t *cfg);
 
-// Sends one row (width>>3 bytes, all set to fill_byte) via I2S1 DMA, framed by SPH
-// (clear before the transfer, set after) -- blocks until the transfer completes.
-// Standalone single-row primitive for HIL/logic-analyzer checks; epd_i2s_push_frame()
-// below doesn't call this directly, it inlines the same start/wait sequence so it can
-// overlap the next row's buffer prep with the current row's transfer.
+/**
+ * @brief Sends one row of fill_byte bytes via I2S1 DMA, framed by SPH; blocks until complete.
+ *
+ * Standalone single-row primitive for logic-analyzer checks; epd_i2s_push_frame() does not
+ * call this directly, it inlines the same start/wait sequence so it can overlap the next
+ * row's buffer prep with the current row's transfer.
+ * @param cfg Board configuration; determines row length (width>>3 bytes).
+ * @param fill_byte Byte value written to every byte of the row.
+ */
 void epd_i2s_push_row(const board_config_t *cfg, uint8_t fill_byte);
 
-// Full-frame send: epd_vscan_start(), then per row -- start this row's DMA transfer,
-// prepare the *other* buffer for the next row while this one is in flight, wait for
-// this row's transfer to finish, epd_vscan_write() (latch + advance CKV) -- then
-// epd_vscan_end(). Same fill_byte on every row (matches epd_fill_screen's contract) for
-// the Phase 3 HIL check against Phase 2's bit-bang fill_screen.
+/**
+ * @brief Sends a full frame with the same fill_byte on every row, via double-buffered I2S1 DMA.
+ *
+ * Per row: starts this row's DMA transfer, prepares the other buffer for the next row while
+ * this one is in flight, waits for the transfer to finish, then epd_vscan_write() latches it
+ * and advances CKV. Same fill_byte on every row matches epd_fill_screen's contract.
+ * @param cfg Board configuration.
+ * @param fill_byte Byte value written to every row of the frame.
+ */
 void epd_i2s_push_frame(const board_config_t *cfg, uint8_t fill_byte);
 
-// Full 1bpp display update: drives num_phases phases (see waveform.h's
-// inkplate_gen_mono_wave), each phase writing every row via I2S DMA, framed by
-// epd_vscan_start/epd_vscan_write/epd_vscan_end -- the DMA-driven equivalent of
-// InkplateMono.display()'s per-phase bit-banged loop, replacing _send_row(). framebuf
-// is the 1bpp MONO_HMSB source buffer (cfg->height rows of cfg->width>>3 bytes each,
-// MSB-first). Each row is rebuilt last-byte-first, high-nibble-first -- the same shift
-// order _send_row used -- so the physical pixel-to-shift-register mapping stays
-// identical to the already-hardware-verified bit-bang path.
+/**
+ * @brief Drives a full 1bpp mono display update over num_phases waveform phases via I2S1 DMA.
+ *
+ * Each phase writes every row, framed by epd_vscan_start/epd_vscan_write/epd_vscan_end. Each
+ * row is rebuilt last-byte-first, high-nibble-first, matching the bit-bang path's shift order
+ * so the physical pixel-to-shift-register mapping stays identical.
+ * @param cfg Board configuration.
+ * @param framebuf 1bpp MONO_HMSB source buffer: cfg->height rows of cfg->width>>3 bytes each, MSB-first.
+ * @param luts Per-phase LUT table; luts[phase] is a 16-entry nibble-to-wire-code lookup (see
+ *             waveform.h's inkplate_gen_mono_wave).
+ * @param num_phases Number of waveform phases to drive.
+ */
 void epd_i2s_push_mono_frame(const board_config_t *cfg, const uint8_t *framebuf,
                              const uint8_t (*luts)[16], uint8_t num_phases);
 
-// Full grayscale display update: drives num_phases phases (see waveform.h's
-// inkplate_gen_wave_3bit / cfg->waveform), each phase writing every row via I2S DMA,
-// framed by epd_vscan_start/epd_vscan_write/epd_vscan_end, with a 230us gap after each
-// phase (matches the real Arduino display3b()'s inter-phase delay) -- the DMA-driven
-// equivalent of InkplateGS2.display()'s per-phase bit-banged loop, replacing _send_row().
-// framebuf is the GS4_HMSB source buffer (cfg->height rows of cfg->width>>1 bytes each, 2
-// pixels/byte, raw levels 0-7). Native 3-bit/8-level (Phase 5 step 15) -- reads GS4_HMSB
-// directly, no intermediate fold (see epd_i2s.c's build_gs3_row for the byte-order
-// derivation, which is UNVERIFIED on real hardware pending HIL check with non-uniform
-// content).
+/**
+ * @brief Drives a full grayscale display update over num_phases waveform phases via I2S1 DMA.
+ *
+ * Each phase writes every row, framed by epd_vscan_start/epd_vscan_write/epd_vscan_end, with
+ * a 230us gap after each phase. Reads the GS4_HMSB framebuf directly (native 3-bit/8-level,
+ * no intermediate fold).
+ * @param cfg Board configuration.
+ * @param framebuf GS4_HMSB source buffer: cfg->height rows of cfg->width>>1 bytes each, 2
+ *                 pixels/byte, raw levels 0-7.
+ * @param luts Per-phase LUT table; luts[phase] is a 16-entry nibble-to-wire-code lookup (see
+ *             waveform.h's inkplate_gen_wave_3bit / cfg->waveform).
+ * @param num_phases Number of waveform phases to drive.
+ */
 void epd_i2s_push_gs_frame(const board_config_t *cfg, const uint8_t *framebuf,
                            const uint8_t (*luts)[16], uint8_t num_phases);
 
-// Mono partial-update frame: diffs old_fb against new_fb per pixel (both 1bpp MONO_HMSB
-// buffers, same layout as epd_i2s_push_mono_frame's framebuf) via `lut` (256 entries, see
-// epd_partial_lut.h's inkplate_gen_partial_diff_lut -- index (old_nibble<<4|new_nibble)),
-// and pushes the resulting per-pixel wire codes over I2S DMA cfg->partial_reps times,
-// unchanged each time (no per-repeat variation, matching the real Arduino reference
-// driver's partialUpdate() -- a fixed pulse train, not a multi-phase waveform). 230us gap
-// after each repeat, matching display3b()'s inter-phase delay. Ports partialUpdate()'s
-// diff-and-push logic onto this project's per-row-streaming I2S architecture instead of
-// the reference driver's separate precomputed full-frame `_pBuffer` -- functionally
-// identical (same LUTs, same output codes), each row's diff just gets recomputed from
-// old_fb/new_fb on the fly per repeat instead of built once into a standalone buffer.
+/**
+ * @brief Sends a mono partial-update frame: diffs old_fb against new_fb and pushes the
+ *        result over I2S1 DMA cfg->partial_reps times.
+ *
+ * Sends the same wire codes on every repeat -- a fixed pulse train, not a multi-phase
+ * waveform -- with a 230us gap after each repeat. Each row's diff is recomputed from
+ * old_fb/new_fb on the fly per repeat rather than built once into a precomputed buffer.
+ * @param cfg Board configuration.
+ * @param old_fb Previous 1bpp MONO_HMSB framebuffer (same layout as epd_i2s_push_mono_frame's framebuf).
+ * @param new_fb New 1bpp MONO_HMSB framebuffer to diff against old_fb.
+ * @param lut 256-entry diff lookup table, indexed by (old_nibble<<4|new_nibble) (see
+ *            epd_partial_lut.h's inkplate_gen_partial_diff_lut).
+ */
 void epd_i2s_push_partial_frame(const board_config_t *cfg, const uint8_t *old_fb,
                                 const uint8_t *new_fb, const uint8_t lut[256]);
 

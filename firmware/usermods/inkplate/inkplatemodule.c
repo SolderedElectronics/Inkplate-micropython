@@ -1,3 +1,8 @@
+/**
+ * @file inkplatemodule.c
+ * @brief MicroPython C-extension module registration and Python-facing bindings for
+ *        the inkplate driver.
+ */
 #include "py/runtime.h"
 #include "py/obj.h"
 #include "display/expander_bridge.h"
@@ -16,14 +21,23 @@
 #include <stdbool.h>
 #include <string.h>
 
+/**
+ * @brief Returns the inkplate module version string.
+ * @return New MicroPython string object containing the version, e.g. "0.0.1".
+ */
 static mp_obj_t inkplate_version(void)
 {
     return mp_obj_new_str("0.0.1", 5);
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_version_obj, inkplate_version);
 
-// Registers the Python callable used to reach PCAL6416A-controlled lines.
-// See expander_bridge.h for why the I2C transaction itself stays in Python.
+// I2C transaction for PCAL6416A-controlled lines stays in Python (see
+// expander_bridge.h); this just registers the callback used to reach it.
+/**
+ * @brief Registers the Python callback used to perform expander I2C writes.
+ * @param cb Python callable invoked to write to the PCAL6416A I/O expander.
+ * @return None.
+ */
 static mp_obj_t inkplate_set_expander_write_cb(mp_obj_t cb)
 {
     expander_bridge_set_callback(cb);
@@ -32,9 +46,15 @@ static mp_obj_t inkplate_set_expander_write_cb(mp_obj_t cb)
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_set_expander_write_cb_obj,
                                  inkplate_set_expander_write_cb);
 
-// HIL test hook: toggles one expander pin through the bridge.
-// Use an unused/free expander pin for verification — OE/GMODE/SPV are wired to the
-// panel and can't be probed directly (see docs/REFACTOR-PLAN.md Phase 1 step 6).
+// Use an unused/free expander pin -- OE/GMODE/SPV are wired to the panel and can't be
+// probed directly.
+/**
+ * @brief Test hook that writes a single value to one I/O-expander pin.
+ * @param addr I2C address of the expander chip.
+ * @param pin Pin number on the expander to write.
+ * @param value Logic level to write to the pin (0 or 1).
+ * @return None.
+ */
 static mp_obj_t inkplate_test_expander_write(mp_obj_t addr, mp_obj_t pin, mp_obj_t value)
 {
     expander_bridge_write(mp_obj_get_int(addr), mp_obj_get_int(pin), mp_obj_get_int(value));
@@ -48,6 +68,11 @@ static MP_DEFINE_CONST_FUN_OBJ_3(inkplate_test_expander_write_obj, inkplate_test
 // it as static state instead.
 static const board_config_t *active_board = NULL;
 
+/**
+ * @brief Selects the active parallel-bus board configuration by name.
+ * @param name_obj Python string naming the board (e.g. "inkplate10v2").
+ * @return None.
+ */
 static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
 {
     const char *name = mp_obj_str_get_str(name_obj);
@@ -74,6 +99,10 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_select_board_obj, inkplate_select_board);
 
+/**
+ * @brief Returns the active board config, raising if none has been selected.
+ * @return Pointer to the active board_config_t.
+ */
 static const board_config_t *require_board(void)
 {
     if (active_board == NULL) {
@@ -83,6 +112,10 @@ static const board_config_t *require_board(void)
     return active_board;
 }
 
+/**
+ * @brief Starts a vertical scan cycle on the active board's EPD controller.
+ * @return None.
+ */
 static mp_obj_t inkplate_vscan_start(void)
 {
     epd_vscan_start(require_board());
@@ -90,6 +123,10 @@ static mp_obj_t inkplate_vscan_start(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_vscan_start_obj, inkplate_vscan_start);
 
+/**
+ * @brief Pushes one vertical-scan write pulse on the active board's EPD controller.
+ * @return None.
+ */
 static mp_obj_t inkplate_vscan_write(void)
 {
     epd_vscan_write(require_board());
@@ -97,6 +134,10 @@ static mp_obj_t inkplate_vscan_write(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_vscan_write_obj, inkplate_vscan_write);
 
+/**
+ * @brief Ends the current vertical scan cycle on the active board's EPD controller.
+ * @return None.
+ */
 static mp_obj_t inkplate_vscan_end(void)
 {
     epd_vscan_end(require_board());
@@ -104,6 +145,11 @@ static mp_obj_t inkplate_vscan_end(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_vscan_end_obj, inkplate_vscan_end);
 
+/**
+ * @brief Fills the active board's EPD data lines with a constant value.
+ * @param data_obj Python int with the raw data-line value to drive.
+ * @return None.
+ */
 static mp_obj_t inkplate_fill_screen(mp_obj_t data_obj)
 {
     epd_fill_screen(require_board(), (uint32_t)mp_obj_get_int_truncated(data_obj));
@@ -111,6 +157,10 @@ static mp_obj_t inkplate_fill_screen(mp_obj_t data_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_fill_screen_obj, inkplate_fill_screen);
 
+/**
+ * @brief Initializes the I2S peripheral used to drive the active board's EPD panel.
+ * @return None.
+ */
 static mp_obj_t inkplate_i2s_init(void)
 {
     epd_i2s_init(require_board());
@@ -118,6 +168,10 @@ static mp_obj_t inkplate_i2s_init(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_i2s_init_obj, inkplate_i2s_init);
 
+/**
+ * @brief Deinitializes the I2S peripheral used to drive the active board's EPD panel.
+ * @return None.
+ */
 static mp_obj_t inkplate_i2s_deinit(void)
 {
     epd_i2s_deinit(require_board());
@@ -125,6 +179,11 @@ static mp_obj_t inkplate_i2s_deinit(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_i2s_deinit_obj, inkplate_i2s_deinit);
 
+/**
+ * @brief Pushes one EPD row over I2S filled with a constant byte.
+ * @param fill_byte_obj Python int with the byte value to repeat across the row.
+ * @return None.
+ */
 static mp_obj_t inkplate_i2s_push_row(mp_obj_t fill_byte_obj)
 {
     epd_i2s_push_row(require_board(), (uint8_t)mp_obj_get_int(fill_byte_obj));
@@ -132,6 +191,11 @@ static mp_obj_t inkplate_i2s_push_row(mp_obj_t fill_byte_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_i2s_push_row_obj, inkplate_i2s_push_row);
 
+/**
+ * @brief Pushes a full EPD frame over I2S filled with a constant byte.
+ * @param fill_byte_obj Python int with the byte value to repeat across the frame.
+ * @return None.
+ */
 static mp_obj_t inkplate_i2s_push_frame(mp_obj_t fill_byte_obj)
 {
     epd_i2s_push_frame(require_board(), (uint8_t)mp_obj_get_int(fill_byte_obj));
@@ -139,6 +203,11 @@ static mp_obj_t inkplate_i2s_push_frame(mp_obj_t fill_byte_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_i2s_push_frame_obj, inkplate_i2s_push_frame);
 
+/**
+ * @brief Drives a full monochrome (1bpp) EPD refresh from a framebuffer.
+ * @param framebuf_obj Python buffer object holding the 1bpp packed framebuffer.
+ * @return None.
+ */
 static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
 {
     mp_buffer_info_t bufinfo;
@@ -149,35 +218,23 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
         mp_raise_ValueError(MP_ERROR_TEXT("framebuf too small for this board's mono resolution"));
     }
 
-    // Inkplate6FLICK's Arduino reference driver (display1b()) uses 4 black-push phases
-    // instead of the 5 every other wired board uses, followed by its own discharge pass
-    // (pushed separately from Python via clean(2, ...)/i2s_push_frame(0), matching the
-    // Arduino driver's discharge loop) -- see docs/REFACTOR-PLAN.md Phase 8 step 24.
-    // Regenerated per call (board never changes after select_board(), and the LUT gen
-    // itself is a handful of nibble-lookup loops -- not worth caching across boards).
+    // 6FLICK uses 4 black-push phases (not 5) followed by a separate discharge pass,
+    // pushed from Python via clean(2, ...)/i2s_push_frame(0). Regenerated per call since
+    // the board never changes after select_board() and LUT generation is cheap.
     uint8_t mono_luts[INKPLATE_MONO_WAVE_MAX_PHASES][16];
     uint8_t num_phases;
 
     if (cfg == &board_config_inkplate6plusv2) {
-        // Inkplate6PLUSV2's real display1b() also loops for(k<4), but HIL testing (a
-        // uniformly dark/washed panel, unchanged by bumping the repeat count to 5) plus
-        // decoding this board's own GraphicsDefs.h LUTW/LUTB against its ~dram/dram
-        // indexing scheme showed its phase *roles* are the mirror image of every other
-        // wired board's: repeated phases push white (black skips), one final phase pushes
-        // black (white skips) -- the opposite of inkplate_gen_mono_wave's scheme. Confirmed
-        // NOT a generic-engine bug (Inkplate6/10/5v2/6FLICK are independently HIL-verified
-        // correct on the original scheme) -- scoped to this board only via
-        // inkplate_gen_mono_wave_white_first (waveform.c).
+        // 6PLUSV2's phase *roles* are the mirror image of every other wired board's:
+        // repeated phases push white (black skips), and one final phase pushes black
+        // (white skips) -- the opposite of inkplate_gen_mono_wave's scheme. Scoped to
+        // this board only via inkplate_gen_mono_wave_white_first (waveform.c).
         uint8_t repeat_phases = 4;
         inkplate_gen_mono_wave_white_first(repeat_phases, mono_luts);
         num_phases = repeat_phases + 1;
     } else {
-        // Inkplate4TEMPERA's real display1b() uses 10 black-push phases, not the usual 5
-        // -- confirmed NOT a copy-paste artifact: its own GraphicsDefs.h LUTB/LUT2 arrays
-        // are byte-for-byte identical to this function's standard op_blk/op_bw output
-        // (test_waveform.c's expected_blk/expected_bw), so it's the standard scheme run
-        // 10 times, not a reversed-role variant like Inkplate6PLUSV2 (docs/REFACTOR-PLAN.md
-        // Phase 8 step 26).
+        // 4TEMPERA uses 10 black-push phases instead of the usual 5 -- the standard
+        // scheme run twice as many times, not a reversed-role variant like 6PLUSV2.
         uint8_t black_phases = (cfg == &board_config_inkplate6flick)     ? 4
                                : (cfg == &board_config_inkplate4tempera) ? 10
                                                                          : 5;
@@ -190,6 +247,11 @@ static mp_obj_t inkplate_mono_display(mp_obj_t framebuf_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_mono_display_obj, inkplate_mono_display);
 
+/**
+ * @brief Drives a full 4-bit grayscale EPD refresh from a framebuffer.
+ * @param framebuf_obj Python buffer object holding the 4bpp packed framebuffer.
+ * @return None.
+ */
 static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
 {
     mp_buffer_info_t bufinfo;
@@ -217,13 +279,17 @@ static mp_obj_t inkplate_gs_display(mp_obj_t framebuf_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gs_display_obj, inkplate_gs_display);
 
-// spi_panel_* bindings (docs/REFACTOR-PLAN.md Phase 9 steps 30-31): the SPI-controller-
-// panel family (Inkplate6COLOR, Inkplate2 now, Inkplate13SPECTRA later) is
-// architecturally separate from the parallel-bus board_config_t/active_board above -- a
-// different static selection slot, mirroring the same select-once-then-call-by-name
+// SPI-controller-panel family (Inkplate6COLOR/Inkplate2/Inkplate13SPECTRA) is
+// architecturally separate from the parallel-bus board_config_t/active_board above --
+// a different static selection slot, mirroring the same select-once-then-call-by-name
 // pattern.
 static const spi_panel_config_t *active_spi_panel = NULL;
 
+/**
+ * @brief Selects the active SPI color-panel configuration by name.
+ * @param name_obj Python string naming the panel (e.g. "inkplate6color").
+ * @return None.
+ */
 static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
 {
     const char *name = mp_obj_str_get_str(name_obj);
@@ -240,6 +306,10 @@ static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_select_spi_panel_obj, inkplate_select_spi_panel);
 
+/**
+ * @brief Returns the active SPI panel config, raising if none has been selected.
+ * @return Pointer to the active spi_panel_config_t.
+ */
 static const spi_panel_config_t *require_spi_panel(void)
 {
     if (active_spi_panel == NULL) {
@@ -249,6 +319,10 @@ static const spi_panel_config_t *require_spi_panel(void)
     return active_spi_panel;
 }
 
+/**
+ * @brief Initializes the SPI bus and pins for the active SPI panel.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_init(void)
 {
     epd_spi_init(require_spi_panel());
@@ -256,6 +330,10 @@ static mp_obj_t inkplate_spi_panel_init(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_init_obj, inkplate_spi_panel_init);
 
+/**
+ * @brief Deinitializes the SPI bus and pins for the active SPI panel.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_deinit(void)
 {
     epd_spi_deinit(require_spi_panel());
@@ -263,6 +341,10 @@ static mp_obj_t inkplate_spi_panel_deinit(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_deinit_obj, inkplate_spi_panel_deinit);
 
+/**
+ * @brief Pulses the reset line of the active SPI panel.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_reset(void)
 {
     epd_spi_reset(require_spi_panel());
@@ -270,6 +352,11 @@ static mp_obj_t inkplate_spi_panel_reset(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_panel_reset_obj, inkplate_spi_panel_reset);
 
+/**
+ * @brief Directly drives the reset pin of the active SPI panel.
+ * @param level_obj Python int logic level to set on the reset pin (0 or 1).
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_set_rst(mp_obj_t level_obj)
 {
     epd_spi_set_rst(require_spi_panel(), mp_obj_get_int(level_obj));
@@ -277,6 +364,12 @@ static mp_obj_t inkplate_spi_panel_set_rst(mp_obj_t level_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_set_rst_obj, inkplate_spi_panel_set_rst);
 
+/**
+ * @brief Waits for the active SPI panel's busy line to reach a given level.
+ * @param level_obj Python int logic level to wait for (0 or 1).
+ * @param timeout_ms_obj Python int timeout in milliseconds.
+ * @return True if the level was observed before the timeout, False otherwise.
+ */
 static mp_obj_t inkplate_spi_panel_wait_busy(mp_obj_t level_obj, mp_obj_t timeout_ms_obj)
 {
     int observed = epd_spi_wait_busy(require_spi_panel(), mp_obj_get_int(level_obj),
@@ -285,6 +378,11 @@ static mp_obj_t inkplate_spi_panel_wait_busy(mp_obj_t level_obj, mp_obj_t timeou
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_spi_panel_wait_busy_obj, inkplate_spi_panel_wait_busy);
 
+/**
+ * @brief Sends one command byte to the active SPI panel.
+ * @param command_obj Python int command byte.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_send_command(mp_obj_t command_obj)
 {
     epd_spi_send_command(require_spi_panel(), (uint8_t)mp_obj_get_int(command_obj));
@@ -293,6 +391,11 @@ static mp_obj_t inkplate_spi_panel_send_command(mp_obj_t command_obj)
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_send_command_obj,
                                  inkplate_spi_panel_send_command);
 
+/**
+ * @brief Sends a data payload to the active SPI panel.
+ * @param data_obj Python buffer object holding the bytes to send.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_panel_send_data(mp_obj_t data_obj)
 {
     mp_buffer_info_t bufinfo;
@@ -302,13 +405,17 @@ static mp_obj_t inkplate_spi_panel_send_data(mp_obj_t data_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_panel_send_data_obj, inkplate_spi_panel_send_data);
 
-// spi_dual_* bindings (docs/REFACTOR-PLAN.md Phase 9 step 31): Inkplate13SPECTRA's
-// dual-SPI-controller-chip transport -- distinct from the spi_panel_* bindings above
-// because this panel's protocol has no DC phase and needs a per-call chip selection
-// (master/slave/both), see epd_spi.h's own comment on why it isn't force-fit onto
-// epd_spi_send_command/send_data. Still goes through the same active_spi_panel/
-// require_spi_panel() selection slot as spi_panel_* above -- select_spi_panel() is shared.
+// spi_dual_* bindings: Inkplate13SPECTRA's dual-SPI-controller-chip transport --
+// distinct from the spi_panel_* bindings above because this panel's protocol has no DC
+// phase and needs a per-call chip selection (master/slave/both), see epd_spi.h's own
+// comment on why it isn't force-fit onto epd_spi_send_command/send_data. Still goes
+// through the same active_spi_panel/require_spi_panel() selection slot as spi_panel_*
+// above -- select_spi_panel() is shared.
 
+/**
+ * @brief Drives all of the active dual-chip SPI panel's control pins low.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_pins_low(void)
 {
     epd_spi_dual_pins_low(require_spi_panel());
@@ -316,6 +423,10 @@ static mp_obj_t inkplate_spi_dual_pins_low(void)
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_pins_low_obj, inkplate_spi_dual_pins_low);
 
+/**
+ * @brief Powers up the active dual-chip SPI panel's IO rail.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_power_up_io(void)
 {
     epd_spi_dual_power_up_io(require_spi_panel());
@@ -324,6 +435,10 @@ static mp_obj_t inkplate_spi_dual_power_up_io(void)
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_power_up_io_obj,
                                  inkplate_spi_dual_power_up_io);
 
+/**
+ * @brief Powers down the active dual-chip SPI panel's IO rail.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_power_down_io(void)
 {
     epd_spi_dual_power_down_io(require_spi_panel());
@@ -332,6 +447,11 @@ static mp_obj_t inkplate_spi_dual_power_down_io(void)
 static MP_DEFINE_CONST_FUN_OBJ_0(inkplate_spi_dual_power_down_io_obj,
                                  inkplate_spi_dual_power_down_io);
 
+/**
+ * @brief Sets the active dual-chip SPI panel's power-enable pin.
+ * @param level_obj Python int logic level to set (0 or 1).
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_set_power(mp_obj_t level_obj)
 {
     epd_spi_dual_set_power(require_spi_panel(), mp_obj_get_int(level_obj));
@@ -339,6 +459,11 @@ static mp_obj_t inkplate_spi_dual_set_power(mp_obj_t level_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_set_power_obj, inkplate_spi_dual_set_power);
 
+/**
+ * @brief Asserts chip-select for one or both chips of the active dual-chip SPI panel.
+ * @param mask_obj Python int chip-select bitmask (master/slave/both).
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_select(mp_obj_t mask_obj)
 {
     epd_spi_dual_select(require_spi_panel(), mp_obj_get_int(mask_obj));
@@ -346,6 +471,11 @@ static mp_obj_t inkplate_spi_dual_select(mp_obj_t mask_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_select_obj, inkplate_spi_dual_select);
 
+/**
+ * @brief Deasserts chip-select for one or both chips of the active dual-chip SPI panel.
+ * @param mask_obj Python int chip-select bitmask (master/slave/both).
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_deselect(mp_obj_t mask_obj)
 {
     epd_spi_dual_deselect(require_spi_panel(), mp_obj_get_int(mask_obj));
@@ -353,6 +483,11 @@ static mp_obj_t inkplate_spi_dual_deselect(mp_obj_t mask_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_deselect_obj, inkplate_spi_dual_deselect);
 
+/**
+ * @brief Writes a data payload to the active dual-chip SPI panel's currently selected chip(s).
+ * @param data_obj Python buffer object holding the bytes to send.
+ * @return None.
+ */
 static mp_obj_t inkplate_spi_dual_write(mp_obj_t data_obj)
 {
     mp_buffer_info_t bufinfo;
@@ -362,6 +497,12 @@ static mp_obj_t inkplate_spi_dual_write(mp_obj_t data_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_spi_dual_write_obj, inkplate_spi_dual_write);
 
+/**
+ * @brief Drives a mono partial-update refresh, diffing two framebuffers on the active board.
+ * @param old_fb_obj Python buffer object holding the previous 1bpp framebuffer content.
+ * @param new_fb_obj Python buffer object holding the new 1bpp framebuffer content.
+ * @return None.
+ */
 static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_obj)
 {
     mp_buffer_info_t old_info, new_info;
@@ -387,10 +528,16 @@ static mp_obj_t inkplate_partial_display(mp_obj_t old_fb_obj, mp_obj_t new_fb_ob
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_partial_display_obj, inkplate_partial_display);
 
-// gfx_* bindings (docs/REFACTOR-PLAN.md Phase 7 step 17): each call is self-contained --
-// framebuf + phys dims + rotation + display_mode + shape params -- rather than threaded
-// through static state like active_board, since rotation/display_mode/which framebuf
-// genuinely vary call to call (unlike the board selection, which is a session constant).
+// gfx_* bindings: each call is self-contained -- framebuf + phys dims + rotation +
+// display_mode + shape params -- rather than threaded through static state like
+// active_board, since rotation/display_mode/which framebuf genuinely vary call to call
+// (unlike the board selection, which is a session constant).
+/**
+ * @brief Gets a writable buffer pointer from a Python buffer object.
+ * @param fb_obj Python buffer object (e.g. a framebuf/bytearray).
+ * @param bufinfo Output buffer-info struct populated by this call.
+ * @return Pointer to the buffer's underlying writable memory.
+ */
 static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
 {
     mp_get_buffer_raise(fb_obj, bufinfo, MP_BUFFER_WRITE);
@@ -406,6 +553,13 @@ static uint8_t *gfx_writable_buf(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo)
 // practice just 1) is 4bpp/2px-per-byte using truncating `w/2` row stride
 // (`py*(w/2)+(px>>1)`) -- same assumption every other GS4 caller in this codebase already
 // makes about even widths, not a new one introduced here.
+/**
+ * @brief Computes the minimum buffer length gfx_set_pixel's packing needs.
+ * @param phys_w Physical (unrotated) framebuffer width in pixels.
+ * @param phys_h Physical (unrotated) framebuffer height in pixels.
+ * @param display_mode Pixel packing mode (0/2 = 1bpp mono, other = 4bpp GS4_HMSB).
+ * @return Minimum required buffer length in bytes.
+ */
 static size_t gfx_min_buf_len(int phys_w, int phys_h, int display_mode)
 {
     if (phys_w <= 0 || phys_h <= 0) {
@@ -421,6 +575,15 @@ static size_t gfx_min_buf_len(int phys_w, int phys_h, int display_mode)
 // write/read when the caller's buffer is smaller than phys_w/phys_h/display_mode implies
 // (e.g. a board/buffer size mismatch) -- every gfx_* primitive and the jpeg/png/bmp_draw_gs4
 // image loaders share this same (fb, phys_w, phys_h, rotation, display_mode, ...) arg shape.
+/**
+ * @brief Gets a writable buffer pointer, raising ValueError if it's too small.
+ * @param fb_obj Python buffer object (e.g. a framebuf/bytearray).
+ * @param bufinfo Output buffer-info struct populated by this call.
+ * @param phys_w Physical (unrotated) framebuffer width in pixels.
+ * @param phys_h Physical (unrotated) framebuffer height in pixels.
+ * @param display_mode Pixel packing mode (0/2 = 1bpp mono, other = 4bpp GS4_HMSB).
+ * @return Pointer to the buffer's underlying writable memory.
+ */
 static uint8_t *gfx_writable_buf_checked(mp_obj_t fb_obj, mp_buffer_info_t *bufinfo, int phys_w,
                                          int phys_h, int display_mode)
 {
@@ -434,6 +597,13 @@ static uint8_t *gfx_writable_buf_checked(mp_obj_t fb_obj, mp_buffer_info_t *bufi
 // Validates a 1bpp source bitmap (gfx_draw_bitmap's bitmap arg, gfx_draw_char's char_data
 // arg -- both row_bytes = ceil(w/8), h rows, per gfx.h's own documented format) has enough
 // bytes for its own caller-supplied w/h before gfx.c walks it.
+/**
+ * @brief Raises ValueError if a 1bpp source bitmap buffer is too small for its own w/h.
+ * @param bufinfo Buffer-info struct for the source bitmap.
+ * @param w Bitmap width in pixels.
+ * @param h Bitmap height in pixels.
+ * @return None.
+ */
 static void gfx_check_1bpp_len(const mp_buffer_info_t *bufinfo, int w, int h)
 {
     if (w <= 0 || h <= 0) {
@@ -445,6 +615,11 @@ static void gfx_check_1bpp_len(const mp_buffer_info_t *bufinfo, int w, int h)
     }
 }
 
+/**
+ * @brief Enables or disables the column-mirroring toggle for every gfx_* primitive.
+ * @param enable_obj Python bool/int; truthy enables mirroring.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_set_mirror_x(mp_obj_t enable_obj)
 {
     gfx_set_mirror_x(mp_obj_is_true(enable_obj));
@@ -452,6 +627,11 @@ static mp_obj_t inkplate_gfx_set_mirror_x(mp_obj_t enable_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gfx_set_mirror_x_obj, inkplate_gfx_set_mirror_x);
 
+/**
+ * @brief Enables or disables the GS4_HMSB nibble-swap toggle for every gfx_* primitive.
+ * @param enable_obj Python bool/int; truthy enables the swap.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_set_gs4_nibble_swap(mp_obj_t enable_obj)
 {
     gfx_set_gs4_nibble_swap(mp_obj_is_true(enable_obj));
@@ -460,7 +640,12 @@ static mp_obj_t inkplate_gfx_set_gs4_nibble_swap(mp_obj_t enable_obj)
 static MP_DEFINE_CONST_FUN_OBJ_1(inkplate_gfx_set_gs4_nibble_swap_obj,
                                  inkplate_gfx_set_gs4_nibble_swap);
 
-// args: framebuf, phys_w, phys_h, rotation, display_mode, x, y, color.
+/**
+ * @brief Sets one pixel in a framebuffer.
+ * @param n_args Argument count (fixed at 8, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x, y, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_set_pixel(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -475,8 +660,15 @@ static mp_obj_t inkplate_gfx_set_pixel(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_set_pixel_obj, 8, 8,
                                            inkplate_gfx_set_pixel);
 
-// args: framebuf, value. Fills the whole buffer -- length comes from the buffer itself,
-// not a separate arg, so a caller can't accidentally overrun it with a mismatched size.
+/**
+ * @brief Fills an entire framebuffer with one byte value.
+ *
+ * Length comes from the buffer itself, not a separate arg, so a caller can't accidentally
+ * overrun it with a mismatched size.
+ * @param fb_obj Python buffer object to fill.
+ * @param value_obj Python int byte value to fill with.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_buf_fill(mp_obj_t fb_obj, mp_obj_t value_obj)
 {
     mp_buffer_info_t buf;
@@ -486,8 +678,13 @@ static mp_obj_t inkplate_gfx_buf_fill(mp_obj_t fb_obj, mp_obj_t value_obj)
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(inkplate_gfx_buf_fill_obj, inkplate_gfx_buf_fill);
 
-// args: framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, bitmap(bytes-like), bmp_w,
-// bmp_h, color.
+/**
+ * @brief Blits a 1bpp source bitmap into a framebuffer at a given position.
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, bitmap(bytes-like),
+ *             bmp_w, bmp_h, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_draw_bitmap(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -507,6 +704,12 @@ static mp_obj_t inkplate_gfx_draw_bitmap(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_bitmap_obj, 11, 11,
                                            inkplate_gfx_draw_bitmap);
 
+/**
+ * @brief Draws a horizontal line into a framebuffer.
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, width, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -520,6 +723,12 @@ static mp_obj_t inkplate_gfx_hline(size_t n_args, const mp_obj_t *args)
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_hline_obj, 9, 9, inkplate_gfx_hline);
 
+/**
+ * @brief Draws a vertical line into a framebuffer.
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, height, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_vline(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -533,6 +742,12 @@ static mp_obj_t inkplate_gfx_vline(size_t n_args, const mp_obj_t *args)
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_vline_obj, 9, 9, inkplate_gfx_vline);
 
+/**
+ * @brief Draws an arbitrary line into a framebuffer.
+ * @param n_args Argument count (fixed at 10, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, x1, y1, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_line(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -547,6 +762,12 @@ static mp_obj_t inkplate_gfx_line(size_t n_args, const mp_obj_t *args)
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_line_obj, 10, 10, inkplate_gfx_line);
 
+/**
+ * @brief Draws a rectangle outline into a framebuffer.
+ * @param n_args Argument count (fixed at 10, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, width, height, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -561,6 +782,12 @@ static mp_obj_t inkplate_gfx_rect(size_t n_args, const mp_obj_t *args)
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_rect_obj, 10, 10, inkplate_gfx_rect);
 
+/**
+ * @brief Draws a filled rectangle into a framebuffer.
+ * @param n_args Argument count (fixed at 10, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, width, height, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_fill_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -576,6 +803,12 @@ static mp_obj_t inkplate_gfx_fill_rect(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_rect_obj, 10, 10,
                                            inkplate_gfx_fill_rect);
 
+/**
+ * @brief Draws a circle outline into a framebuffer.
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, radius, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_circle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -589,6 +822,12 @@ static mp_obj_t inkplate_gfx_circle(size_t n_args, const mp_obj_t *args)
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_circle_obj, 9, 9, inkplate_gfx_circle);
 
+/**
+ * @brief Draws a filled circle into a framebuffer.
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, radius, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_fill_circle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -603,6 +842,12 @@ static mp_obj_t inkplate_gfx_fill_circle(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_circle_obj, 9, 9,
                                            inkplate_gfx_fill_circle);
 
+/**
+ * @brief Draws a triangle outline into a framebuffer.
+ * @param n_args Argument count (fixed at 12, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, x1, y1, x2, y2, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_triangle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -618,6 +863,12 @@ static mp_obj_t inkplate_gfx_triangle(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_triangle_obj, 12, 12,
                                            inkplate_gfx_triangle);
 
+/**
+ * @brief Draws a filled triangle into a framebuffer.
+ * @param n_args Argument count (fixed at 12, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, x1, y1, x2, y2, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_fill_triangle(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -634,6 +885,13 @@ static mp_obj_t inkplate_gfx_fill_triangle(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_triangle_obj, 12, 12,
                                            inkplate_gfx_fill_triangle);
 
+/**
+ * @brief Draws a rounded-rectangle outline into a framebuffer.
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, width, height, radius,
+ *             color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_round_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -649,6 +907,13 @@ static mp_obj_t inkplate_gfx_round_rect(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_round_rect_obj, 11, 11,
                                            inkplate_gfx_round_rect);
 
+/**
+ * @brief Draws a filled rounded rectangle into a framebuffer.
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, width, height, radius,
+ *             color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_fill_round_rect(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -665,8 +930,13 @@ static mp_obj_t inkplate_gfx_fill_round_rect(size_t n_args, const mp_obj_t *args
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_fill_round_rect_obj, 11, 11,
                                            inkplate_gfx_fill_round_rect);
 
-// args: framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, char_data(bytes-like),
-// char_w, char_h, size, color.
+/**
+ * @brief Blits one decoded glyph bitmap into a framebuffer at an integer scale.
+ * @param n_args Argument count (fixed at 12, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, char_data(bytes-like),
+ *             char_w, char_h, size, color.
+ * @return None.
+ */
 static mp_obj_t inkplate_gfx_draw_char(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -686,11 +956,14 @@ static mp_obj_t inkplate_gfx_draw_char(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_gfx_draw_char_obj, 12, 12,
                                            inkplate_gfx_draw_char);
 
-// Decodes+draws a JPEG straight into a framebuffer, with optional scalar
-// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see jpeg_draw.h,
-// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
-// display_mode, x0, y0, jpeg_bytes, invert, dither, kernel_type. Returns (width,
-// height) of the decoded JPEG.
+/**
+ * @brief Decodes and draws a JPEG straight into a framebuffer, with optional scalar
+ *        error-diffusion dithering (see jpeg_draw.h for the kernel choices).
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, jpeg_bytes, invert,
+ *             dither, kernel_type.
+ * @return Python 2-tuple (width, height) of the decoded JPEG.
+ */
 static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -719,11 +992,14 @@ static mp_obj_t inkplate_jpeg_draw_gs4(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_gs4_obj, 11, 11,
                                            inkplate_jpeg_draw_gs4);
 
-// Decodes+draws a PNG straight into a framebuffer, with optional scalar
-// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see png_draw.h,
-// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
-// display_mode, x0, y0, png_bytes, invert, dither, kernel_type. Returns (width,
-// height) of the decoded PNG.
+/**
+ * @brief Decodes and draws a PNG straight into a framebuffer, with optional scalar
+ *        error-diffusion dithering (see png_draw.h for the kernel choices).
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, png_bytes, invert,
+ *             dither, kernel_type.
+ * @return Python 2-tuple (width, height) of the decoded PNG.
+ */
 static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -748,11 +1024,14 @@ static mp_obj_t inkplate_png_draw_gs4(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_png_draw_gs4_obj, 11, 11,
                                            inkplate_png_draw_gs4);
 
-// Decodes+draws a BMP straight into a framebuffer, with optional scalar
-// Floyd-Steinberg/JJN/Stucki/Burkes error diffusion -- see bmp_draw.h,
-// docs/REFACTOR-PLAN.md step 21. args: framebuf, phys_w, phys_h, rotation,
-// display_mode, x0, y0, bmp_bytes, invert, dither, kernel_type. Returns (width,
-// height) of the decoded BMP.
+/**
+ * @brief Decodes and draws a BMP straight into a framebuffer, with optional scalar
+ *        error-diffusion dithering (see bmp_draw.h for the kernel choices).
+ * @param n_args Argument count (fixed at 11, unused directly).
+ * @param args framebuf, phys_w, phys_h, rotation, display_mode, x0, y0, bmp_bytes, invert,
+ *             dither, kernel_type.
+ * @return Python 2-tuple (width, height) of the decoded BMP.
+ */
 static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -777,16 +1056,25 @@ static mp_obj_t inkplate_bmp_draw_gs4(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_gs4_obj, 11, 11,
                                            inkplate_bmp_draw_gs4);
 
-// *_draw_palette bindings (docs/REFACTOR-PLAN.md Phase 10 steps 32-33): shared with
-// the SPI color-panel family (Inkplate6COLOR/Inkplate2/Inkplate13SPECTRA), which
-// panel/palette/packing to use is resolved from the already-selected
-// active_spi_panel (select_spi_panel() must be called first, same as the
-// spi_panel_* bindings above) rather than passed explicitly. args: framebuf,
-// framebuf2 (Inkplate2's red plane, or None for the other two boards), rotation,
-// x0, y0, invert, dither, kernel_type, image_bytes, and (png only) a caller-owned
-// RGB565 scratch bytearray or None -- see inkplate_png_draw_palette's comment below
-// for why. jpeg_draw_palette needs no such buffer (see its own comment below).
-// Returns (width, height) of the decoded image.
+// *_draw_palette bindings: shared with the SPI color-panel family
+// (Inkplate6COLOR/Inkplate2/Inkplate13SPECTRA); which panel/palette/packing to use is
+// resolved from the already-selected active_spi_panel (select_spi_panel() must be
+// called first, same as the spi_panel_* bindings above) rather than passed explicitly.
+// Common arg shape: framebuf, framebuf2 (Inkplate2's red plane, or None for the other
+// two boards), rotation, x0, y0, invert, dither, kernel_type, image_bytes, and (png
+// only) a caller-owned RGB565 scratch bytearray or None -- see
+// inkplate_png_draw_palette's comment below for why. jpeg_draw_palette needs no such
+// buffer (see its own comment below). All three return (width, height) of the decoded
+// image.
+/**
+ * @brief Populates a palette-draw context from the active SPI panel and Python call args.
+ * @param ctx Output context struct to populate.
+ * @param args Python-visible args array; args[0]/args[1] are the framebuf/framebuf2 objects,
+ *             args[2]-args[4] are rotation/x0/y0.
+ * @param fb_buf Output buffer-info struct for framebuf.
+ * @param fb2_buf Output buffer-info struct for framebuf2 (unused if args[1] is None).
+ * @return None.
+ */
 static void inkplate_palette_ctx_init(spi_panel_palette_ctx_t *ctx, const mp_obj_t *args,
                                       mp_buffer_info_t *fb_buf, mp_buffer_info_t *fb2_buf)
 {
@@ -828,6 +1116,12 @@ static void inkplate_palette_ctx_init(spi_panel_palette_ctx_t *ctx, const mp_obj
     }
 }
 
+/**
+ * @brief Decodes and draws a BMP into the active SPI color panel's palette-indexed framebuffer(s).
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, framebuf2, rotation, x0, y0, invert, dither, kernel_type, bmp_bytes.
+ * @return Python 2-tuple (width, height) of the decoded BMP.
+ */
 static mp_obj_t inkplate_bmp_draw_palette(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -859,6 +1153,12 @@ static mp_obj_t inkplate_bmp_draw_palette(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_bmp_draw_palette_obj, 9, 9,
                                            inkplate_bmp_draw_palette);
 
+/**
+ * @brief Decodes and draws a JPEG into the active SPI color panel's palette-indexed framebuffer(s).
+ * @param n_args Argument count (fixed at 9, unused directly).
+ * @param args framebuf, framebuf2, rotation, x0, y0, invert, dither, kernel_type, jpeg_bytes.
+ * @return Python 2-tuple (width, height) of the decoded JPEG.
+ */
 static mp_obj_t inkplate_jpeg_draw_palette(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -893,6 +1193,13 @@ static mp_obj_t inkplate_jpeg_draw_palette(size_t n_args, const mp_obj_t *args)
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(inkplate_jpeg_draw_palette_obj, 9, 9,
                                            inkplate_jpeg_draw_palette);
 
+/**
+ * @brief Decodes and draws a PNG into the active SPI color panel's palette-indexed framebuffer(s).
+ * @param n_args Argument count (fixed at 10, unused directly).
+ * @param args framebuf, framebuf2, rotation, x0, y0, invert, dither, kernel_type, png_bytes,
+ *             scratch_rgb565_or_none.
+ * @return Python 2-tuple (width, height) of the decoded PNG.
+ */
 static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
@@ -934,11 +1241,11 @@ static mp_obj_t inkplate_png_draw_palette(size_t n_args, const mp_obj_t *args)
         // Only reachable for an Adam7-interlaced source (or a header peek that
         // couldn't even tell) -- the common non-interlaced case dithers inline, no
         // size cap or scratch buffer needed (png_draw.c). Board `draw_png_from_*`
-        // wrappers don't pass a scratch buffer (that unconditional allocation used
-        // to reliably MemoryError on real hardware for completely ordinary
-        // non-interlaced photos, docs/REFACTOR-PLAN.md Phase 7 step 21's
-        // follow-up), so this is effectively "this PNG is Adam7-interlaced, which
-        // isn't supported for dithering right now" rather than a size complaint.
+        // wrappers don't pass a scratch buffer (an unconditional allocation here
+        // reliably MemoryErrors on real hardware for completely ordinary
+        // non-interlaced photos), so this is effectively "this PNG is
+        // Adam7-interlaced, which isn't supported for dithering right now" rather
+        // than a size complaint.
         mp_raise_ValueError(MP_ERROR_TEXT("Image can't be dithered -- too wide, or an "
                                           "Adam7-interlaced PNG -- try a smaller/non-interlaced "
                                           "image, or draw with dither=False"));

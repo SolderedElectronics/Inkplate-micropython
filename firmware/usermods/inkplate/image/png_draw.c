@@ -1,3 +1,7 @@
+/**
+ * @file png_draw.c
+ * @brief PNG decode-and-draw (with optional dithering) implementation.
+ */
 #include "png_draw.h"
 
 #include "esp_heap_caps.h"
@@ -51,7 +55,7 @@ int png_draw_gs4(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_
     if (dither) {
         // Plain malloc() draws from ESP32's small internal-DRAM pool and fails outright
         // for a buffer this size -- this scratch buffer needs PSRAM explicitly, same as
-        // the project's framebuffers (docs/REFACTOR-PLAN.md Phase 0 step 4).
+        // the project's framebuffers.
         luma = heap_caps_malloc((size_t)PNG_DRAW_CORE_MAX_WIDTH * PNG_DRAW_CORE_MAX_HEIGHT,
                                 MALLOC_CAP_SPIRAM);
         if (luma == NULL) {
@@ -134,18 +138,16 @@ int png_draw_palette(const uint8_t *buf, size_t len, int invert, int dither, int
         // without touching pngle. Source image bigger than max_width/max_height
         // (typically the panel's own physical size -- see inkplatemodule.c's caller)
         // can't be dithered: same distinct return code as the missing-buffer case
-        // below, rather than silently redrawing without dithering
-        // (docs/REFACTOR-PLAN.md Phase 10 step 32's followup). A failed peek (buf too
-        // short) just falls through -- the real png_decode() call below reports that as
-        // a decode error instead.
+        // below, rather than silently redrawing without dithering. A failed peek (buf
+        // too short) just falls through -- the real png_decode() call below reports
+        // that as a decode error instead.
         uint32_t peek_w = 0, peek_h = 0;
         if (png_peek_dimensions(buf, len, &peek_w, &peek_h) == 0 &&
             (peek_w > (uint32_t)max_width || peek_h > (uint32_t)max_height)) {
             return -2;
         }
 
-        // Caller-supplied buffer (docs/REFACTOR-PLAN.md Phase 10 step 32's followup) --
-        // see jpeg_draw_palette's identical comment for the HIL-confirmed
+        // Caller-supplied buffer -- see jpeg_draw_palette's identical comment for the
         // PSRAM-fragmentation reasoning for why this isn't heap_caps_malloc'd in here.
         // Missing/undersized buffer can't dither either -- same distinct return code as
         // the oversized case above.

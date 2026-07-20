@@ -1,3 +1,7 @@
+/**
+ * @file png_decode.c
+ * @brief PNG decoder implementation wrapping pngle.
+ */
 #include "png_decode.h"
 
 #include "pngle.h"

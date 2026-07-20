@@ -1,5 +1,10 @@
-// Board configuration struct shared by all classic-ESP32 parallel-bus Inkplate boards
-// (Inkplate10/6/5v2/6FLICK/6PLUS/4TEMPERA). One instance per board, selected at build/init time.
+/**
+ * @file board_config.h
+ * @brief Board configuration struct shared by all classic-ESP32 parallel-bus Inkplate
+ *        boards (Inkplate10/6/5v2/6FLICK/6PLUS/4TEMPERA).
+ *
+ * One instance per board, selected at build/init time.
+ */
 #ifndef INKPLATE_BOARD_CONFIG_H
 #define INKPLATE_BOARD_CONFIG_H
 
@@ -15,9 +20,6 @@
 // Waveform table: one row per phase, one column per gray level (pixel value 0..levels-1).
 // Row order matches the sequence the display gets written N times, in order.
 // table[phase][level] -> code: 0=discharge,1=black,2=white,3=skip
-// Inkplate10 is populated with the real 3-bit/8-level table (Arduino reference driver's
-// default `waveform1`, transposed from its [color][phase] layout to this struct's
-// [phase][color] layout -- docs/REFACTOR-PLAN.md Phase 5 step 15).
 #define MAX_WAVE_PHASES 9
 #define MAX_WAVE_LEVELS 8
 
@@ -43,7 +45,7 @@ typedef struct {
     uint8_t data_pins[8];
     uint32_t data_mask;
 
-    // Control lines (direct ESP32 GPIO, bit-banged in Phase 2, I2S-driven from Phase 3)
+    // Control lines (direct ESP32 GPIO; bit-banged today, I2S-driven for higher-throughput paths later)
     uint8_t pin_cl;
     uint8_t pin_le;
     uint8_t pin_ckv;
@@ -60,11 +62,10 @@ typedef struct {
     // Waveform data
     const waveform_table_t *waveform;
 
-    // Number of times a mono partial-update frame gets pushed over I2S (fixed pulse-train
-    // length, not a data-dependent loop bound) -- board/variant-specific per the real
-    // Arduino reference driver (INKPLATE6=5, INKPLATE6V2=6); Inkplate10 uses 5, carried
-    // over from this project's own already-HIL-verified value (docs/REFACTOR-PLAN.md
-    // step 16), not derived from either Inkplate6 variant's number.
+    // Number of times a mono partial-update frame gets pushed over I2S (fixed
+    // pulse-train length, not a data-dependent loop bound); value is board/variant-
+    // specific (e.g. Inkplate6=5, Inkplate6V2=6). Inkplate10 uses 5, independent of
+    // either Inkplate6 variant's number.
     uint8_t partial_reps;
 
     // Feature flags
@@ -81,11 +82,15 @@ extern const board_config_t board_config_inkplate6flick;
 extern const board_config_t board_config_inkplate6plusv2;
 extern const board_config_t board_config_inkplate4tempera;
 
-// board_config_row_bytes: bytes needed for one row of 2-bit-per-pixel wire codes --
-// driven only by panel width, since the wire format is always 2 bits/pixel regardless
-// of the source framebuffer's bit depth (1bpp mono expands into it, 2bpp GS maps 1:1).
-// epd_i2s.c and any future GS I2S path should derive row-buffer size from this instead
-// of hand-rolling width>>2/width>>3 per call site.
+// Wire format is fixed at 2 bits/pixel regardless of the source framebuffer's bit depth
+// (1bpp mono expands into it, 2bpp GS maps 1:1); epd_i2s.c and any future GS I2S path
+// should derive row-buffer size from this instead of hand-rolling width>>2/width>>3 per
+// call site.
+/**
+ * @brief Bytes needed for one row of 2-bit-per-pixel wire-format pixel codes.
+ * @param cfg Board config supplying the panel width.
+ * @return Row byte count (cfg->width / 4).
+ */
 static inline uint16_t board_config_row_bytes(const board_config_t *cfg)
 {
     return cfg->width >> 2;

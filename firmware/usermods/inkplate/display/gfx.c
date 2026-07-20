@@ -1,3 +1,7 @@
+/**
+ * @file gfx.c
+ * @brief Framebuffer drawing primitives (pixels, shapes, bitmaps, text).
+ */
 #include "gfx.h"
 
 #include <string.h>
@@ -7,7 +11,7 @@ void gfx_buf_fill(uint8_t *fb, int len, uint8_t value)
     memset(fb, value, (size_t)len);
 }
 
-// Matches Python's `//` (floor division), not C's `/` (truncation toward zero) -- needed by
+// Floor division (rounds toward negative infinity), not C's truncating `/` -- needed by
 // gfx_fill_triangle's scanline math, which can see negative numerators/denominators once the
 // three vertices aren't sorted left-to-right.
 static int floordiv(int a, int b)
@@ -57,10 +61,9 @@ void gfx_set_gs4_nibble_swap(int enable)
     s_gs4_nibble_swap = enable;
 }
 
-// Single pixel-write core -- consolidates what was boards/inkplate10/inkplate10.py's
-// write_pixel_viper (logical-bounds check with rotation-aware swap, physical remap, then
-// 1bpp bit set/clear or 4bpp GS4_HMSB nibble pack). Every primitive below funnels through
-// this, so the remap/packing logic exists in exactly one place.
+// Single pixel-write core: logical-bounds check with rotation-aware swap, physical remap,
+// then 1bpp bit set/clear or 4bpp GS4_HMSB nibble pack. Every primitive below funnels
+// through this, so the remap/packing logic exists in exactly one place.
 void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x,
                    int y, int color)
 {
@@ -104,10 +107,9 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
     if (display_mode == 0 || display_mode == 2) {
         int idx = (py * w + px) >> 3;
         int bit = px & 7;
-        // mode 0: LSB-first per byte (Inkplate10-family waveform engine, waveform.c's
-        // inkplate_gen_nibble_lut reads pixel 0 of a nibble/byte from bit 0). mode 2:
-        // MSB-first (Inkplate2's dual BW/RED planes -- its SPI panel packs the opposite
-        // bit order, confirmed against its pre-gfx-port write_pixel's `7 - x%8` shift).
+        // Mode 0: LSB-first per byte, matching the waveform engine's expected bit order.
+        // Mode 2: MSB-first, for boards with dual BW/RED planes whose panel packs the
+        // opposite bit order.
         int shift = (display_mode == 2) ? (7 - bit) : bit;
         if (color) {
             fb[idx] |= (uint8_t)(1 << shift);
@@ -127,10 +129,6 @@ void gfx_set_pixel(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
     }
 }
 
-// Matches boards/inkplate10/inkplate10.py's write_fast_hline/write_fast_vline (a plain
-// write_pixel loop, no pre-clip) -- the fast hline/vline that shared/gfx.py's GFX instance
-// is actually constructed with on Inkplate10, not GFX's own _slow_hline/_slow_vline
-// fallback (which Inkplate10 never uses).
 void gfx_hline(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                int y0, int width, int color)
 {
@@ -147,7 +145,7 @@ void gfx_vline(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mo
     }
 }
 
-// Bresenham, ported from shared/gfx.py GFX.line.
+// Bresenham line algorithm.
 void gfx_line(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0, int y0,
               int x1, int y1, int color)
 {
@@ -180,9 +178,8 @@ void gfx_line(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mod
     }
 }
 
-// Ported from shared/gfx.py GFX.rect. The early-return bounds check uses LOGICAL (post-
-// rotation) width/height, derived here from phys_w/phys_h + rotation exactly like
-// gfx_set_pixel's own bounds check.
+// The early-return bounds check uses logical (post-rotation) width/height, derived here
+// from phys_w/phys_h + rotation, matching gfx_set_pixel's own bounds check.
 void gfx_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0, int y0,
               int width, int height, int color)
 {
@@ -197,8 +194,6 @@ void gfx_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mod
     gfx_vline(fb, phys_w, phys_h, rotation, display_mode, x0 + width - 1, y0, height, color);
 }
 
-// Matches boards/inkplate10/inkplate10.py's write_fill_rect (a plain write_pixel double
-// loop), not shared/gfx.py GFX's own unused _fill_rect fallback.
 void gfx_fill_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                    int y0, int width, int height, int color)
 {
@@ -209,7 +204,7 @@ void gfx_fill_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
     }
 }
 
-// Midpoint circle, ported from shared/gfx.py GFX.circle.
+// Midpoint circle algorithm.
 void gfx_circle(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                 int y0, int radius, int color)
 {
@@ -245,8 +240,7 @@ void gfx_circle(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_m
     }
 }
 
-// Ported from shared/gfx.py GFX.fill_circle (vline sweep, same midpoint stepping as
-// gfx_circle).
+// Vline sweep using the same midpoint stepping as gfx_circle.
 void gfx_fill_circle(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                      int y0, int radius, int color)
 {
@@ -283,9 +277,9 @@ void gfx_triangle(uint8_t *fb, int phys_w, int phys_h, int rotation, int display
     gfx_line(fb, phys_w, phys_h, rotation, display_mode, x2, y2, x0, y0, color);
 }
 
-// Scanline fill, ported from shared/gfx.py GFX.fill_triangle. Uses floordiv() (not C's `/`)
-// to match Python's `//` -- dx01/dx02/dx12 can be negative once vertices are y-sorted but
-// not x-sorted, and truncating division there would place edges off by one pixel.
+// Scanline fill. Uses floordiv() (not C's truncating `/`) because dx01/dx02/dx12 can be
+// negative once vertices are y-sorted but not x-sorted, and truncating division there
+// would place edges off by one pixel.
 void gfx_fill_triangle(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode,
                        int x0, int y0, int x1, int y1, int x2, int y2, int color)
 {
@@ -359,7 +353,6 @@ void gfx_fill_triangle(uint8_t *fb, int phys_w, int phys_h, int rotation, int di
     }
 }
 
-// Ported from shared/gfx.py GFX.round_rect.
 void gfx_round_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                     int y0, int width, int height, int radius, int color)
 {
@@ -396,20 +389,20 @@ void gfx_round_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int displ
         ddf_x += 2;
         f += ddf_x;
 
-        // top left
+        // Top left
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 - y, y0 - x, color);
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 - x, y0 - y, color);
-        // top right
+        // Top right
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + x + width - 2 * radius,
                       y0 - y, color);
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + y + width - 2 * radius,
                       y0 - x, color);
-        // bottom right
+        // Bottom right
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + y + width - 2 * radius,
                       y0 + x + height - 2 * radius, color);
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 + x + width - 2 * radius,
                       y0 + y + height - 2 * radius, color);
-        // bottom left
+        // Bottom left
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 - x,
                       y0 + y + height - 2 * radius, color);
         gfx_set_pixel(fb, phys_w, phys_h, rotation, display_mode, x0 - y,
@@ -417,7 +410,6 @@ void gfx_round_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int displ
     }
 }
 
-// Ported from shared/gfx.py GFX.fill_round_rect.
 void gfx_fill_round_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode,
                          int x0, int y0, int width, int height, int radius, int color)
 {
@@ -459,10 +451,8 @@ void gfx_fill_round_rect(uint8_t *fb, int phys_w, int phys_h, int rotation, int 
     }
 }
 
-// Merges shared/gfx.py's _draw_char_1bpp/_draw_char_2bpp into one display_mode-dispatched
-// blit (see gfx.h). Every accepted glyph sub-pixel goes through gfx_set_pixel, so the
-// rotation remap + bounds clip + packing live in one place instead of being re-derived here
-// -- the original two functions each carried their own copy of that math.
+// Every accepted glyph sub-pixel goes through gfx_set_pixel, so the rotation remap, bounds
+// clip, and packing live in one place rather than being re-derived per pixel format.
 void gfx_draw_char(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                    int y0, const uint8_t *char_data, int char_w, int char_h, int size, int color)
 {
@@ -491,8 +481,6 @@ void gfx_draw_char(uint8_t *fb, int phys_w, int phys_h, int rotation, int displa
     }
 }
 
-// Ports every board's own draw_bitmap Python loop (byte-walking + write_pixel per set bit)
-// into one C call -- see docs/refactor_plan.md Phase 12 step 41.
 void gfx_draw_bitmap(uint8_t *fb, int phys_w, int phys_h, int rotation, int display_mode, int x0,
                      int y0, const uint8_t *bitmap, int bmp_w, int bmp_h, int color)
 {

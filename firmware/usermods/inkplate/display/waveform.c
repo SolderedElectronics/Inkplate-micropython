@@ -1,3 +1,7 @@
+/**
+ * @file waveform.c
+ * @brief Waveform LUT generation implementation.
+ */
 #include "waveform.h"
 #include <string.h>
 
@@ -30,8 +34,8 @@ void inkplate_gen_wave_3bit(const uint8_t *table, int row_stride, uint8_t phases
 
 void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16])
 {
-    static const uint8_t op_blk[2] = {3, 1}; // white(0)->skip, black(1)->discharge/black
-    static const uint8_t op_bw[2] = {2, 1};  // white(0)->white, black(1)->black
+    static const uint8_t op_blk[2] = {3, 1}; // White(0)->skip, black(1)->discharge/black
+    static const uint8_t op_bw[2] = {2, 1};  // White(0)->white, black(1)->black
 
     for (int phase = 0; phase < black_phases; phase++) {
         inkplate_gen_nibble_lut(op_blk, 1, out[phase]);
@@ -41,8 +45,8 @@ void inkplate_gen_mono_wave(uint8_t black_phases, uint8_t out[][16])
 
 void inkplate_gen_mono_wave_white_first(uint8_t repeat_phases, uint8_t out[][16])
 {
-    static const uint8_t op_wht[2] = {2, 3};       // white(0)->white, black(1)->skip
-    static const uint8_t op_blk_final[2] = {3, 1}; // white(0)->skip, black(1)->black
+    static const uint8_t op_wht[2] = {2, 3};       // White(0)->white, black(1)->skip
+    static const uint8_t op_blk_final[2] = {3, 1}; // White(0)->skip, black(1)->black
 
     for (int phase = 0; phase < repeat_phases; phase++) {
         inkplate_gen_nibble_lut(op_wht, 1, out[phase]);
