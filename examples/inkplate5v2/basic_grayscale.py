@@ -10,7 +10,7 @@ import time
 # Start runtime timer
 start_time = time.ticks_ms()
 
-# Create Inkplate object in 2-bit grayscale mode
+# Create Inkplate object in 2-bit (real 8-level GS3) grayscale mode
 display = Inkplate(Inkplate.INKPLATE_2BIT)
 
 soldered_logo = bytearray(

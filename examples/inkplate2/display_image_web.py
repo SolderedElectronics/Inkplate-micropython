@@ -36,7 +36,7 @@ def do_connect():
     return True
 
 
-# Create Inkplate object in 2-bit (grayscale) mode
+# Create Inkplate object (BW + RED display, no mode kwarg)
 inkplate = Inkplate()
 
 # Initialize the display, needs to be called only once
