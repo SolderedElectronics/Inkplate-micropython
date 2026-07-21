@@ -27,15 +27,40 @@ D_COLS = const(1200)
 
 # Valid hardware variants for this driver. IO_INT_ADDR=0x20 (internal expander, drives
 # OE/GMODE/SPV/TPS_*) is the same on both variants; IO_EXT_ADDR=0x21 for V2, 0x22 for
-# classic. Classic's internal expander is an MCP23017; V2's is a PCAL6416A. Pass
-# variant="inkplate10v1" to Inkplate() if your board is the original (non-V2) revision
-# -- that also enables TOUCH1/2/3 (v1-only, same expander pins 10/11/12 that V2
-# repurposes for SD_ENABLE). Can't be auto-detected: neither expander chip exposes an
-# ID/WHOAMI register to probe for which one is present. Classic has no SD-card power
-# MOSFET (SD_PMOS_PIN and touchpad pad1 share the same expander pin 10), so SD is
-# always powered there; init_sd_card/sd_card_sleep/sd_card_wake are no-ops on v1.
-_DEFAULT_VARIANT = "inkplate10v2"
+# classic. Classic's internal expander is an MCP23017; V2's is a PCAL6416A. Also gates
+# TOUCH1/2/3 (v1-only, same expander pins 10/11/12 that V2 repurposes for SD_ENABLE).
+# Classic has no SD-card power MOSFET (SD_PMOS_PIN and touchpad pad1 share the same
+# expander pin 10), so SD is always powered there; init_sd_card/sd_card_sleep/sd_card_wake
+# are no-ops on v1. Auto-detected by default (see _detect_variant) -- pass
+# variant="inkplate10v1"/"inkplate10v2" explicitly to override if the probe is ever wrong
+# for your board.
 _VALID_VARIANTS = ("inkplate10v1", "inkplate10v2")
+
+# Neither expander chip has an ID/WHOAMI register, but reading register 0x40 off the
+# internal expander (addr 0x20) reliably tells them apart (HIL-confirmed on real
+# Inkplate10 v1 and v2 hardware, and on Inkplate6 v1/v2 which share the same two chips
+# at the same address): MCP23017's register file only covers 0x00-0x15, so any
+# out-of-range address reads back a flat 0x00 (not aliased to a real register);
+# PCAL6416A's 0x40/0x41 is the Output Drive Strength (port 0) register, which defaults
+# to 0xFF (max drive strength) in silicon regardless of external wiring. Pure read,
+# safe before any other expander setup.
+_PROBE_ADDR = 0x20
+_PROBE_REG = 0x40
+
+
+def _detect_variant(i2c):
+    val = i2c.readfrom_mem(_PROBE_ADDR, _PROBE_REG, 1)[0]
+    if val == 0x00:
+        return "inkplate10v1"
+    elif val == 0xFF:
+        return "inkplate10v2"
+    raise RuntimeError(
+        "cannot auto-detect Inkplate10 variant: reading register {:#x} at expander "
+        "addr {:#x} returned {:#x} (expected 0x00 for classic MCP23017 or 0xFF for "
+        'V2 PCAL6416A) -- pass variant="inkplate10v1" or variant="inkplate10v2" '
+        "explicitly".format(_PROBE_REG, _PROBE_ADDR, val)
+    )
+
 
 # Inkplate provides access to the pins of the Inkplate 10 as well as to low-level display
 # functions.
@@ -43,8 +68,10 @@ _VALID_VARIANTS = ("inkplate10v1", "inkplate10v2")
 
 class _Inkplate:
     @classmethod
-    def init(cls, i2c, variant=_DEFAULT_VARIANT):
-        if variant not in _VALID_VARIANTS:
+    def init(cls, i2c, variant=None):
+        if variant is None:
+            variant = _detect_variant(i2c)
+        elif variant not in _VALID_VARIANTS:
             raise ValueError(
                 "unknown Inkplate10 variant {!r}, must be one of {}".format(
                     variant, _VALID_VARIANTS
@@ -410,7 +437,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     KERNEL_STUCKI = 2
     KERNEL_BURKES = 3
 
-    def __init__(self, mode, variant=_DEFAULT_VARIANT):
+    def __init__(self, mode, variant=None):
         self.display_mode = mode
         self._variant = variant
         self._d_cols = D_COLS

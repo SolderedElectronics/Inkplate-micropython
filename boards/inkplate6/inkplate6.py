@@ -28,13 +28,36 @@ D_COLS = const(800)
 # Valid hardware variants for this driver. INKPLATE6V2's internal expander
 # (OE/GMODE/SPV/TPS_*/etc, addr 0x20) is a PCAL6416A; classic INKPLATE6V1's
 # same-role expander is an MCP23017. External expander addr also differs
-# (v1=0x22, V2=0x21). Pass variant="inkplate6v1" to Inkplate() if your board is
-# the original (non-V2) revision -- that also enables TOUCH1/2/3 (v1-only,
-# same expander pins 10/11/12 that V2 repurposes for SD_ENABLE). Can't be
-# auto-detected: neither expander chip exposes an ID/WHOAMI register to probe
-# for which one is present.
-_DEFAULT_VARIANT = "inkplate6v2"
+# (v1=0x22, V2=0x21). Also gates TOUCH1/2/3 (v1-only, same expander pins
+# 10/11/12 that V2 repurposes for SD_ENABLE). Auto-detected by default (see
+# _detect_variant) -- pass variant="inkplate6v1"/"inkplate6v2" explicitly to
+# override if the probe is ever wrong for your board.
 _VALID_VARIANTS = ("inkplate6v1", "inkplate6v2")
+
+# Neither expander chip has an ID/WHOAMI register, but reading register 0x40 off the
+# internal expander (addr 0x20) reliably tells them apart (HIL-confirmed on real
+# Inkplate6 v1 and v2 hardware): MCP23017's register file only covers 0x00-0x15, so any
+# out-of-range address reads back a flat 0x00 (not aliased to a real register); PCAL6416A's
+# 0x40/0x41 is the Output Drive Strength (port 0) register, which defaults to 0xFF
+# (max drive strength) in silicon regardless of external wiring. Pure read, safe before any
+# other expander setup.
+_PROBE_ADDR = 0x20
+_PROBE_REG = 0x40
+
+
+def _detect_variant(i2c):
+    val = i2c.readfrom_mem(_PROBE_ADDR, _PROBE_REG, 1)[0]
+    if val == 0x00:
+        return "inkplate6v1"
+    elif val == 0xFF:
+        return "inkplate6v2"
+    raise RuntimeError(
+        "cannot auto-detect Inkplate6 variant: reading register {:#x} at expander "
+        "addr {:#x} returned {:#x} (expected 0x00 for classic MCP23017 or 0xFF for "
+        'V2 PCAL6416A) -- pass variant="inkplate6v1" or variant="inkplate6v2" '
+        "explicitly".format(_PROBE_REG, _PROBE_ADDR, val)
+    )
+
 
 # Inkplate provides access to the pins of the Inkplate 6 as well as to low-level display
 # functions.
@@ -42,8 +65,10 @@ _VALID_VARIANTS = ("inkplate6v1", "inkplate6v2")
 
 class _Inkplate:
     @classmethod
-    def init(cls, i2c, variant=_DEFAULT_VARIANT):
-        if variant not in _VALID_VARIANTS:
+    def init(cls, i2c, variant=None):
+        if variant is None:
+            variant = _detect_variant(i2c)
+        elif variant not in _VALID_VARIANTS:
             raise ValueError(
                 "unknown Inkplate6 variant {!r}, must be one of {}".format(variant, _VALID_VARIANTS)
             )
@@ -407,7 +432,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     KERNEL_STUCKI = 2
     KERNEL_BURKES = 3
 
-    def __init__(self, mode, variant=_DEFAULT_VARIANT):
+    def __init__(self, mode, variant=None):
         self.display_mode = mode
         self._variant = variant
         self._d_cols = D_COLS

@@ -45,11 +45,13 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
 
    `YOUR_DEVICE` is one of: `inkplate10`, `inkplate6`, `inkplate5v2`, `inkplate6flick`, `inkplate6plusv2`, `inkplate4tempera`, `inkplate6color`, `inkplate2`, `inkplate13spectra`.
 
-   Inkplate6 and Inkplate10 ship in two hardware revisions (classic v1 and V2), selected at runtime rather than by installing a different package:
+   Inkplate6 and Inkplate10 ship in two hardware revisions (classic v1 and V2). The driver
+   auto-detects which one is on the I2C bus at `begin()` time; pass `variant=` explicitly
+   only to override:
    ```python
    from inkplate6 import Inkplate
-   display = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate6v1")  # classic (non-V2) board
-   # variant defaults to "inkplate6v2" / "inkplate10v2" if omitted
+   display = Inkplate(Inkplate.INKPLATE_1BIT)  # revision auto-detected
+   display = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate6v1")  # force classic (non-V2)
    ```
 
 
