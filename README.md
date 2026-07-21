@@ -1,8 +1,8 @@
 # Soldered Inkplate MicroPython library
 
-[![Build](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=build&label=build)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
-[![Format](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=format&label=format)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
-[![Test](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=test&label=test)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
+[![Build](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/build.yml/badge.svg)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/build.yml)
+[![Format](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/format.yml/badge.svg)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/format.yml)
+[![Test](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/test.yml/badge.svg)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/test.yml)
 
 ![](./docs/inkplate_image.jpg)
 

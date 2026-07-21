@@ -1,0 +1,15 @@
+name: Build
+
+on:
+  push:
+    branches: [refactor]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build check (host-compiled C sources)
+        run: python3 firmware/usermods/inkplate/tests/run_ci.py build

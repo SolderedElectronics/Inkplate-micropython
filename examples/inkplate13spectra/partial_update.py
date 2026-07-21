@@ -34,9 +34,10 @@ display.display()
 box_x, box_y, box_w, box_h = 50, 120, 150, 60
 
 for i in range(10):
-    # Clear just the box (fill with white) before drawing the new number --
-    # display_partial() has no diffing, so old pixels are not cleared for you
-    display.fill_rect(box_x, box_y, box_w, box_h, display.WHITE)
+    # Clear just the box interior (fill with white) before drawing the new
+    # number -- inset by 1px so the border drawn by draw_rect() above isn't
+    # overwritten, since display_partial() has no diffing of its own
+    display.fill_rect(box_x + 1, box_y + 1, box_w - 2, box_h - 2, display.WHITE)
     display.print_text(box_x + 10, box_y + 15, "Count: " + str(i))
 
     # Only this rectangle gets re-sent and refreshed -- much faster than

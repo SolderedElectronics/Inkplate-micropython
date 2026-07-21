@@ -1,4 +1,4 @@
-name: CI
+name: Format
 
 on:
   push:
@@ -7,13 +7,6 @@ on:
     branches: [master]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build check (host-compiled C sources)
-        run: python3 firmware/usermods/inkplate/tests/run_ci.py build
-
   format:
     runs-on: ubuntu-latest
     steps:
@@ -29,10 +22,3 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y clang-format-18
           clang-format-18 --dry-run --Werror $(find firmware -name '*.c' -o -name '*.h')
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Unit test runner (host-compiled C tests)
-        run: python3 firmware/usermods/inkplate/tests/run_ci.py test
