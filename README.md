@@ -1,4 +1,4 @@
-# Soldered Inkplate Micropython library
+# Soldered Inkplate MicroPython library
 
 [![Build](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=build&label=build)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
 [![Format](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=format&label=format)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
@@ -6,7 +6,7 @@
 
 ![](./docs/inkplate_image.jpg)
 
-The Micropython modules for the Inkplate product family can be found in this repository. Inkplate is a series of powerful, Wi-Fi and Bluetooth enabled, ESP32-based ePaper display products. Its main feature is simplicity. Just plug in a USB cable, load the MicroPython firmware and the required libraries and run your script on Inkplate itself. The Inkplate product family currently includes Inkplate 10, Inkplate 6, Inkplate 5V2, Inkplate 6FLICK, Inkplate 6PLUS, Inkplate 4TEMPERA, Inkplate 6COLOR, Inkplate 2 and Inkplate 13SPECTRA. 
+The MicroPython modules for the Inkplate product family can be found in this repository. Inkplate is a series of powerful, Wi-Fi and Bluetooth enabled, ESP32-based ePaper display products. Its main feature is simplicity. Just plug in a USB cable, load the MicroPython firmware and the required libraries and run your script on Inkplate itself. The Inkplate product family currently includes Inkplate 10, Inkplate 6, Inkplate 5V2, Inkplate 6FLICK, Inkplate 6PLUS, Inkplate 4TEMPERA, Inkplate 6COLOR, Inkplate 2 and Inkplate 13SPECTRA. 
 Inkplate 6 was crowdfunded on [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-6), as well as [Inkplate 10](https://www.crowdsupply.com/e-radionica/inkplate-10), [Inkplate 6PLUS](https://www.crowdsupply.com/e-radionica/inkplate-6plus) and [Inkplate 6COLOR](https://www.crowdsupply.com/soldered/inkplate-6color). Inkplate 2 was funded on [Kickstarter](https://www.kickstarter.com/projects/solderedelectronics/inkplate-2-a-easy-to-use-arduino-compatible-e-paper).
 
 All available to purchase from [Soldered.com](https://soldered.com/categories/inkplate/).
@@ -18,14 +18,14 @@ Original effort to enable MicroPython support for Inkplate was done by [tve](htt
 In order to get started with running your code on Inkplate, connect the device to your computer via USB and follow these steps:
 1. Download the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file onto your computer
 
-2. Flash the aformentioned firmware onto the Inkplate device, this can be done via our [Micropython VSCode Extention](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper) or the [Thonny IDE](https://thonny.org/)
+2. Flash the aformentioned firmware onto the Inkplate device, this can be done via our [MicroPython VSCode Extention](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper) or the [Thonny IDE](https://thonny.org/)
 
 #### Flashing with the VSCode extension
-After [setting up the VSCode extension](https://soldered.com/documentation/micropython/getting-started-with-vscode/), go to  `Install Micropython on your board` and pick `Upload Binary file from PC`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file and wait for it to flash on the device
+After [setting up the VSCode extension](https://soldered.com/documentation/micropython/getting-started-with-vscode/), go to  `Install MicroPython on your board` and pick `Upload Binary file from PC`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file and wait for it to flash on the device
 
 #### Flashing via Thonny IDE
 
-In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the window go to `Install or update Micropython`. On the bottom of that window click on the `≡` button and pick `Select local MicroPython image`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file on your computer and press `Install`
+In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the window go to `Install or update MicroPython`. On the bottom of that window click on the `≡` button and pick `Select local MicroPython image`, pick the Inkplate-firmware.bin (or Inkplate13SPECTRA-firmware.bin) file on your computer and press `Install`
 
 3. [Install the mpremote package](https://docs.micropython.org/en/latest/reference/mpremote.html)
 
@@ -79,7 +79,7 @@ More information is provided in the examples themselves in the shape of comments
 
 ### Building the firmware manually
 
-Most users should just flash the prebuilt `firmware/Inkplate-firmware.bin` (classic ESP32 boards) or `firmware/Inkplate13SPECTRA-firmware.bin` (ESP32-S3) as described above. If you need to build it yourself — e.g. to pick up unreleased changes to `firmware/usermods/inkplate/` — this firmware is plain upstream [MicroPython](https://github.com/micropython/micropython) for the `esp32` port, plus this repo's C driver wired in as a `USER_C_MODULES` component. No fork of MicroPython is needed.
+Most users should just flash the prebuilt `firmware/Inkplate-firmware.bin` (classic ESP32 boards) or `firmware/Inkplate13SPECTRA-firmware.bin` (ESP32-S3) as described above. If you need to build it yourself - e.g. to pick up unreleased changes to `firmware/usermods/inkplate/` - this firmware is plain upstream [MicroPython](https://github.com/micropython/micropython) for the `esp32` port, plus this repo's C driver wired in as a `USER_C_MODULES` component. No fork of MicroPython is needed.
 
 1. Clone MicroPython and its submodules, and install ESP-IDF **v5.5.x** (this firmware is developed/tested against v5.5.2) by following MicroPython's own [ESP32 port build instructions](https://github.com/micropython/micropython/tree/master/ports/esp32#requirements):
    ```
@@ -102,14 +102,14 @@ Most users should just flash the prebuilt `firmware/Inkplate-firmware.bin` (clas
         USER_C_MODULES=/path/to/Inkplate-micropython/firmware/usermods/inkplate
    ```
    Run `make ... clean` first if you're rebuilding after changing which C files are registered (a stale build directory can leave dangling symbol references).
-4. The flashable merged image is generated at `build-<BOARD>-<BOARD_VARIANT>/firmware.bin` (e.g. `build-ESP32_GENERIC-SPIRAM/firmware.bin`) — this is the same file this repo ships as `firmware/Inkplate-firmware.bin`/`firmware/Inkplate13SPECTRA-firmware.bin`. Flash it with the VSCode extension/Thonny steps above, or directly:
+4. The flashable merged image is generated at `build-<BOARD>-<BOARD_VARIANT>/firmware.bin` (e.g. `build-ESP32_GENERIC-SPIRAM/firmware.bin`) - this is the same file this repo ships as `firmware/Inkplate-firmware.bin`/`firmware/Inkplate13SPECTRA-firmware.bin`. Flash it with the VSCode extension/Thonny steps above, or directly:
    ```
    make BOARD=ESP32_GENERIC BOARD_VARIANT=SPIRAM \
         USER_C_MODULES=/path/to/Inkplate-micropython/firmware/usermods/inkplate \
         PORT=/dev/ttyUSB0 deploy
    ```
 
-The C driver's own host-compilable unit tests (no ESP-IDF/hardware needed) can be run independently with `python3 firmware/usermods/inkplate/tests/run_ci.py test` — the same check CI runs on every push.
+The C driver's own host-compilable unit tests (no ESP-IDF/hardware needed) can be run independently with `python3 firmware/usermods/inkplate/tests/run_ci.py test` - the same check CI runs on every push.
 
 ### Documentation
 
@@ -130,5 +130,4 @@ At Soldered, we design and manufacture a wide selection of electronic products t
 ## Have fun!
 
 And thank you from your fellow makers at Soldered Electronics.
-
 

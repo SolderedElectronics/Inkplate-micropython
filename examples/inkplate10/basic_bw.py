@@ -10,7 +10,7 @@ soldered_logo = bytearray(
 )
 
 # Create Inkplate object in 1-bit mode, black and white colors only
-# For 2-bit grayscale, see basic_grayscale.py
+# For 8-level grayscale, see basic_grayscale.py
 # Hardware revision (classic v1 vs V2) is auto-detected. Pass variant="inkplate10v1" or
 # variant="inkplate10v2" to override: Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate10v1")
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)

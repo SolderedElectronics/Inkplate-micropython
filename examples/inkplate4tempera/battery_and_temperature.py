@@ -9,7 +9,7 @@ sensors/fuel_gauge.py for that.
 from inkplate4tempera import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only
-# For 2-bit grayscale, see basic_grayscale.py
+# For 8-level grayscale, see basic_grayscale.py
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
 # Initialize the display, needs to be called only once

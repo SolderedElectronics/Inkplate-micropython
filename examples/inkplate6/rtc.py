@@ -5,7 +5,7 @@ from inkplate6 import Inkplate
 import time
 
 # Create Inkplate object in 1-bit mode, black and white colors only
-# For 2-bit grayscale, see basic_grayscale.py
+# For 8-level grayscale, see basic_grayscale.py
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
 
