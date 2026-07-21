@@ -1,8 +1,8 @@
 # Soldered Inkplate Micropython library
 
-[![Build](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=build)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
-[![Format](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=format)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
-[![Test](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=test)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
+[![Build](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=build&label=build)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
+[![Format](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=format&label=format)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
+[![Test](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml/badge.svg?job=test&label=test)](https://github.com/SolderedElectronics/Inkplate-micropython/actions/workflows/ci.yml)
 
 ![](./docs/inkplate_image.jpg)
 
@@ -74,25 +74,6 @@ There are several examples which will indicate all the functions you can use in 
 * `partial_update.py` (Inkplate13SPECTRA) shows partial-refresh usage on a color panel
 
 More information is provided in the examples themselves in the shape of comments.
-
-### Migrating from the pre-refactor (pure-Python) version
-
-This branch is a ground-up rewrite of the display driver: the hot pixel/waveform/transport path moved from bit-banged `@micropython.viper` Python into a shared C firmware module (`firmware/usermods/inkplate/`) driving the panel over ESP32 I2S DMA instead of raw GPIO bit-banging, and grayscale went from 2-bit/4-level to real 3-bit/8-level. If you have existing scripts written against the old pure-Python driver, the following will need changes:
-
-* **mip install path changed.** Board packages moved under `boards/`:
-  ```
-  # old
-  mpremote mip install github:SolderedElectronics/Inkplate-micropython/inkplate6
-  # new
-  mpremote mip install github:SolderedElectronics/Inkplate-micropython/boards/inkplate6
-  ```
-* **Grayscale range changed from 0-3 to 0-7.** `InkplateGS2`'s framebuffer is now 8-level (3-bit); any script that hardcoded grayscale pixel values in the old 0-3 range needs to rescale to 0-7 (e.g. multiply by 2, or use the real 8 levels directly).
-* **Partial update no longer takes `x, y, w, h`** on the mono parallel-bus boards (Inkplate6, 10, 5V2, 6FLICK, 6PLUS, 4TEMPERA). It now always diffs the full frame and redraws only what changed (matching Soldered's Arduino reference driver) — call `display.partial_update()` with no region arguments. Inkplate13SPECTRA's `display_partial(x, y, w, h)` is unrelated and unchanged (its SPI color panel always took an explicit region, no diffing).
-* **`init_sd_card(fastBoot=...)` is now `init_sd_card(fast_boot=...)`** (the old camelCase kwarg was a pre-existing bug that would raise `TypeError` if actually used).
-* **New boards**: Inkplate5V2, Inkplate6FLICK, Inkplate6PLUS(V2) and Inkplate4TEMPERA didn't exist in the pre-refactor repo.
-* **New hardware-revision support**: Inkplate6 and Inkplate10 now take an explicit `variant="inkplate6v1"`/`"inkplate10v1"` constructor kwarg for classic (pre-V2) boards with an MCP23017 expander — see the mip install section above. Existing V2 hardware needs no change (it's the default).
-* **`draw_jpg_from_sd`/`draw_jpg_from_web` now actually work.** These were dead code pre-refactor (imported a nonexistent `jpeg` module); JPEG, PNG and BMP decode/draw (from SD card or a URL, with optional dithering) are now real, C-backed, and available on every board via `draw_image()`/`draw_jpg_from_sd()`/`draw_png_from_sd()`/`draw_bmp_from_sd()`/`..._from_web()`.
-* **`gfx.py`/`shapes.py` are gone.** Shape/text drawing moved into C bindings reached through each board's own class methods (`draw_rect`, `draw_circle`, `draw_line`, ...); any code importing `from gfx import GFX` or `from shapes import Shapes` directly will need to switch to calling those methods on the `Inkplate` instance instead.
 
 ### Building the firmware manually
 

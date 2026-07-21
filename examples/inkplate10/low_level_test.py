@@ -1,7 +1,7 @@
 """Diagnostic-only test for the low-level C display port.
 
 Exercises ONLY power_on/clean/power_off (vscan_start + fill_screen) --
-bypasses InkplateMono/InkplateGS2/InkplatePartial and the per-row draw
+bypasses InkplateMono/InkplateGS4/InkplatePartial and the per-row draw
 loop entirely, to isolate whether the lowest-level primitives can
 produce a correct, visible result at all.
 """

@@ -292,7 +292,7 @@ class InkplateMono(framebuf.FrameBuffer):
         inkplate.gfx_buf_fill(fb, 0x00)
 
 
-class InkplateGS2(framebuf.FrameBuffer):
+class InkplateGS4(framebuf.FrameBuffer):
     """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
     The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the
@@ -329,7 +329,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         tc = time.ticks_diff(t1, t0)
         td = time.ticks_diff(t2, t1)
         tt = time.ticks_diff(t2, t0)
-        print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
+        print("GS4: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
         # Trailing park sequence.
         ip.clean(3, 1)
@@ -422,7 +422,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
-        self.ipg = InkplateGS2()
+        self.ipg = InkplateGS4()
         self.ipm = InkplateMono()
 
         if self.display_mode == Inkplate.INKPLATE_2BIT:
@@ -508,7 +508,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
 
     def clear_display(self):
         InkplateMono.clear(self.ipm._framebuf)
-        InkplateGS2.clear(self.ipg._framebuf)
+        InkplateGS4.clear(self.ipg._framebuf)
 
     def display(self):
         if self.display_mode == 0:

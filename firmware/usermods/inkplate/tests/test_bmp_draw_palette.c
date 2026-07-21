@@ -16,7 +16,7 @@ static const uint8_t sample_bmp_24[70] = {
     0,   0,   0,  0, 0,  0, 255, 0, 0, 0, 255, 255, 0, 0, 0,  0, 255, 0, 255, 0, 0, 0,
 };
 
-// 6COLOR's real palette (docs/REFACTOR-PLAN.md Phase 10 step 32).
+// 6COLOR's real palette.
 static const dither_palette_entry_t palette_6color[] = {
     {0, 0, 0, 0},   {255, 255, 255, 1}, {0, 255, 0, 2},   {0, 0, 255, 3},
     {255, 0, 0, 4}, {255, 255, 0, 5},   {255, 165, 0, 6},

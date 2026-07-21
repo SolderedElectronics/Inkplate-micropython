@@ -129,9 +129,9 @@ static void test_diffusion_clips_at_column_edges(void)
     printf("test_diffusion_clips_at_column_edges: passed\n");
 }
 
-// 6COLOR's real 7-entry palette (docs/REFACTOR-PLAN.md Phase 10 step 32), used below
-// to exercise dither_quantize_palette/dither_invert_palette_bw against real data
-// instead of a synthetic table.
+// 6COLOR's real 7-entry palette, used below to exercise
+// dither_quantize_palette/dither_invert_palette_bw against real data instead of a
+// synthetic table.
 static const dither_palette_entry_t test_palette_6color[] = {
     {0, 0, 0, 0},   {255, 255, 255, 1}, {0, 255, 0, 2},   {0, 0, 255, 3},
     {255, 0, 0, 4}, {255, 255, 0, 5},   {255, 165, 0, 6},

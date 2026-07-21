@@ -25,21 +25,6 @@ machine.freq(240000000)
 D_ROWS = const(825)
 D_COLS = const(1200)
 
-# Waveforms for 2 bits per pixel grey-scale.
-# Order of 4 values in each tuple: blk, dk-grey, light-grey, white
-# Meaning of values: 0=dischg, 1=black, 2=white, 3=skip
-# Uses "colors" 0 (black), 3, 5, and 7 (white) from 3-bit waveforms below
-
-WAVE_2B = (
-    (1, 1, 2, 0),
-    (1, 1, 1, 0),
-    (0, 2, 1, 0),
-    (1, 2, 1, 0),
-    (0, 0, 2, 2),
-    (1, 1, 0, 0),
-    (0, 0, 0, 0),
-)
-
 # Valid hardware variants for this driver. IO_INT_ADDR=0x20 (internal expander, drives
 # OE/GMODE/SPV/TPS_*) is the same on both variants; IO_EXT_ADDR=0x21 for V2, 0x22 for
 # classic. Classic's internal expander is an MCP23017; V2's is a PCAL6416A. Pass
@@ -310,7 +295,7 @@ class InkplateMono(framebuf.FrameBuffer):
         inkplate.gfx_buf_fill(fb, 0x00)
 
 
-class InkplateGS2(framebuf.FrameBuffer):
+class InkplateGS4(framebuf.FrameBuffer):
     """Inkplate display driver: 8-level (3-bit) grayscale storage (GS4_HMSB, raw 0-7).
 
     The C engine (firmware/usermods/inkplate/epd_i2s.c, waveform.c) drives the
@@ -347,7 +332,7 @@ class InkplateGS2(framebuf.FrameBuffer):
         tc = time.ticks_diff(t1, t0)
         td = time.ticks_diff(t2, t1)
         tt = time.ticks_diff(t2, t0)
-        print("GS2: clean %dms, draw %dms, total %dms" % (tc, td, tt))
+        print("GS4: clean %dms, draw %dms, total %dms" % (tc, td, tt))
 
         # Trailing park sequence before power-down.
         ip.clean(3, 1)
@@ -440,7 +425,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
-        self.ipg = InkplateGS2()
+        self.ipg = InkplateGS4()
         self.ipm = InkplateMono()
 
         if self.display_mode == Inkplate.INKPLATE_2BIT:
@@ -539,7 +524,7 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
 
     def clear_display(self):
         InkplateMono.clear(self.ipm._framebuf)
-        InkplateGS2.clear(self.ipg._framebuf)
+        InkplateGS4.clear(self.ipg._framebuf)
 
     def display(self):
         if self.display_mode == 0:

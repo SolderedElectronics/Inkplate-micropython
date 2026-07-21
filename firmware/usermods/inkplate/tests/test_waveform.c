@@ -96,7 +96,7 @@ static void test_mono_wave_parity(void)
 
 static void test_mono_wave_white_first_parity(void)
 {
-    // Inkplate6PLUSV2-only variant (docs/REFACTOR-PLAN.md Phase 8 step 25 HIL fix):
+    // Inkplate6PLUSV2-only variant:
     // repeated phases push white/skip black (op={2,3}, the mirror of expected_blk below),
     // one final phase pushes black/skip white (op={3,1} -- coincidentally identical bytes
     // to test_mono_wave_parity's expected_blk, just used as the last phase instead of the

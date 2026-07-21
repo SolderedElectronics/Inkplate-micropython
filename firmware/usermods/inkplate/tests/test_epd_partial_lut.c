@@ -32,7 +32,7 @@ int main(void)
         }
     }
 
-    // Hand-derived sanity cases (docs/REFACTOR-PLAN.md step 16 trace):
+    // Hand-derived sanity cases:
     // unchanged nibble (any value) -> all 4 pixels skip(3) = 0xFF, regardless of color.
     assert(lut[(0x0 << 4) | 0x0] == 0xFF);
     assert(lut[(0xF << 4) | 0xF] == 0xFF);
