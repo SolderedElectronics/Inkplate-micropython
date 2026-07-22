@@ -92,3 +92,39 @@ const spi_panel_config_t spi_panel_config_inkplate13spectra = {
     .pin_bs0 = 6,
     .pin_bs1 = 5,
 };
+
+// Inkplate7SPECTRA (800x480 native controller resolution, 4bpp/6-color GDEP-family
+// panel, single SPI-controller chip). ESP32-S3 board, same eval-board pinout as
+// Inkplate13SPECTRA (RST/DC/CS/BUSY/CLK/DIN pin numbers are identical between the two
+// vendor Arduino drivers) but chip_count == 1, not 2.
+//
+// The vendor driver also drives a panel power-enable GPIO (PWR_EN, pin 21) and two
+// interface bus-select straps (BS0/BS1, pins 6/5) -- same pin numbers Inkplate13SPECTRA
+// uses its pin_pwr_en/pin_bs0/pin_bs1 fields for. This struct deliberately leaves those
+// fields at 0/unused: reusing them here would mean going through
+// epd_spi_dual_power_up_io()/epd_spi_dual_pins_low(), which unconditionally also
+// configures pin_cs2 as a second CS output -- for a chip_count == 1 board pin_cs2 is 0
+// (GPIO0), and toggling that as a bogus "slave CS" is wrong. Instead, PWR_EN/BS0/BS1 are
+// driven directly from Python as plain machine.Pin GPIOs, the same as any other
+// board-specific non-hot-path GPIO in this codebase (see
+// boards/inkplate7spectra/inkplate7spectra.py). Only RST/DC/CS/BUSY/CLK/DIN go through
+// the C epd_spi_* single-chip transport, same as Inkplate6COLOR/Inkplate2 above.
+//
+// spi_freq_hz = 8MHz (SPI_MODE0), matching the vendor Arduino driver's epdSpiSettings.
+const spi_panel_config_t spi_panel_config_inkplate7spectra = {
+    .name = "inkplate7spectra",
+
+    .width = 800,
+    .height = 480,
+
+    .pin_rst = 4,
+    .pin_dc = 14,
+    .pin_cs = 42,
+    .pin_busy = 7,
+    .pin_clk = 38,
+    .pin_din = 40,
+
+    .spi_freq_hz = 8000000,
+
+    .chip_count = 1,
+};

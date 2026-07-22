@@ -7,6 +7,7 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_rom_sys.h"
+#include "soc/soc_caps.h"
 #include <stdbool.h>
 
 // VSPI/SPI3_HOST -- matches the pre-refactor Python driver's machine.SPI(2) choice,
@@ -16,6 +17,20 @@
 // separation logic is needed here.
 #define EPD_SPI_HOST SPI3_HOST
 
+#if SOC_GDMA_SUPPORTED
+// ESP32-S3 (and every other GDMA-based target) only accepts SPI_DMA_DISABLED or
+// SPI_DMA_CH_AUTO here -- spi_bus_initialize() hard-rejects any literal channel number
+// with ESP_ERR_INVALID_ARG ("chip only support spi dma channel auto-alloc", see
+// esp_driver_spi/src/gpspi/spi_common.c). Confirmed via HIL on Inkplate7SPECTRA
+// (the first S3 board to exercise this single-chip transport): the literal-2 value
+// below silently failed spi_bus_initialize(), leaving s_spi_dev NULL and every
+// epd_spi_send_command/send_data call a silent no-op (spi_device_transmit rejects the
+// invalid handle without crashing). GDMA channels come from a dynamically-managed pool
+// rather than the legacy fixed 2-channels-total model below, so there's no equivalent
+// collision risk with SD's own channel here -- same reasoning already relied upon by
+// epd_spi_dual_power_up_io()'s SPI_DMA_CH_AUTO further down this file.
+#define EPD_SPI_DMA_CHAN SPI_DMA_CH_AUTO
+#else
 // Classic ESP32 has only 2 SPI-capable DMA channels total. machine.SDCard(slot=3)
 // hardcodes DMA channel 1 for its own HSPI/SPI2_HOST bus (spi_dma_channel_defaults[1] ==
 // 1 in ports/esp32/machine_sdcard.c). Letting this panel's own spi_bus_initialize()
@@ -25,6 +40,7 @@
 // slot=2/VSPI entry already uses, so the two boards' DMA channel choices can never
 // collide regardless of init order.
 #define EPD_SPI_DMA_CHAN 2
+#endif
 
 // ESP-IDF's spi_master driver caps a single spi_device_transmit() transaction at
 // max_transfer_sz bytes (4092 by default) -- far smaller than a full framebuffer (600x448

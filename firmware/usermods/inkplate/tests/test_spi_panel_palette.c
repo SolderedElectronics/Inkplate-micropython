@@ -13,6 +13,8 @@ static void test_id_for_name(void)
     assert(spi_panel_palette_id_for_name("inkplate2") == SPI_PANEL_PALETTE_INKPLATE2);
     assert(spi_panel_palette_id_for_name("inkplate13spectra") ==
            SPI_PANEL_PALETTE_INKPLATE13SPECTRA);
+    assert(spi_panel_palette_id_for_name("inkplate7spectra") ==
+           SPI_PANEL_PALETTE_INKPLATE7SPECTRA);
     assert(spi_panel_palette_id_for_name("inkplate10v1") == -1);
 
     printf("test_id_for_name: passed\n");
@@ -38,6 +40,14 @@ static void test_palette_tables(void)
     p = spi_panel_palette_table(SPI_PANEL_PALETTE_INKPLATE2, &n);
     assert(n == 3);
     assert(p[1].r == 0 && p[1].g == 0 && p[1].b == 0 && p[1].value == 1); // black
+
+    p = spi_panel_palette_table(SPI_PANEL_PALETTE_INKPLATE7SPECTRA, &n);
+    assert(n == 6);
+    // Same register-value gap as 13SPECTRA (value 4 skipped).
+    for (int i = 0; i < n; i++) {
+        assert(p[i].value != 4);
+    }
+    assert(p[4].value == 5 && p[4].b == 255); // blue -> register value 5
 
     n = 0;
     assert(spi_panel_palette_table(-1, &n) == NULL);
@@ -114,6 +124,36 @@ static void test_write_pixel_13spectra(void)
     printf("test_write_pixel_13spectra: passed\n");
 }
 
+static void test_write_pixel_7spectra(void)
+{
+    // Identical formula/layout to write_pixel_6color -- same 180-degree-mounted-panel
+    // compensation, just a different physical resolution (800x480 vs 600x448). Reuse
+    // the same 4x2 test geometry as test_write_pixel_6color to keep the expected byte
+    // math identical.
+    uint8_t fb[4] = {0};
+    spi_panel_palette_ctx_t ctx = {.panel = SPI_PANEL_PALETTE_INKPLATE7SPECTRA,
+                                   .fb = fb,
+                                   .fb2 = NULL,
+                                   .width = 4,
+                                   .height = 2,
+                                   .rotation = 0,
+                                   .x0 = 0,
+                                   .y0 = 0};
+
+    // (x=0,y=0) -> px=3,py=1 (odd -> low nibble). (x=1,y=0) -> px=2,py=1 (even ->
+    // high nibble). Both land in byte idx = 1*2 + 1 = 3.
+    spi_panel_palette_write_pixel(&ctx, 0, 0, 5);
+    spi_panel_palette_write_pixel(&ctx, 1, 0, 3);
+    assert(fb[3] == 0x35);
+
+    // Out-of-bounds is silently dropped, not wrapped.
+    ctx.y0 = 5;
+    spi_panel_palette_write_pixel(&ctx, 0, 0, 7); // ly = 5 >= height(2), dropped
+    assert(fb[3] == 0x35);
+
+    printf("test_write_pixel_7spectra: passed\n");
+}
+
 static void test_write_pixel_inkplate2(void)
 {
     // Real physical dims (E_INK_WIDTH=104, E_INK_HEIGHT=212), matching
@@ -182,6 +222,7 @@ int main(void)
     test_palette_tables();
     test_write_pixel_6color();
     test_write_pixel_13spectra();
+    test_write_pixel_7spectra();
     test_write_pixel_inkplate2();
     printf("test_spi_panel_palette: all assertions passed\n");
     return 0;

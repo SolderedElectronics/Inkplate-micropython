@@ -6,7 +6,7 @@
 
 ![](./docs/inkplate_image.jpg)
 
-The MicroPython modules for the Inkplate product family can be found in this repository. Inkplate is a series of powerful, Wi-Fi and Bluetooth enabled, ESP32-based ePaper display products. Its main feature is simplicity. Just plug in a USB cable, load the MicroPython firmware and the required libraries and run your script on Inkplate itself. The Inkplate product family currently includes Inkplate 10, Inkplate 6, Inkplate 5V2, Inkplate 6FLICK, Inkplate 6PLUS, Inkplate 4TEMPERA, Inkplate 6COLOR, Inkplate 2 and Inkplate 13SPECTRA. 
+The MicroPython modules for the Inkplate product family can be found in this repository. Inkplate is a series of powerful, Wi-Fi and Bluetooth enabled, ESP32-based ePaper display products. Its main feature is simplicity. Just plug in a USB cable, load the MicroPython firmware and the required libraries and run your script on Inkplate itself. The Inkplate product family currently includes Inkplate 10, Inkplate 6, Inkplate 5V2, Inkplate 6FLICK, Inkplate 6PLUS, Inkplate 4TEMPERA, Inkplate 6COLOR, Inkplate 2, Inkplate 13SPECTRA and Inkplate 7SPECTRA. 
 Inkplate 6 was crowdfunded on [Crowd Supply](https://www.crowdsupply.com/e-radionica/inkplate-6), as well as [Inkplate 10](https://www.crowdsupply.com/e-radionica/inkplate-10), [Inkplate 6PLUS](https://www.crowdsupply.com/e-radionica/inkplate-6plus) and [Inkplate 6COLOR](https://www.crowdsupply.com/soldered/inkplate-6color). Inkplate 2 was funded on [Kickstarter](https://www.kickstarter.com/projects/solderedelectronics/inkplate-2-a-easy-to-use-arduino-compatible-e-paper).
 
 All available to purchase from [Soldered.com](https://soldered.com/categories/inkplate/).
@@ -43,7 +43,7 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
       mpremote mip install github:SolderedElectronics/Inkplate-micropython/boards/inkplate6
    ```
 
-   `YOUR_DEVICE` is one of: `inkplate10`, `inkplate6`, `inkplate5v2`, `inkplate6flick`, `inkplate6plusv2`, `inkplate4tempera`, `inkplate6color`, `inkplate2`, `inkplate13spectra`.
+   `YOUR_DEVICE` is one of: `inkplate10`, `inkplate6`, `inkplate5v2`, `inkplate6flick`, `inkplate6plusv2`, `inkplate4tempera`, `inkplate6color`, `inkplate2`, `inkplate13spectra`, `inkplate7spectra`.
 
    Inkplate6 and Inkplate10 ship in two hardware revisions (classic v1 and V2). The driver
    auto-detects which one is on the I2C bus at `begin()` time; pass `variant=` explicitly
@@ -97,7 +97,8 @@ Most users should just flash the prebuilt `firmware/inkplate-firmware.bin` (clas
    make BOARD=ESP32_GENERIC BOARD_VARIANT=SPIRAM \
         USER_C_MODULES=/path/to/Inkplate-micropython/firmware/usermods/inkplate
 
-   # Inkplate13SPECTRA (ESP32-S3, octal PSRAM):
+   # Inkplate13SPECTRA/Inkplate7SPECTRA (ESP32-S3, octal PSRAM -- both boards share this
+   # build target/binary since board selection is a runtime string, not a compile-time flag):
    make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT \
         USER_C_MODULES=/path/to/Inkplate-micropython/firmware/usermods/inkplate
    ```

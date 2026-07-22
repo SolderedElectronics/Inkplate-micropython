@@ -299,6 +299,8 @@ static mp_obj_t inkplate_select_spi_panel(mp_obj_t name_obj)
         active_spi_panel = &spi_panel_config_inkplate2;
     } else if (strcmp(name, "inkplate13spectra") == 0) {
         active_spi_panel = &spi_panel_config_inkplate13spectra;
+    } else if (strcmp(name, "inkplate7spectra") == 0) {
+        active_spi_panel = &spi_panel_config_inkplate7spectra;
     } else {
         mp_raise_ValueError(MP_ERROR_TEXT("unknown spi panel"));
     }

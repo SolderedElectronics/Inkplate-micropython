@@ -3,15 +3,16 @@
  * @brief Per-board palette tables and pixel packing for the SPI-controller-panel
  *        family's color/palette image-decode path.
  *
- * Deliberately not routed through gfx_set_pixel's GS4 packing (gfx.c): 6COLOR/13SPECTRA
- * pack pixels into a nibble in the opposite order gfx_set_pixel's GS4 branch uses (even
- * physical column -> high nibble here, vs. low nibble there), and each panel's
- * rotation/coordinate-remap formula is its own board-specific quirk (6COLOR bakes a
- * fixed "rotation 0" orientation with a pre-flip done in the decode step, 13SPECTRA
- * bakes a fixed "rotation 1" mapping with its own sign convention, Inkplate2 alone
- * honors `rotation` dynamically, over two separate 1bpp bitplanes instead of one indexed
- * buffer). Each board is handled on its own terms rather than unified under one shared
- * convention.
+ * Deliberately not routed through gfx_set_pixel's GS4 packing (gfx.c):
+ * 6COLOR/13SPECTRA/7SPECTRA pack pixels into a nibble in the opposite order
+ * gfx_set_pixel's GS4 branch uses (even physical column -> high nibble here, vs. low
+ * nibble there), and each panel's rotation/coordinate-remap formula is its own
+ * board-specific quirk (6COLOR and 7SPECTRA both bake a fixed "rotation 0" orientation
+ * with a pre-flip done in the decode step -- same formula, since 7SPECTRA's panel is
+ * mounted rotated 180 degrees the same way 6COLOR's is -- 13SPECTRA bakes a fixed
+ * "rotation 1" mapping with its own sign convention, Inkplate2 alone honors `rotation`
+ * dynamically, over two separate 1bpp bitplanes instead of one indexed buffer). Each
+ * board is handled on its own terms rather than unified under one shared convention.
  */
 #ifndef INKPLATE_SPI_PANEL_PALETTE_H
 #define INKPLATE_SPI_PANEL_PALETTE_H
@@ -24,12 +25,13 @@ enum {
     SPI_PANEL_PALETTE_INKPLATE6COLOR = 0,
     SPI_PANEL_PALETTE_INKPLATE2 = 1,
     SPI_PANEL_PALETTE_INKPLATE13SPECTRA = 2,
+    SPI_PANEL_PALETTE_INKPLATE7SPECTRA = 3,
 };
 
 /**
  * @brief Look up the SPI_PANEL_PALETTE_* id for a board name.
- * @param name Board name ("inkplate6color"/"inkplate2"/"inkplate13spectra"),
- *        matching spi_panel_config_t.name.
+ * @param name Board name ("inkplate6color"/"inkplate2"/"inkplate13spectra"/
+ *        "inkplate7spectra"), matching spi_panel_config_t.name.
  * @return SPI_PANEL_PALETTE_* id, or -1 if unrecognized.
  */
 int spi_panel_palette_id_for_name(const char *name);

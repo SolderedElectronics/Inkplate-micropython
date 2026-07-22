@@ -37,6 +37,17 @@ static const dither_palette_entry_t palette_inkplate2[] = {
     {255, 0, 0, 2},     // red
 };
 
+// Same GDEP-family 6-color controller/register encoding as Inkplate13SPECTRA (register
+// value 4 skipped) -- confirmed against the vendor Arduino driver's colorPalette[].
+static const dither_palette_entry_t palette_inkplate7spectra[] = {
+    {0, 0, 0, 0},       // black
+    {255, 255, 255, 1}, // white
+    {255, 255, 0, 2},   // yellow
+    {255, 0, 0, 3},     // red
+    {0, 0, 255, 5},     // blue
+    {0, 255, 0, 6},     // green
+};
+
 int spi_panel_palette_id_for_name(const char *name)
 {
     if (strcmp(name, "inkplate6color") == 0) {
@@ -47,6 +58,9 @@ int spi_panel_palette_id_for_name(const char *name)
     }
     if (strcmp(name, "inkplate13spectra") == 0) {
         return SPI_PANEL_PALETTE_INKPLATE13SPECTRA;
+    }
+    if (strcmp(name, "inkplate7spectra") == 0) {
+        return SPI_PANEL_PALETTE_INKPLATE7SPECTRA;
     }
     return -1;
 }
@@ -64,16 +78,20 @@ const dither_palette_entry_t *spi_panel_palette_table(int panel, int *out_n)
             *out_n =
                 (int)(sizeof(palette_inkplate13spectra) / sizeof(palette_inkplate13spectra[0]));
             return palette_inkplate13spectra;
+        case SPI_PANEL_PALETTE_INKPLATE7SPECTRA:
+            *out_n =
+                (int)(sizeof(palette_inkplate7spectra) / sizeof(palette_inkplate7spectra[0]));
+            return palette_inkplate7spectra;
         default:
             *out_n = 0;
             return NULL;
     }
 }
 
-// 6COLOR/13SPECTRA share the same 4bpp nibble convention: even physical column ->
-// high nibble, odd -> low nibble -- the opposite of gfx_set_pixel's GS4 branch
-// (gfx.c), which puts the even column in the low nibble. They differ only in the
-// rotation-baked coordinate formula below.
+// 6COLOR/13SPECTRA/7SPECTRA share the same 4bpp nibble convention: even physical
+// column -> high nibble, odd -> low nibble -- the opposite of gfx_set_pixel's GS4
+// branch (gfx.c), which puts the even column in the low nibble. They differ only in
+// the rotation-baked coordinate formula below.
 static void spi_panel_pack_nibble(uint8_t *fb, int width, int px, int py, int value)
 {
     int bytes_per_row = width / 2;
@@ -92,6 +110,23 @@ static void spi_panel_pack_nibble(uint8_t *fb, int width, int px, int py, int va
 // orientation-agnostic. Equivalent to rotation==0's `x=w-x-1, y=h-y-1` case --
 // this board's default/only-ever-used rotation.
 static void write_pixel_6color(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
+{
+    int lx = ctx->x0 + x;
+    int ly = ctx->y0 + y;
+    if (lx < 0 || ly < 0 || lx >= ctx->width || ly >= ctx->height) {
+        return;
+    }
+    int px = ctx->width - 1 - lx;
+    int py = ctx->height - 1 - ly;
+    spi_panel_pack_nibble(ctx->fb, ctx->width, px, py, value);
+}
+
+// Identical formula to write_pixel_6color -- 7SPECTRA's panel is mounted rotated 180
+// degrees inside its enclosure the same way 6COLOR's is, and this board's default (and
+// only-ever-used) rotation compensates for that the same way. Kept as its own named
+// function rather than aliased, matching how every other board here gets its own
+// function even when the formula happens to coincide.
+static void write_pixel_7spectra(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
 {
     int lx = ctx->x0 + x;
     int ly = ctx->y0 + y;
@@ -175,6 +210,9 @@ void spi_panel_palette_write_pixel(void *ctx_, int x, int y, int value)
             break;
         case SPI_PANEL_PALETTE_INKPLATE13SPECTRA:
             write_pixel_13spectra(ctx, x, y, value);
+            break;
+        case SPI_PANEL_PALETTE_INKPLATE7SPECTRA:
+            write_pixel_7spectra(ctx, x, y, value);
             break;
         case SPI_PANEL_PALETTE_INKPLATE2:
             write_pixel_inkplate2(ctx, x, y, value);

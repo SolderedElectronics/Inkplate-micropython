@@ -67,5 +67,30 @@ int main(void)
     assert(cfg3->pin_bs0 == 6);
     assert(cfg3->pin_bs1 == 5);
 
+    const spi_panel_config_t *cfg4 = &spi_panel_config_inkplate7spectra;
+
+    assert(strcmp(cfg4->name, "inkplate7spectra") == 0);
+
+    assert(cfg4->width == 800);
+    assert(cfg4->height == 480);
+
+    // Pins from the real Arduino reference driver's pins.h.
+    assert(cfg4->pin_rst == 4);
+    assert(cfg4->pin_dc == 14);
+    assert(cfg4->pin_cs == 42);
+    assert(cfg4->pin_busy == 7);
+    assert(cfg4->pin_clk == 38);
+    assert(cfg4->pin_din == 40);
+
+    assert(cfg4->spi_freq_hz == 8000000);
+    assert(cfg4->chip_count == 1);
+
+    // PWR_EN/BS0/BS1 are intentionally NOT modeled in this struct -- see
+    // spi_panel_config_inkplate7spectra's own comment in spi_panel_config.c.
+    assert(cfg4->pin_cs2 == 0);
+    assert(cfg4->pin_pwr_en == 0);
+    assert(cfg4->pin_bs0 == 0);
+    assert(cfg4->pin_bs1 == 0);
+
     return 0;
 }
