@@ -1,0 +1,22 @@
+"""Read the battery voltage."""
+
+# Include needed libraries
+from inkplate7spectra import Inkplate
+
+# Creates an Inkplate object
+inkplate = Inkplate()
+
+# Initialize the display, needs to be called only once
+inkplate.begin()
+
+# Get the battery reading as a string
+battery = str(inkplate.read_battery())
+
+# Set text size to double from the original size, so we can see the text better
+inkplate.set_text_size(2)
+
+# Print the text at coordinates 100,100 (from the upper left corner)
+inkplate.print_text(100, 100, "Battery voltage: " + battery + "V")
+
+# Show it on the display
+inkplate.display()
