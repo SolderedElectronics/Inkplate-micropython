@@ -24,6 +24,7 @@ if __name__ == "__main__":
     # This is how to set the RTC's time
     # Arguments are hour, minute, seconds
     display.rtcSetTime(9,39,10)
+    
     # And this is the date
     # Arguments are weekday, day in month, month and year
     display.rtcSetDate(5,9,2,2024)
