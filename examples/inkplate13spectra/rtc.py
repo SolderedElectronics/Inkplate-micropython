@@ -10,43 +10,18 @@ inkplate = Inkplate()
 # Initialize the display, needs to be called only once
 inkplate.begin()
 
-inkplate.set_text_size(3)
-
 # This is how to set the RTC's time
 # Arguments are hour, minute, seconds
-inkplate.rtc_set_time(9, 39, 10)
+inkplate.rtc_set_time(9,39,10)
 # And this is the date
 # Arguments are weekday, day in month, month and year
-inkplate.rtc_set_date(2, 9, 2, 2026)
-
-# Full refresh once, so display_partial() below has an initialized image to
-# refresh against (see examples/inkplate13spectra/partial_update.py)
-inkplate.display()
-
-# Box that the time text is drawn into -- must be cleared before each redraw,
-# since display_partial() does not diff old vs. new pixels for you
-box_x, box_y, box_w, box_h = 100, 100, 300, 60
+inkplate.rtc_set_date(2,9,2,2026)
 
 # Infinite loop
 while True:
-    rtc_data = inkplate.rtc_get_data()
 
-    hour = rtc_data["hour"]
-    minute = rtc_data["minute"]
-    second = rtc_data["second"]
-
-    if hour < 10:
-        hour = "0" + str(hour)
-    if minute < 10:
-        minute = "0" + str(minute)
-    if second < 10:
-        second = "0" + str(second)
-
-    inkplate.fill_rect(box_x, box_y, box_w, box_h, inkplate.WHITE)
-    inkplate.set_cursor(box_x, box_y)
-    current_time = str(hour) + ":" + str(minute) + ":" + str(second)
-    inkplate.print(current_time)
-    inkplate.display_partial(box_x, box_y, box_w, box_h)
+    # Show the set time
+    print(inkplate.rtc_get_data())
 
     # Let's wait 10 seconds
     time.sleep(10)
