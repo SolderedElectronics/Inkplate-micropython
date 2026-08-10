@@ -25,9 +25,12 @@ display.begin()
 display.clear_display()
 
 # Draw a ramp of all 8 real gray levels (0=black .. 7=white) across the top of the panel,
-# leaving the lower area clear for the logo (panel is 1280x720).
+# leaving the lower area clear for the logo. Bar width is derived from the panel's own
+# width so all 8 bars stay on-screen regardless of variant (e.g. 960px on Inkplate5V1
+# vs 1280px on Inkplate5V2).
+bar_width = display.width() // 8
 for level in range(8):
-    display.write_fill_rect(level * 160, 0, 160, 300, level)
+    display.write_fill_rect(level * bar_width, 0, bar_width, 300, level)
 
 # Show on the display
 # This has to be called every time you want to update the screen
