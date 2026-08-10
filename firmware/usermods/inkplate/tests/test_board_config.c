@@ -108,6 +108,46 @@ int main(void)
         assert(v->has_frontlight == 0);
     }
 
+    // INKPLATE5 (classic, non-V2): same pin/data-bus layout, own resolution/waveform/
+    // partial_reps. Pin/expander layout assumed identical to INKPLATE5V2 -- not yet
+    // HIL-confirmed on real v1 hardware.
+    const board_config_t *cfg5v1 = &board_config_inkplate5v1;
+
+    assert(strcmp(cfg5v1->name, "inkplate5v1") == 0);
+
+    assert(cfg5v1->width == 960);
+    assert(cfg5v1->height == 540);
+
+    assert(memcmp(cfg5v1->data_pins, expected_data_pins, sizeof(expected_data_pins)) == 0);
+    assert(cfg5v1->data_mask == 0x0E8C0030);
+
+    assert(cfg5v1->pin_cl == 0);
+    assert(cfg5v1->pin_le == 2);
+    assert(cfg5v1->pin_ckv == 32);
+    assert(cfg5v1->pin_sph == 33);
+
+    assert(cfg5v1->pin_oe.expander_addr == 0x20 && cfg5v1->pin_oe.pin == 0);
+    assert(cfg5v1->pin_gmode.expander_addr == 0x20 && cfg5v1->pin_gmode.pin == 1);
+    assert(cfg5v1->pin_spv.expander_addr == 0x20 && cfg5v1->pin_spv.pin == 2);
+
+    assert(cfg5v1->pmic_i2c_addr == 0x48);
+
+    assert(cfg5v1->waveform != NULL);
+    assert(cfg5v1->waveform->levels == 8);
+    assert(cfg5v1->waveform->phases == 9);
+    // Phase 4 row, cross-checked against the real Arduino waveform3Bit[color][phase=4]
+    // column (classic Inkplate5's waveforms.h): color0=0, color1=1, color2=2, color3=0,
+    // color4=2, color5=1, color6=0, color7=0.
+    const uint8_t expected_wave5v1_row4[MAX_WAVE_LEVELS] = {0, 1, 2, 0, 2, 1, 0, 0};
+    assert(memcmp(cfg5v1->waveform->table[4], expected_wave5v1_row4, MAX_WAVE_LEVELS) == 0);
+    // Final phase (8) is the all-discharge/park row.
+    assert(memcmp(cfg5v1->waveform->table[8], expected_wave_row8, MAX_WAVE_LEVELS) == 0);
+
+    assert(cfg5v1->partial_reps == 6);
+
+    assert(cfg5v1->has_touch == 0);
+    assert(cfg5v1->has_frontlight == 0);
+
     // INKPLATE5V2: same pin/data-bus layout, own resolution/waveform/partial_reps.
     const board_config_t *cfg5v2 = &board_config_inkplate5v2;
 

@@ -139,6 +139,55 @@ const board_config_t board_config_inkplate6v2 = {
     .has_frontlight = 0,
 };
 
+// 3-bit/8-level waveform for classic Inkplate5 (non-V2). Transposed from a
+// [color][phase] source layout to this struct's [phase][color] row-per-phase
+// convention (cross-checked against wave_3b_inkplate5v2 below using the same method on
+// its own known-good source table before applying it here).
+static const waveform_table_t wave_3b_inkplate5v1 = {
+    .levels = 8,
+    .phases = 9,
+    .table =
+        {
+            {0, 0, 1, 1, 0, 0, 1, 0},
+            {0, 1, 2, 1, 1, 0, 1, 0},
+            {1, 1, 2, 1, 1, 0, 1, 0},
+            {1, 1, 0, 2, 1, 1, 2, 0},
+            {0, 1, 2, 0, 2, 1, 0, 0},
+            {1, 2, 1, 1, 0, 2, 2, 0},
+            {1, 0, 1, 1, 1, 1, 1, 0},
+            {1, 1, 1, 2, 2, 2, 2, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+        },
+};
+
+// INKPLATE5 (classic, 960x540): same single-PCAL6416A-expander layout as INKPLATE5V2
+// (confirmed same chip, no separate external expander -- unlike INKPLATE6/6V2 there's
+// no free expander-chip signal to auto-detect the variant by). Pin numbers assumed
+// identical to INKPLATE5V2 (same macro names used in both boards' upstream Arduino
+// headers) -- NOT yet HIL-confirmed on real v1 hardware. partial_reps=6 matches
+// upstream Arduino's partialUpdate() for(k<6) loop (vs V2's for(k<4), already reflected
+// in board_config_inkplate5v2.partial_reps=4 below). Mono display1b() uses the default
+// 5 black-push phases (see inkplatemodule.c's inkplate_mono_display) -- matches
+// upstream Arduino's for(k<5), no special-casing needed. gfx_set_mirror_x for this
+// variant is set to False in boards/inkplate5/inkplate5.py -- UNCONFIRMED on real
+// hardware, provisional based on the mirrored-text symptom seen running the V2 board
+// config on v1 hardware; verify on real panel before trusting non-mirrored output.
+const board_config_t board_config_inkplate5v1 = {
+    .name = "inkplate5v1",
+
+    .width = 960,
+    .height = 540,
+
+    INKPLATE_CLASSIC_PINS,
+
+    .waveform = &wave_3b_inkplate5v1,
+
+    .partial_reps = 6,
+
+    .has_touch = 0,
+    .has_frontlight = 0,
+};
+
 // 3-bit/8-level waveform for Inkplate5V2. Transposed from a [color][phase] source
 // layout to this struct's [phase][color] row-per-phase convention.
 static const waveform_table_t wave_3b_inkplate5v2 = {

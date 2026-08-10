@@ -84,6 +84,8 @@ static mp_obj_t inkplate_select_board(mp_obj_t name_obj)
         active_board = &board_config_inkplate6v1;
     } else if (strcmp(name, "inkplate6v2") == 0) {
         active_board = &board_config_inkplate6v2;
+    } else if (strcmp(name, "inkplate5v1") == 0) {
+        active_board = &board_config_inkplate5v1;
     } else if (strcmp(name, "inkplate5v2") == 0) {
         active_board = &board_config_inkplate5v2;
     } else if (strcmp(name, "inkplate6flick") == 0) {

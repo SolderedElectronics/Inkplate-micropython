@@ -77,6 +77,7 @@ extern const board_config_t board_config_inkplate10v1;
 extern const board_config_t board_config_inkplate10v2;
 extern const board_config_t board_config_inkplate6v1;
 extern const board_config_t board_config_inkplate6v2;
+extern const board_config_t board_config_inkplate5v1;
 extern const board_config_t board_config_inkplate5v2;
 extern const board_config_t board_config_inkplate6flick;
 extern const board_config_t board_config_inkplate6plusv2;
