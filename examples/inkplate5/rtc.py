@@ -1,11 +1,11 @@
 """Use the onboard RTC to preserve time across reboots."""
 
 # Include all the required libraries
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # Create Inkplate object in 1-bit mode, black and white colors only
 # For 8-level grayscale, see basic_grayscale.py
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")
 
 
 # Initialize the display, needs to be called only once

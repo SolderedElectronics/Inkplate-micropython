@@ -4,7 +4,7 @@ import network
 import time
 import urequests
 import ujson
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # Your WiFi credentials
 SSID = "YourNetwork"
@@ -29,7 +29,7 @@ def connect_wifi():
     return True
 
 # Initialize Inkplate display
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")
 inkplate.begin()
 inkplate.clear_display()
 inkplate.display()

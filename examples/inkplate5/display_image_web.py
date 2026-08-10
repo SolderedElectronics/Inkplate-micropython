@@ -3,7 +3,7 @@
 # Include needed libraries
 import network
 import time
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # WiFi credentials (replace with your own)
 SSID = "YOUR_SSID_HERE"
@@ -38,7 +38,7 @@ def do_connect():
 
 
 # Create Inkplate object in 2-bit (real 8-level GS3) grayscale mode
-inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_2BIT, variant="inkplate5v2")
 
 # Initialize the display, needs to be called only once
 inkplate.begin()

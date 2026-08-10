@@ -3,7 +3,7 @@
 import network
 import time
 import urequests
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # Your WiFi credentials
 SSID = "YourNetwork"

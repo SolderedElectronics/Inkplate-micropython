@@ -1,4 +1,4 @@
-"""MicroPython driver for the Inkplate 5V2 e-paper display."""
+"""MicroPython driver for the Inkplate 5 and Inkplate 5V2 e-paper displays."""
 
 import time
 import os
@@ -20,34 +20,79 @@ import gc
 import machine
 
 machine.freq(240000000)
-# Raw display constants for Inkplate 5V2
-D_ROWS = const(720)
-D_COLS = const(1280)
+
+# Valid hardware variants for this driver. Both boards use a single PCAL6416A internal
+# expander at 0x20 (confirmed -- unlike Inkplate6/6V2's MCP23017-vs-PCAL6416A split,
+# there's no free expander-chip signal to auto-detect this pair by) and neither has a
+# separate external expander. No known electrical signal distinguishes them, so unlike
+# inkplate6.py/inkplate10.py, variant must be passed explicitly -- there is no
+# _detect_variant() here.
+_VALID_VARIANTS = ("inkplate5v1", "inkplate5v2")
+
+# Raw display constants (rows, cols) per variant.
+_DIMENSIONS = {
+    "inkplate5v1": (540, 960),
+    "inkplate5v2": (720, 1280),
+}
+
+# Inkplate5V2's panel data-shift-register scans columns opposite to Inkplate6/10's, so
+# every pixel/shape/text primitive (all of which funnel through gfx.c's gfx_set_pixel)
+# needs the same horizontal flip. Classic Inkplate5's scan direction relative to
+# Inkplate5V2 is UNCONFIRMED on real hardware -- False here is provisional, based on
+# the mirrored-text symptom seen running the V2 board config on real v1 hardware.
+# Verify on a real v1 panel before trusting non-mirrored output.
+_MIRROR_X = {
+    "inkplate5v1": False,
+    "inkplate5v2": True,
+}
+
+# Pre-refresh clean-cycle rep count, from upstream Arduino's display1b()/display3b()
+# clean() calls (clean(1, N)/clean(0, N) pairs) -- 14 for classic Inkplate5, 11 for
+# Inkplate5V2. Separate from board_config_t's partial_reps (a different, C-side rep
+# count for partialUpdate's I2S transfer loop).
+_CLEAN_REPS = {
+    "inkplate5v1": 14,
+    "inkplate5v2": 11,
+}
+
+# Classic Inkplate5's upstream Arduino clean sequence has one extra trailing
+# clean(2, 1) discharge pulse that Inkplate5V2's doesn't (9 calls vs 8) -- see the
+# board's own display1b()/display3b() clean() call sequence.
+_CLEAN_TRAILING_DISCHARGE = {
+    "inkplate5v1": True,
+    "inkplate5v2": False,
+}
 
 
-# Inkplate provides access to the pins of the Inkplate 5V2 as well as to low-level
+# Inkplate provides access to the pins of the Inkplate 5/5V2 as well as to low-level
 # display functions.
 
 
 class _Inkplate:
     @classmethod
-    def init(cls, i2c):
+    def init(cls, i2c, variant):
+        if variant not in _VALID_VARIANTS:
+            raise ValueError(
+                "unknown Inkplate5 variant {!r}, must be one of {} -- this board pair has no "
+                "electrical auto-detect signal, so variant must always be passed "
+                "explicitly".format(variant, _VALID_VARIANTS)
+            )
+        cls._variant = variant
+        cls._clean_reps = _CLEAN_REPS[variant]
+        cls._clean_trailing_discharge = _CLEAN_TRAILING_DISCHARGE[variant]
         cls._i2c = i2c
-        # Inkplate5V2 has only one PCAL6416A expander (at 0x20) -- unlike Inkplate6/6V2
-        # there's no separate external expander at 0x21/0x22; this same chip also
-        # carries TPS_*/VBAT_EN/SD_ENABLE.
+        # Both Inkplate5 and Inkplate5V2 have only one PCAL6416A expander (at 0x20) --
+        # unlike Inkplate6/6V2 there's no separate external expander at 0x21/0x22; this
+        # same chip also carries TPS_*/VBAT_EN/SD_ENABLE.
         cls._PCAL6416A = PCAL6416A(i2c)
         # Display control lines -- pin mode/initial level only; toggling happens in C.
         Pin(0, Pin.OUT, value=0)  # EPD_CL
         Pin(2, Pin.OUT, value=0)  # EPD_LE
         Pin(32, Pin.OUT, value=0)  # EPD_CKV
         Pin(33, Pin.OUT, value=1)  # EPD_SPH
-        inkplate.select_board("inkplate5v2")
+        inkplate.select_board(variant)
         inkplate.set_expander_write_cb(cls._expander_write_cb)
-        # This panel's data-shift-register scans columns opposite to Inkplate6/10's, so
-        # every pixel/shape/text primitive (all of which funnel through gfx.c's
-        # gfx_set_pixel) needs the same horizontal flip.
-        inkplate.gfx_set_mirror_x(True)
+        inkplate.gfx_set_mirror_x(_MIRROR_X[variant])
 
         cls.EPD_OE = GpioPin(cls._PCAL6416A, 0, mode_output)
         cls.EPD_GMODE = GpioPin(cls._PCAL6416A, 1, mode_output)
@@ -198,6 +243,23 @@ class _Inkplate:
         for i in range(rep):
             inkplate.i2s_push_frame(c)
 
+    # pre_clean runs the pre-refresh clean-cycle sequence shared by InkplateMono.display,
+    # InkplateGS4.display, and Inkplate.clean() -- rep count and the extra trailing
+    # discharge pulse are variant-specific (see _CLEAN_REPS/_CLEAN_TRAILING_DISCHARGE).
+    @classmethod
+    def pre_clean(cls):
+        n = cls._clean_reps
+        cls.clean(0, 1)
+        cls.clean(1, n)
+        cls.clean(2, 1)
+        cls.clean(0, n)
+        cls.clean(2, 1)
+        cls.clean(1, n)
+        cls.clean(2, 1)
+        cls.clean(0, n)
+        if cls._clean_trailing_discharge:
+            cls.clean(2, 1)
+
     @classmethod
     def rtc_set_time(cls, rtc_hour, rtc_minute, rtc_second):
         cls._rtc.set_time(rtc_hour, rtc_minute, rtc_second)
@@ -212,9 +274,9 @@ class _Inkplate:
 
 
 class InkplateMono(framebuf.FrameBuffer):
-    def __init__(self):
-        self._framebuf = bytearray(D_ROWS * D_COLS // 8)
-        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.MONO_HMSB)
+    def __init__(self, d_rows, d_cols):
+        self._framebuf = bytearray(d_rows * d_cols // 8)
+        super().__init__(self._framebuf, d_cols, d_rows, framebuf.MONO_HMSB)
 
     # display sends the monochrome buffer to the display, clearing it first.
     def display(self):
@@ -222,16 +284,9 @@ class InkplateMono(framebuf.FrameBuffer):
         ip.power_on()
         ip.i2s_init()
 
-        # Clean the display (I2S DMA); this board uses 11 reps, not Inkplate6's 18.
+        # Clean the display (I2S DMA); rep count is variant-specific (see _CLEAN_REPS).
         t0 = time.ticks_ms()
-        ip.clean(0, 1)
-        ip.clean(1, 11)
-        ip.clean(2, 1)
-        ip.clean(0, 11)
-        ip.clean(2, 1)
-        ip.clean(1, 11)
-        ip.clean(2, 1)
-        ip.clean(0, 11)
+        ip.pre_clean()
 
         # The display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 6 phases driven in C.
@@ -261,9 +316,9 @@ class InkplateGS4(framebuf.FrameBuffer):
     3-bit/8-level waveform table natively -- no intermediate fold.
     """
 
-    def __init__(self):
-        self._framebuf = bytearray(D_ROWS * D_COLS // 2)
-        super().__init__(self._framebuf, D_COLS, D_ROWS, framebuf.GS4_HMSB)
+    def __init__(self, d_rows, d_cols):
+        self._framebuf = bytearray(d_rows * d_cols // 2)
+        super().__init__(self._framebuf, d_cols, d_rows, framebuf.GS4_HMSB)
 
     # display sends the grayscale buffer to the display, clearing it first.
     def display(self):
@@ -272,16 +327,9 @@ class InkplateGS4(framebuf.FrameBuffer):
         ip.i2s_init()
 
         # Clean the display (I2S DMA); same sequence as display1b() on this board --
-        # 11 reps, not Inkplate6's 18.
+        # rep count is variant-specific (see _CLEAN_REPS).
         t0 = time.ticks_ms()
-        ip.clean(0, 1)
-        ip.clean(1, 11)
-        ip.clean(2, 1)
-        ip.clean(0, 11)
-        ip.clean(2, 1)
-        ip.clean(1, 11)
-        ip.clean(2, 1)
-        ip.clean(0, 11)
+        ip.pre_clean()
 
         # The display gets written via I2S DMA + the C waveform engine
         # (firmware/usermods/inkplate/epd_i2s.c, waveform.c) -- 9 phases driven in C.
@@ -327,7 +375,7 @@ class InkplatePartial:
     # epd_i2s_push_partial_frame), matching how mono/GS/clean already work. Always
     # walks the full frame (no region params): unchanged pixels get a skip code from
     # the diff, so there's no row-range transmission shortcut over I2S. Reps driven by
-    # board_config_t's partial_reps (4 for Inkplate5V2).
+    # board_config_t's partial_reps (6 for Inkplate5, 4 for Inkplate5V2).
     def display(self):
         ip = _Inkplate
         ip.power_on()
@@ -349,7 +397,7 @@ class InkplatePartial:
 # gfx/text/image draw methods come from shared/mixins/inkplate_{gfx,text,image_gs4}_mixin.py
 # (same shared code as inkplate10/6/6plusv2/6flick/4tempera). self._d_cols/
 # self._d_rows must be set (done in __init__) before any draw call runs, or drawing
-# will be offset. This board's gfx_set_mirror_x(True) column-flip (set in
+# will be offset. This board's gfx_set_mirror_x column-flip (variant-specific, set in
 # _Inkplate.init) still applies to every gfx_* call the mixin makes.
 class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     # Inkplate wrapper to make it easier to use.
@@ -360,9 +408,6 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     BLACK = 1
     WHITE = 0
 
-    _width = D_COLS
-    _height = D_ROWS
-
     rotation = 0
     display_mode = 0
     text_size = 1
@@ -372,13 +417,22 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     KERNEL_STUCKI = 2
     KERNEL_BURKES = 3
 
-    def __init__(self, mode):
+    # variant has no default -- this board pair has no electrical auto-detect signal
+    # (see _VALID_VARIANTS), so the caller must always state which hardware it's
+    # running on. Pass "inkplate5v1" (classic, 960x540) or "inkplate5v2" (1280x720).
+    def __init__(self, mode, variant):
+        if variant not in _VALID_VARIANTS:
+            raise ValueError(
+                "unknown Inkplate5 variant {!r}, must be one of {}".format(variant, _VALID_VARIANTS)
+            )
         self.display_mode = mode
-        self._d_cols = D_COLS
-        self._d_rows = D_ROWS
+        self._variant = variant
+        self._d_rows, self._d_cols = _DIMENSIONS[variant]
+        self._width = self._d_cols
+        self._height = self._d_rows
 
     def begin(self):
-        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+        _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)), self._variant)
 
         _Inkplate._tps = TPS65186(
             _Inkplate._i2c, _Inkplate.TPS_WAKEUP, _Inkplate.TPS_PWRUP, _Inkplate.TPS_VCOM
@@ -386,8 +440,8 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
         _Inkplate._tps.begin()
         _Inkplate._rtc = RTC(_Inkplate._i2c)
 
-        self.ipg = InkplateGS4()
-        self.ipm = InkplateMono()
+        self.ipg = InkplateGS4(self._d_rows, self._d_cols)
+        self.ipm = InkplateMono(self._d_rows, self._d_cols)
 
         if self.display_mode == Inkplate.INKPLATE_2BIT:
             self.textColor = 0
@@ -475,15 +529,8 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     def clean(self):
         self.eink_on()
         _Inkplate.i2s_init()
-        # Burn-in sequence uses 11 reps, not Inkplate6's 18.
-        _Inkplate.clean(0, 1)
-        _Inkplate.clean(1, 11)
-        _Inkplate.clean(2, 1)
-        _Inkplate.clean(0, 11)
-        _Inkplate.clean(2, 1)
-        _Inkplate.clean(1, 11)
-        _Inkplate.clean(2, 1)
-        _Inkplate.clean(0, 11)
+        # Burn-in sequence; rep count is variant-specific (see _CLEAN_REPS).
+        _Inkplate.pre_clean()
         _Inkplate.i2s_deinit()
         self.eink_off()
 
@@ -509,11 +556,11 @@ class Inkplate(GfxMixin, TextMixin, ImageGS4Mixin):
     def set_rotation(self, x):
         self.rotation = x % 4
         if self.rotation == 0 or self.rotation == 2:
-            self._width = D_COLS
-            self._height = D_ROWS
+            self._width = self._d_cols
+            self._height = self._d_rows
         elif self.rotation == 1 or self.rotation == 3:
-            self._width = D_ROWS
-            self._height = D_COLS
+            self._width = self._d_rows
+            self._height = self._d_cols
 
     def get_rotation(self):
         return self.rotation

@@ -3,10 +3,10 @@
 # Include needed libraries
 import time
 from pcal6416a import *
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # Create Inkplate object
-display = Inkplate(Inkplate.INKPLATE_2BIT)
+display = Inkplate(Inkplate.INKPLATE_2BIT, variant="inkplate5v2")
 
 # Initialize the display, needs to be called only once
 display.begin()

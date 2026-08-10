@@ -1,7 +1,7 @@
 """Connect to WiFi and get data from the internet."""
 
 # Include needed libraries
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 
 # Enter your WiFi credentials here
 ssid = ""
@@ -52,7 +52,7 @@ do_connect()
 response = http_get("http://micropython.org/ks/test.html")
 
 # Create and initialize our Inkplate object in 1-bit mode
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")
 inkplate.begin()
 
 # Set text size to double from the original size, so we can see the text better

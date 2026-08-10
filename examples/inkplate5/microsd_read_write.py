@@ -1,9 +1,9 @@
 """List, write and read back a text file on the microSD card."""
 
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 import os
 
-inkplate=Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")
 inkplate.begin()
 inkplate.init_sd_card()
 

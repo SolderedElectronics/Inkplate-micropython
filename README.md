@@ -43,7 +43,7 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
       mpremote mip install github:SolderedElectronics/Inkplate-micropython/boards/inkplate6
    ```
 
-   `YOUR_DEVICE` is one of: `inkplate10`, `inkplate6`, `inkplate5v2`, `inkplate6flick`, `inkplate6plusv2`, `inkplate4tempera`, `inkplate6color`, `inkplate2`, `inkplate13spectra`, `inkplate7spectra`.
+   `YOUR_DEVICE` is one of: `inkplate10`, `inkplate6`, `inkplate5`, `inkplate6flick`, `inkplate6plusv2`, `inkplate4tempera`, `inkplate6color`, `inkplate2`, `inkplate13spectra`, `inkplate7spectra`.
 
    Inkplate6 and Inkplate10 ship in two hardware revisions (classic v1 and V2). The driver
    auto-detects which one is on the I2C bus at `begin()` time; pass `variant=` explicitly
@@ -52,6 +52,15 @@ In the Thonny IDE, go to `Run -> Configure interpreter` and on the bottom of the
    from inkplate6 import Inkplate
    display = Inkplate(Inkplate.INKPLATE_1BIT)  # revision auto-detected
    display = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate6v1")  # force classic (non-V2)
+   ```
+
+   Inkplate5 also ships in two hardware revisions (classic and V2), but unlike Inkplate6/10
+   there's no electrical signal to tell them apart (both use the same expander chip), so
+   `variant=` is required, not optional:
+   ```python
+   from inkplate5 import Inkplate
+   display = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v1")  # classic, 960x540
+   display = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")  # V2, 1280x720
    ```
 
 

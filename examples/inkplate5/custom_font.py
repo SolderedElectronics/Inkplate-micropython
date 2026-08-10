@@ -8,10 +8,10 @@ Any other file under fonts/ works the same way; see that directory for the full
 family/size list (FreeMono/FreeSans/FreeSerif, regular/bold/oblique/italic, 12-48px).
 """
 
-from inkplate5v2 import Inkplate
+from inkplate5 import Inkplate
 import free_serif_24px
 
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT, variant="inkplate5v2")
 inkplate.begin()
 
 inkplate.set_text_size(1)
