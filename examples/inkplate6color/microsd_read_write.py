@@ -23,7 +23,7 @@ with open("/sd/text.txt", "w") as f:
 with open("/sd/text.txt", "r") as f:
     for line in f:
         inkplate.print(line)
-        
+
 # Display content from .txt file
 inkplate.display()
 

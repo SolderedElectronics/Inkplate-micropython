@@ -16,6 +16,7 @@ inkplate.begin()
 
 sta_if = network.WLAN(network.STA_IF)
 
+
 # Connect to WiFi network
 def do_connect():
     connected = False
@@ -47,10 +48,12 @@ def do_connect():
     else:
         return False
 
+
 def http_post(url, text_data):
     response = urequests.post(url, json=text_data)
     print("Status code:", response.status_code)
     inkplate.print(f"Body: {response.text}")
+
 
 # Connect to WiFi
 if not do_connect():
@@ -63,5 +66,5 @@ data = {"message": "Hello from Inkplate2!"}
 
 http_post(WEBHOOK_URL, data)
 
-# Display HTTP response 
+# Display HTTP response
 inkplate.display()

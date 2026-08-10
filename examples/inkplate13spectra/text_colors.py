@@ -13,20 +13,20 @@ inkplate.display()
 
 inkplate.set_cursor(50, 50)
 inkplate.set_text_size(1)
-inkplate.set_text_color(3)      # red
+inkplate.set_text_color(3)  # red
 inkplate.print("Size 1")
 
 inkplate.set_cursor(50, 100)
 inkplate.set_text_size(2)
-inkplate.set_text_color(4)      # blue
+inkplate.set_text_color(4)  # blue
 inkplate.print("Size 2")
 
 inkplate.set_cursor(50, 180)
 inkplate.set_text_size(3)
-inkplate.set_text_color(5)      # green
+inkplate.set_text_color(5)  # green
 inkplate.print("Size 3")
 
-inkplate.set_text_color(0)      # black
+inkplate.set_text_color(0)  # black
 long_text = (
     "This is a very long line of text intended to demonstrate how wrapping works. "
     "When wrap mode is enabled, the text will continue onto the next line once it "

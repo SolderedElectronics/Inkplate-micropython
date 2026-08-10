@@ -13,6 +13,7 @@ PASSWORD = "YourPassword"
 # Your personal webhook.site URL (use http://, no leading spaces!)
 WEBHOOK_URL = "http://webhook.site/your-unique-url"
 
+
 def connect_wifi():
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
@@ -27,6 +28,7 @@ def connect_wifi():
             time.sleep(0.5)
     print("Connected:", sta_if.ifconfig())
     return True
+
 
 # Initialize Inkplate display
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)

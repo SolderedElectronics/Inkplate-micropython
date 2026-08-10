@@ -10,6 +10,7 @@ import time
 SSID = "YOUR_SSID_HERE"
 PASSWORD = "YOU_PASSWORD_HERE"
 
+
 # Connect to WiFi network
 def do_connect():
     connected = False
@@ -42,6 +43,7 @@ def do_connect():
     else:
         return False
 
+
 # This function does a HTTP GET request
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_tcp.html
 def http_get(url):
@@ -59,6 +61,7 @@ def http_get(url):
             break
     s.close()
     return res
+
 
 # Connect to WiFi
 if not do_connect():

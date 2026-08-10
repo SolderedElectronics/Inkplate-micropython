@@ -16,6 +16,7 @@ API_KEY = ""
 inkplate = Inkplate()
 inkplate.begin()
 
+
 def do_connect():
     connected = False
     sta_if = network.WLAN(network.STA_IF)
@@ -47,32 +48,34 @@ def do_connect():
     else:
         return False
 
+
 # Function to sent HTTP Post request
 def http_post(url, data, host):
     addr = socket.getaddrinfo(host, 80)[0][-1]
-    s = socket.socket()                        # Create a TCP socket
-    s.connect(addr)                            # Connect to server (ThingSpeak)
+    s = socket.socket()  # Create a TCP socket
+    s.connect(addr)  # Connect to server (ThingSpeak)
 
     # Build HTTP POST request
     request = (
-        "POST /update HTTP/1.1\r\n"                            # Method (POST), path (/update), protocol (HTTP/1.1)
-        "Host: " + host + "\r\n"                               # Specify host
+        "POST /update HTTP/1.1\r\n"  # Method (POST), path (/update), protocol (HTTP/1.1)
+        "Host: " + host + "\r\n"  # Specify host
         "Content-Type: application/x-www-form-urlencoded\r\n"  # Data format to send
-        "Content-Length: " + str(len(data)) + "\r\n"           # Content length
-        "Connection: close\r\n\r\n" +                          # Close connection after response + end of header
-        data                                                   # The actual data
+        "Content-Length: " + str(len(data)) + "\r\n"  # Content length
+        "Connection: close\r\n\r\n"  # Close connection after response + end of header
+         + data  # The actual data
     )
 
-    s.send(bytes(request, "utf8")) # Send full HTTP request
+    s.send(bytes(request, "utf8"))  # Send full HTTP request
     res = ""
     while True:
-        buf = s.recv(100) # Read server response
+        buf = s.recv(100)  # Read server response
         if not buf:
             break
         res += str(buf, "utf8")
 
-    s.close() # Close the socket
-    return res # Return server Response
+    s.close()  # Close the socket
+    return res  # Return server Response
+
 
 # Connect to WiFi
 if not do_connect():

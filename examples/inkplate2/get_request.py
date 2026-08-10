@@ -12,6 +12,7 @@ PASSWORD = "YOU_PASSWORD_HERE"
 
 sta_if = network.WLAN(network.STA_IF)
 
+
 def do_connect():
     connected = False
     if not sta_if.isconnected():
@@ -42,6 +43,7 @@ def do_connect():
     else:
         return False
 
+
 # This function does a HTTP GET request
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_tcp.html
 def http_get(url):
@@ -59,6 +61,7 @@ def http_get(url):
             break
     s.close()
     return res
+
 
 # Connect to WiFi
 if not do_connect():

@@ -21,7 +21,7 @@ utc_time = time.localtime()
 
 # Convert UTC -> local time (e.g., UTC+2)
 # Offset in seconds (hours * 3600)
-timezone_offset = (2 * 3600)
+timezone_offset = 2 * 3600
 
 # Apply timezone offset and print time
 local_time = time.localtime(time.mktime(utc_time) + timezone_offset)

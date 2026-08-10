@@ -12,6 +12,7 @@ PASSWORD = "YourPassword"
 # Your personal webhook.site URL (use http://, no leading spaces!)
 WEBHOOK_URL = "http://webhook.site/your-unique-url"
 
+
 def connect_wifi():
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
@@ -24,6 +25,7 @@ def connect_wifi():
                 return False
             time.sleep(0.5)
     return True
+
 
 if connect_wifi():
     print("Connected to WiFi")

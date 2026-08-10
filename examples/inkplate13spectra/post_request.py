@@ -10,12 +10,15 @@ from inkplate13_spectra import Inkplate
 ssid = ""
 password = ""
 
-#Your personal webhook.site URL (use http://, no leading spaces!)
-WEBHOOK_URL =""
+# Your personal webhook.site URL (use http://, no leading spaces!)
+WEBHOOK_URL = ""
+
+
 # Function which connects to WiFi
 # More info here: https://docs.micropython.org/en/latest/esp8266/tutorial/network_basics.html
 def do_connect():
     import network
+
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print("connecting to network...")
@@ -26,7 +29,8 @@ def do_connect():
     print("network config:", sta_if.ifconfig())
     return True
 
-inkplate=Inkplate()
+
+inkplate = Inkplate()
 inkplate.begin()
 inkplate.set_text_size(2)
 
