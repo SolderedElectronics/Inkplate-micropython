@@ -29,7 +29,7 @@
 // per-format scratch-buffer width caps in bmp_draw.c/jpeg_draw_core.h/png_draw_core.h.
 // Must not be padded up for headroom: callers size static/PSRAM scratch buffers
 // directly off this value, and larger sizes have been found tight on real hardware.
-#define INKPLATE_DRAW_MAX_WIDTH 1280
+#define INKPLATE_DRAW_MAX_WIDTH 1600
 
 // Selects which diffusion kernel dither_diffuse_error/dither_diffuse_error_rgb use.
 enum {
