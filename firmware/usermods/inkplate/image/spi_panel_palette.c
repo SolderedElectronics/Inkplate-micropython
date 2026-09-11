@@ -144,7 +144,7 @@ static void write_pixel_7spectra(const spi_panel_palette_ctx_t *ctx, int x, int 
 static void write_pixel_13spectra(const spi_panel_palette_ctx_t *ctx, int x, int y, int value)
 {
     int phys_x = ctx->y0 + y;
-    int phys_y = ctx->width - 1 - ctx->x0 - x;
+    int phys_y = ctx->height - 1 - ctx->x0 - x;
     if (phys_x < 0 || phys_x >= ctx->width || phys_y < 0 || phys_y >= ctx->height) {
         return;
     }
