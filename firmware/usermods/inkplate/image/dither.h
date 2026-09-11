@@ -25,11 +25,31 @@
 
 #include <stdint.h>
 
+// Detect sdkconfig.h via __has_include rather than an ESP_PLATFORM/similar macro guard:
+// MicroPython's ESP32 port compiles USER_C_MODULES sources into micropython.elf through
+// a path that does NOT define ESP_PLATFORM (only the separate esp-idf "main" component's
+// libmain.a copy of these same files does) even though sdkconfig.h is on both copies'
+// include path -- this header must still stay host-compilable (no ESP-IDF dependency,
+// see the file comment above) for tests/test_dither.c and friends under run_ci.py.
+#if defined(__has_include)
+#if __has_include("sdkconfig.h")
+#include "sdkconfig.h"
+#endif
+#endif
+
 // Widest physical panel width across supported boards. Single source of truth for the
 // per-format scratch-buffer width caps in bmp_draw.c/jpeg_draw_core.h/png_draw_core.h.
 // Must not be padded up for headroom: callers size static/PSRAM scratch buffers
 // directly off this value, and larger sizes have been found tight on real hardware.
+//
+// Classic ESP32 boards (6/10/5/6FLICK/6PLUS/4TEMPERA/6COLOR/2) all share one firmware
+// binary and blow their DRAM segment (dram0_0_seg overflowed by ~13KB) if this grows to
+// 1600 -- only 13SPECTRA/7SPECTRA (their own separate ESP32-S3 binary) need the wider cap.
+#if CONFIG_IDF_TARGET_ESP32
 #define INKPLATE_DRAW_MAX_WIDTH 1280
+#else
+#define INKPLATE_DRAW_MAX_WIDTH 1600
+#endif
 
 // Selects which diffusion kernel dither_diffuse_error/dither_diffuse_error_rgb use.
 enum {
