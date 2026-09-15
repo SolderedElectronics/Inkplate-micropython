@@ -33,13 +33,19 @@
 #define I2S_CLOCK_DIVIDER 5
 
 // Trailing don't-care bytes appended past the real row content in each row's DMA
-// buffer/descriptor. Matches the known-working Inkplate Arduino library (UtilI2S.cpp/
-// Inkplate6Driver.cpp: _dmaLineBuffer is always allocated and the descriptor always
-// sized as row_bytes+16, never the exact row length) -- HIL-confirmed (issue #51
-// follow-up) that without this pad, the last few bytes of every row's transmission
-// get lost/corrupted (low-x pixels truncated or wrong), even with tx_stop_en=1 set.
-// The pad's own content is never written -- it's genuinely don't-care, same as the
-// reference driver.
+// buffer/descriptor. Matches the known-working Inkplate Arduino library's
+// UtilI2S.cpp/Inkplate6Driver.cpp (_dmaLineBuffer is always allocated and the
+// descriptor always sized as row_bytes+16, never the exact row length) -- without
+// it, the last few bytes of every row's transmission get lost/corrupted (low-x
+// pixels truncated or wrong). HIL-confirmed (issue #51 follow-up) on both
+// Inkplate6V2 and Inkplate10V2: this alone fixes the truncation on both boards,
+// with tx_stop_en left at its original 0. Setting tx_stop_en=1 (as also tried
+// during that investigation, and as Inkplate6's Arduino driver does) additionally
+// fixes the same truncation on its own, but introduces a *different* corruption --
+// a striped/checkerboard pattern in the first few bytes of every row -- that this
+// padding does not cause. Inkplate10's Arduino driver never uses the I2S transport
+// at all (it's bit-banged there), so there's no working reference for tx_stop_en's
+// correct value on that board; leaving it untouched avoids the regression on both.
 #define EPD_ROW_DMA_PAD_BYTES 16
 
 static const uint32_t data_out_sig[8] = {
@@ -116,7 +122,7 @@ void epd_i2s_init(const board_config_t *cfg)
     I2S1.fifo_conf.dscr_en = 1;
 
     I2S1.conf1.val = 0;
-    I2S1.conf1.tx_stop_en = 1;
+    I2S1.conf1.tx_stop_en = 0;
     I2S1.conf1.tx_pcm_bypass = 1;
 
     I2S1.conf_chan.val = 0;
