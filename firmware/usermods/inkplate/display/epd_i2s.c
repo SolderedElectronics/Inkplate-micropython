@@ -32,6 +32,16 @@
 // Placeholder value; retune once waveform timing is confirmed on the logic analyzer.
 #define I2S_CLOCK_DIVIDER 5
 
+// Trailing don't-care bytes appended past the real row content in each row's DMA
+// buffer/descriptor. Matches the known-working Inkplate Arduino library (UtilI2S.cpp/
+// Inkplate6Driver.cpp: _dmaLineBuffer is always allocated and the descriptor always
+// sized as row_bytes+16, never the exact row length) -- HIL-confirmed (issue #51
+// follow-up) that without this pad, the last few bytes of every row's transmission
+// get lost/corrupted (low-x pixels truncated or wrong), even with tx_stop_en=1 set.
+// The pad's own content is never written -- it's genuinely don't-care, same as the
+// reference driver.
+#define EPD_ROW_DMA_PAD_BYTES 16
+
 static const uint32_t data_out_sig[8] = {
     I2S1O_DATA_OUT0_IDX, I2S1O_DATA_OUT1_IDX, I2S1O_DATA_OUT2_IDX, I2S1O_DATA_OUT3_IDX,
     I2S1O_DATA_OUT4_IDX, I2S1O_DATA_OUT5_IDX, I2S1O_DATA_OUT6_IDX, I2S1O_DATA_OUT7_IDX,
@@ -106,7 +116,7 @@ void epd_i2s_init(const board_config_t *cfg)
     I2S1.fifo_conf.dscr_en = 1;
 
     I2S1.conf1.val = 0;
-    I2S1.conf1.tx_stop_en = 0;
+    I2S1.conf1.tx_stop_en = 1;
     I2S1.conf1.tx_pcm_bypass = 1;
 
     I2S1.conf_chan.val = 0;
@@ -120,10 +130,11 @@ void epd_i2s_init(const board_config_t *cfg)
 
     s_state.row_len = board_config_row_bytes(cfg);
     for (int i = 0; i < 2; i++) {
-        s_state.buf[i] = heap_caps_malloc(s_state.row_len, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+        s_state.buf[i] = heap_caps_malloc(s_state.row_len + EPD_ROW_DMA_PAD_BYTES,
+                                          MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
 
-        s_state.desc[i].size = s_state.row_len;
-        s_state.desc[i].length = s_state.row_len;
+        s_state.desc[i].size = s_state.row_len + EPD_ROW_DMA_PAD_BYTES;
+        s_state.desc[i].length = s_state.row_len + EPD_ROW_DMA_PAD_BYTES;
         s_state.desc[i].offset = 0;
         s_state.desc[i].sosf = 0;
         s_state.desc[i].eof = 1;
