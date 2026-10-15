@@ -8,9 +8,15 @@ produce a correct, visible result at all.
 
 from machine import I2C, Pin
 from inkplate10 import _Inkplate
+from tps65186 import TPS65186
 import time
 
 _Inkplate.init(I2C(0, scl=Pin(22), sda=Pin(21)))
+# PMIC driver is normally created by Inkplate.begin(), which this test bypasses.
+_Inkplate._tps = TPS65186(
+    _Inkplate._i2c, _Inkplate.TPS_WAKEUP, _Inkplate.TPS_PWRUP, _Inkplate.TPS_VCOM
+)
+_Inkplate._tps.begin()
 
 print("power on")
 _Inkplate.power_on()
