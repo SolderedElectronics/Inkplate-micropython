@@ -17,8 +17,8 @@ inkplate.clear_display()
 # Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
-# Get the battery reading as a string
-battery = str(inkplate.read_battery())
+# Get the battery reading as a string, rounded to two decimals
+battery = "{:.2f}".format(inkplate.read_battery())
 
 # Set text size to double from the original size, so we can see the text better
 inkplate.set_text_size(2)
@@ -29,8 +29,8 @@ inkplate.print_text(350, 350, "Battery voltage: " + battery + "V")
 # Show it on the display
 inkplate.partial_update()
 
-# Get the temperature reading, also as a string
-temperature = str(inkplate.read_temperature())
+# Get the temperature reading, also as a string, rounded to one decimal
+temperature = "{:.1f}".format(inkplate.read_temperature())
 
 # Print the text at coordinates 100, 150, and also add the measurement unit
 inkplate.print_text(350, 400, "Temperature: " + temperature + "C")
