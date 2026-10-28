@@ -2,7 +2,7 @@
 
 from inkplate10 import Inkplate  # Include the Inkplate module
 
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)  # Create a display instance (8-level grayscale)
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT)  # Create a display instance (1-bit, black and white)
 
 inkplate.begin()  # Initialize the display
 
