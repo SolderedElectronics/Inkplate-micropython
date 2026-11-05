@@ -1,15 +1,29 @@
-"""Display text on the screen."""
+"""Show "Hello World!" on the Inkplate 10 e-paper display.
 
-from inkplate10 import Inkplate  # Include the Inkplate module
+Connection: none, the screen is on the board. Power and upload over USB-C.
 
-inkplate = Inkplate(Inkplate.INKPLATE_1BIT)  # Create a display instance (1-bit, black and white)
+Author: Borna Zelenika @ soldered.com
+"""
 
-inkplate.begin()  # Initialize the display
+# Pull in the Inkplate library
+from inkplate10 import Inkplate
 
-inkplate.set_text_size(2)  # Scale up the font size
+# Create the display object. INKPLATE_1BIT means black and white only.
+inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
-inkplate.set_cursor(450, 350)  # Set the cursor from where the text will be written
+# Start the display hardware. Call this once, at the start.
+inkplate.begin()
 
-inkplate.print("Hello world!")  # Print to the display buffer
+# The empty frame buffer is white. begin() has already cleared it.
 
-inkplate.display()  # Display what is drawn to the buffer
+# Where the text starts: 10 pixels from the left, 10 from the top
+inkplate.set_cursor(10, 10)
+
+# The built-in letters are 24 pixels tall. Size 3 makes them three times bigger.
+inkplate.set_text_size(3)
+
+# Write the text into the frame buffer
+inkplate.print("Hello World!")
+
+# Send the frame buffer to the screen
+inkplate.display()
