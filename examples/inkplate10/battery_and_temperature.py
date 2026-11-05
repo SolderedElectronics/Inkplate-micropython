@@ -1,39 +1,46 @@
-"""Read the battery voltage and temperature and display them on the screen."""
+"""Show the battery voltage and the temperature in big text on the Inkplate 10.
 
-# Include needed libraries
+Connection: none. The sensors are on the board. A battery is optional.
+
+Author: Borna Zelenika @ soldered.com
+"""
+
+# Pull in the time module for the pauses, and the Inkplate library
+import time
 from inkplate10 import Inkplate
 
-# Create Inkplate object in 1-bit mode, black and white colors only
-# For 8-level grayscale, see basic_grayscale.py
+# Partial update works in black and white mode only
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
-# Initialize the display, needs to be called only once
+# Start the display. begin() leaves the frame buffer empty and white.
 inkplate.begin()
 
-# Clear the frame buffer
+# Start from a clean, fully refreshed screen
 inkplate.clear_display()
-
-# This has to be called every time you want to update the screen
-# Drawing or printing text will have no effect on the display itself before you call this function
 inkplate.display()
 
-# Get the battery reading as a string, rounded to two decimals
-battery = "{:.2f}".format(inkplate.read_battery())
+# The font from T1, four times its normal size
+inkplate.set_text_size(4)
 
-# Set text size to double from the original size, so we can see the text better
-inkplate.set_text_size(2)
+# Make every tenth update a full refresh, to clear the leftovers
+inkplate.set_full_update_threshold(9)
 
-# Print the text at coordinates 100,100 (from the upper left corner)
-inkplate.print_text(350, 350, "Battery voltage: " + battery + "V")
+while True:
+    # Take both measurements
+    battery = inkplate.read_battery()
+    temperature = inkplate.read_temperature()
 
-# Show it on the display
-inkplate.partial_update()
+    # Round them for the screen: two decimals for the voltage, none for the temperature
+    battery_text = "{:.2f}".format(battery)
+    temperature_text = "{:.0f}".format(temperature)
 
-# Get the temperature reading, also as a string, rounded to one decimal
-temperature = "{:.1f}".format(inkplate.read_temperature())
+    # Redraw the screen. print_text() writes at the position you give it.
+    inkplate.clear_display()
+    inkplate.print_text(120, 280, "Battery: " + battery_text + " V")
+    inkplate.print_text(120, 420, "Temperature: " + temperature_text + " C")
 
-# Print the text at coordinates 100, 150, and also add the measurement unit
-inkplate.print_text(350, 400, "Temperature: " + temperature + "C")
+    # Send only what changed
+    inkplate.partial_update()
 
-# Show it on the display
-inkplate.partial_update()
+    # Wait 10 seconds before the next measurement
+    time.sleep(10)
