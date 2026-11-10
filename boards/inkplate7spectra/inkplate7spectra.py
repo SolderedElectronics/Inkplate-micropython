@@ -21,6 +21,13 @@ machine.freq(240000000)
 # (0/GPIO0 for a chip_count == 1 board) as a bogus second chip-select. They're plain
 # ESP32 GPIOs driven directly from here instead.
 PWR_EN_PIN = const(21)
+# CS/MOSI are pulled low as plain GPIOs in the VDD-off sequence, after the C transport
+# has released them (spi_panel_deinit()).
+CS_PIN = const(42)
+MOSI_PIN = const(40)
+DC_PIN = const(14)
+RST_PIN = const(4)
+BUSY_PIN = const(7)
 BS0_PIN = const(6)
 BS1_PIN = const(5)
 
@@ -47,42 +54,35 @@ REG_BTST2 = const(0x06)
 REG_BTST3 = const(0x08)
 REG_DTM = const(0x10)
 REG_DRF = const(0x12)
-REG_IPC = const(0x13)
 REG_PLL = const(0x30)
-REG_TSE = const(0x41)
 REG_CDI = const(0x50)
 REG_TCON = const(0x60)
 REG_TRES = const(0x61)
-REG_VDCS = const(0x82)
 REG_T_VDCS = const(0x84)
-REG_AGID = const(0x86)
-REG_CCSET = const(0xE0)
 REG_PWS = const(0xE3)
-REG_TSSET = const(0xE6)
 REG_CMDH = const(0xAA)
 
-# Register values (vendor-provided, manufacturer-tuned).
+# Register values (from E Ink E6_73 sample code V1.2, 20251224).
 REG_CMDH_V = bytes([0x49, 0x55, 0x20, 0x08, 0x09, 0x18])
-REG_PWR_V = bytes([0x3F, 0x00, 0x32, 0x2A, 0x0E, 0x2A])
+REG_PWR_V = bytes([0x3F])
 REG_PSR_V = bytes([0x5F, 0x69])
-REG_PFS_V = bytes([0x00, 0x54, 0x00, 0x44])
 REG_BTST1_V = bytes([0x40, 0x1F, 0x1F, 0x2C])
-REG_BTST2_V = bytes([0x6F, 0x1F, 0x16, 0x25])
 REG_BTST3_V = bytes([0x6F, 0x1F, 0x1F, 0x22])
-REG_IPC_V = bytes([0x00, 0x04])
-REG_PLL_V = bytes([0x02])
-REG_TSE_V = bytes([0x00])
-REG_CDI_V = bytes([0x3F])
+# BTST2 is sent twice: the first setting during the panel init, the second one right
+# before the refresh (DRF) is triggered.
+REG_BTST2_V1 = bytes([0x6F, 0x1F, 0x17, 0x17])
+REG_BTST2_V2 = bytes([0x6F, 0x1F, 0x17, 0x49])
+REG_PFS_V = bytes([0x00, 0x54, 0x00, 0x44])
 REG_TCON_V = bytes([0x02, 0x00])
+REG_PLL_V = bytes([0x08])
+REG_CDI_V = bytes([0x3F])
 REG_TRES_V = bytes([0x03, 0x20, 0x01, 0xE0])
-REG_VDCS_V = bytes([0x1E])
-REG_T_VDCS_V = bytes([0x01])
-REG_AGID_V = bytes([0x00])
 REG_PWS_V = bytes([0x2F])
-REG_CCSET_V = bytes([0x00])
-REG_TSSET_V = bytes([0x00])
+REG_T_VDCS_V = bytes([0x01])
 REG_POF_V = bytes([0x00])
 REG_DRF_V = bytes([0x00])
+# PSR value used in the power down (VDD off) sequence.
+REG_PSR_OFF_V = bytes([0x4F, 0x6E])
 
 # Epaper resolution (native controller resolution -- already landscape, unlike
 # Inkplate13SPECTRA's portrait-native panel, so no default-rotation width/height swap is
@@ -146,6 +146,7 @@ class Inkplate(ImagePaletteMixin):
     text_size = 1
 
     _panel_state = False
+    _spi_ready = False
 
     _framebuf = None
 
@@ -159,6 +160,7 @@ class Inkplate(ImagePaletteMixin):
         # epd_spi.c) -- no machine.SPI/Pin objects needed for those.
         inkplate.select_spi_panel("inkplate7spectra")
         inkplate.spi_panel_init()
+        self._spi_ready = True
 
         # PWR_EN/BS0/BS1 aren't part of spi_panel_config_t for this board -- own them
         # here as plain GPIOs instead. Idle low, matching the vendor driver's
@@ -254,15 +256,18 @@ class Inkplate(ImagePaletteMixin):
         self._bs1.value(0)
 
     def reset_panel(self):
-        """Hardware reset of the panel.
-
-        Reuses the single-chip family's epd_spi_reset() (100ms low / 200ms recovery)
-        rather than the vendor driver's shorter 10ms/20ms pulse; a longer recovery delay
-        does not hurt, same rationale as Inkplate13SPECTRA's own reset_panel().
-        """
-        inkplate.spi_panel_reset()
+        """Dual hardware reset; each pulse must be at least 30ms (E Ink sample code)."""
+        inkplate.spi_panel_set_rst(0)
+        time.sleep_ms(35)
+        inkplate.spi_panel_set_rst(1)
+        time.sleep_ms(35)
+        inkplate.spi_panel_set_rst(0)
+        time.sleep_ms(35)
+        inkplate.spi_panel_set_rst(1)
 
     def wait_for_busy(self):
+        # Give the panel time to pull BUSYN low after the last command.
+        time.sleep_ms(2)
         inkplate.spi_panel_wait_busy(1, 0)
 
     def send_command(self, command, data=None):
@@ -271,26 +276,21 @@ class Inkplate(ImagePaletteMixin):
             inkplate.spi_panel_send_data(data)
 
     def screen_init(self):
-        """Send manufacturer register init sequence to the panel."""
+        """Send the E Ink E6_73 sample code EPD_Init() register sequence."""
         self.send_command(REG_CMDH, REG_CMDH_V)
         self.send_command(REG_PWR, REG_PWR_V)
         self.send_command(REG_PSR, REG_PSR_V)
-        self.send_command(REG_PFS, REG_PFS_V)
         self.send_command(REG_BTST1, REG_BTST1_V)
-        self.send_command(REG_BTST2, REG_BTST2_V)
         self.send_command(REG_BTST3, REG_BTST3_V)
-        self.send_command(REG_IPC, REG_IPC_V)
-        self.send_command(REG_PLL, REG_PLL_V)
-        self.send_command(REG_TSE, REG_TSE_V)
-        self.send_command(REG_CDI, REG_CDI_V)
+        self.send_command(REG_BTST2, REG_BTST2_V1)
+        self.send_command(REG_PFS, REG_PFS_V)
         self.send_command(REG_TCON, REG_TCON_V)
+        # PLL must be set for the version 2 IC.
+        self.send_command(REG_PLL, REG_PLL_V)
+        self.send_command(REG_CDI, REG_CDI_V)
         self.send_command(REG_TRES, REG_TRES_V)
-        self.send_command(REG_VDCS, REG_VDCS_V)
-        self.send_command(REG_T_VDCS, REG_T_VDCS_V)
-        self.send_command(REG_AGID, REG_AGID_V)
         self.send_command(REG_PWS, REG_PWS_V)
-        self.send_command(REG_CCSET, REG_CCSET_V)
-        self.send_command(REG_TSSET, REG_TSSET_V)
+        self.send_command(REG_T_VDCS, REG_T_VDCS_V)
 
     def set_panel_state(self, state):
         """Power on/off the panel. When powering on, performs full init sequence."""
@@ -298,7 +298,11 @@ class Inkplate(ImagePaletteMixin):
             return
 
         if state:
-            # Power up sequence.
+            # The VDD-off sequence releases the SPI bus; claim it back.
+            if not self._spi_ready:
+                inkplate.spi_panel_init()
+                self._spi_ready = True
+
             self.set_panel_pins_to_low()
             time.sleep_ms(50)
 
@@ -309,17 +313,26 @@ class Inkplate(ImagePaletteMixin):
 
             self.reset_panel()
             self.wait_for_busy()
+            time.sleep_ms(10)
 
             self.screen_init()
-
-            self.send_command(REG_PON)
-            self.wait_for_busy()
         else:
-            # Power off sequence.
-            self.send_command(REG_POF, REG_POF_V)
+            # VDD off sequence -- PSR has to be set to these values before the panel
+            # supply is cut off.
+            self.send_command(REG_PSR, REG_PSR_OFF_V)
             self.wait_for_busy()
+
+            # Release the SPI bus so CS/MOSI can be driven low as plain GPIOs.
+            inkplate.spi_panel_deinit()
+            self._spi_ready = False
+            Pin(CS_PIN, Pin.OUT, value=0)
+            Pin(RST_PIN, Pin.OUT, value=0)
+            Pin(MOSI_PIN, Pin.OUT, value=0)
 
             self._pwr_en.value(0)
+
+            for pin in (DC_PIN, CS_PIN, RST_PIN, BUSY_PIN, MOSI_PIN):
+                Pin(pin, Pin.IN)
 
         self._panel_state = state
 
@@ -329,14 +342,26 @@ class Inkplate(ImagePaletteMixin):
         else:
             self._framebuf[:] = b"\x11" * len(self._framebuf)
 
+    def _refresh(self):
+        # Panel driving voltages must be powered on after the data is loaded.
+        self.send_command(REG_PON)
+        self.wait_for_busy()
+        # BTST2 second setting -- must be sent after PON and before the refresh.
+        self.send_command(REG_BTST2, REG_BTST2_V2)
+        self.send_command(REG_DRF, REG_DRF_V)
+        self.wait_for_busy()
+        self.send_command(REG_POF, REG_POF_V)
+        self.wait_for_busy()
+        # At least 10ms must pass after the power off command.
+        time.sleep_ms(15)
+
     def display(self, leave_on=False):
         self.set_panel_state(True)
 
         inkplate.spi_panel_send_command(REG_DTM)
         inkplate.spi_panel_send_data(self._framebuf)
 
-        self.send_command(REG_DRF, REG_DRF_V)
-        self.wait_for_busy()
+        self._refresh()
 
         if not leave_on:
             self.set_panel_state(False)
@@ -348,8 +373,7 @@ class Inkplate(ImagePaletteMixin):
         inkplate.spi_panel_send_command(REG_DTM)
         inkplate.spi_panel_send_data(b"\x11" * (D_COLS * D_ROWS // 2))
 
-        self.send_command(REG_DRF, REG_DRF_V)
-        self.wait_for_busy()
+        self._refresh()
 
         self.set_panel_state(False)
 
