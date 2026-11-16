@@ -1,46 +1,65 @@
-"""Use the onboard RTC to preserve time across reboots."""
+"""Show a clock on the Inkplate 10, using the real-time clock on the board.
 
-# Include all the required libraries
+The clock is set to the time of your computer.
+Connection: none. The RTC is on the board.
+Run it with:  python -m mpremote rtc --set run clock.py
+
+Author: Borna Zelenika @ soldered.com
+"""
+
+# Pull in the time module and the Inkplate library
+import time
 from inkplate10 import Inkplate
 
-# Create Inkplate object in 1-bit mode, black and white colors only
-# For 8-level grayscale, see basic_grayscale.py
+# The names of the weekdays, in the same order as the numbers: 0 is Sunday
+WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+# Partial update works in black and white mode only
 inkplate = Inkplate(Inkplate.INKPLATE_1BIT)
 
-
-# Initialize the display, needs to be called only once
+# Start the display. begin() leaves the frame buffer empty and white.
 inkplate.begin()
 
+# Start from a clean, fully refreshed screen
 inkplate.clear_display()
-
 inkplate.display()
 
-inkplate.set_text_size(2)
+# The font from T1, five times its normal size
+inkplate.set_text_size(5)
 
-# This is how to set the RTC's time
-# Arguments are hour, minute, seconds
-inkplate.rtc_set_time(9, 39, 10)
-# And this is the date
-# Arguments are weekday, day in month, month and year
-inkplate.rtc_set_date(5, 9, 2, 2024)
+# Make every sixtieth update a full refresh, about once a minute, to clear the leftovers
+inkplate.set_full_update_threshold(59)
 
-# Infinite loop
+# "rtc --set" has put the time of your computer into the board's own clock. Read it.
+# The tuple holds the year, month, day, hour, minute, second and weekday.
+now = time.localtime()
+
+# MicroPython counts the weekday from Monday = 0. The RTC counts from Sunday = 0.
+weekday = (now[6] + 1) % 7
+
+# Send the time and the date to the RTC
+inkplate.rtc_set_time(now[3], now[4], now[5])
+inkplate.rtc_set_date(weekday, now[2], now[1], now[0])
+
 while True:
+    # Read the time and date back from the RTC
+    data = inkplate.rtc_get_data()
     inkplate.clear_display()
-    rtc_data = inkplate.rtc_get_data()
 
-    hour = rtc_data["hour"]
-    minute = rtc_data["minute"]
-    second = rtc_data["second"]
+    # {:02d} prints a number with at least two digits, so 7 shows as 07
+    time_text = "{:02d}:{:02d}:{:02d}".format(data["hour"], data["minute"], data["second"])
+    date_text = "{:02d}.{:02d}.{}".format(data["day"], data["month"], data["year"])
 
-    if hour < 10:
-        hour = "0" + str(hour)
-    if minute < 10:
-        minute = "0" + str(minute)
-    if second < 10:
-        second = "0" + str(second)
+    # The time, the weekday and the date
+    inkplate.print_text(100, 200, time_text)
+    inkplate.print_text(100, 340, WEEKDAYS[data["weekday"]])
+    inkplate.print_text(100, 480, date_text)
 
-    inkplate.set_cursor(450, 300)
-    current_time = str(hour) + ":" + str(minute) + ":" + str(second)
-    inkplate.print(current_time)
+    # Send only what changed
     inkplate.partial_update()
+
+    # An update takes a fraction of a second, so a fixed sleep would let the clock drift
+    # and skip seconds. Instead, keep asking the RTC until the second has changed.
+    shown_second = data["second"]
+    while inkplate.rtc_get_data()["second"] == shown_second:
+        pass
