@@ -1,29 +1,35 @@
-"""Example showing how to display colorful text on the screen."""
+"""Show "Hello World!" on the Inkplate 13 e-paper display.
 
-from inkplate13_spectra import Inkplate  # Include the Inkplate module
+Connection: none, the screen is on the board. Power and upload over USB-C.
+Board:      Soldered Inkplate 13, running the Inkplate MicroPython firmware
+Library:    inkplate13spectra, installed with mpremote mip (see the Set up the board page)
 
-inkplate = Inkplate()  # Create an instance of the display
-inkplate.begin()  # Initialize the display
+Author: Borna Zelenika @ soldered.com
+"""
 
-inkplate.set_text_size(2)  # Scale up the font size
+# Pull in the Inkplate library
+from inkplate13_spectra import Inkplate
 
-inkplate.set_cursor(180, 180)  # Set the cursor from where the text will be written
+# Create the display object
+inkplate = Inkplate()
 
-hello_world = "Hello world!"  # Declare the string we want to print
+# Start the display hardware. Call this once, at the start.
+inkplate.begin()
 
-i = 0  # Declare the counter we will use to iterate through the colors
+# Turn the screen to landscape, 1600 pixels across and 1200 down
+inkplate.set_rotation(1)
 
-# Iterate through each character in the string
-for char in hello_world:
-    # Change the color of every character
-    inkplate.set_text_color(i)
-    # Print a single character to the framebuffer
-    inkplate.print(char)
-    # Iterate the color counter
-    i = i + 1
-    if i == 1:  # If the color is white, skip it
-        i = i + 1
-    elif i // 6 > 0:  # If we displayed all 6 colors, return to the first one
-        i = 0
+# Letters are black unless you pick another colour
+inkplate.set_text_color(inkplate.BLACK)
 
-inkplate.display()  # Display what is drawn to the buffer
+# Where the text starts: 10 pixels from the left, 10 from the top
+inkplate.set_cursor(10, 10)
+
+# The built-in letters are 24 pixels tall. Size 3 makes them three times bigger.
+inkplate.set_text_size(3)
+
+# Write the text into the frame buffer
+inkplate.print("Hello World!")
+
+# Send the frame buffer to the screen
+inkplate.display()
