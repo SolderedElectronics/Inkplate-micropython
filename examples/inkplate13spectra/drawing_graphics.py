@@ -1,57 +1,63 @@
-"""Draw various shapes in different colors across the full 1600x1200 canvas."""
+"""Draw the ten basic shapes on the Inkplate 13, in colour.
 
+Connection: none, the screen is on the board. Power and upload over USB-C.
+Board:      Soldered Inkplate 13, running the Inkplate MicroPython firmware
+Library:    inkplate13spectra, installed with mpremote mip
+
+Author: Borna Zelenika @ soldered.com
+"""
+
+# Pull in the Inkplate library
 from inkplate13_spectra import Inkplate
 
+# The display object
 inkplate = Inkplate()
+
+# The colours the shapes use
+BLACK = inkplate.BLACK
+RED = inkplate.RED
+BLUE = inkplate.BLUE
+GREEN = inkplate.GREEN
+YELLOW = inkplate.YELLOW
+
+# Start the display. begin() leaves the frame buffer empty and white.
 inkplate.begin()
-inkplate.clear_display()
-inkplate.display()
 
-inkplate.draw_pixel(800, 600, inkplate.BLACK)
+# Turn the screen to landscape, 1600 pixels across and 1200 down
+inkplate.set_rotation(1)
 
-inkplate.draw_rect(60, 60, 1480, 1080, inkplate.BLACK)
-inkplate.draw_rect(80, 80, 1440, 1040, inkplate.BLUE)
-inkplate.draw_round_rect(110, 110, 1380, 980, 40, inkplate.YELLOW)
+# Row 1, the outlines. Every shape sits in its own column, and the middle of
+# each one is on the line y = 330.
 
-inkplate.draw_line(60, 60, 1540, 1140, inkplate.BLACK)
-inkplate.draw_line(1540, 60, 60, 1140, inkplate.BLACK)
+# draw_rect(x, y, width, height, colour): x, y is the top left corner.
+inkplate.draw_rect(60, 230, 200, 200, BLACK)
 
-inkplate.draw_fast_hline(60, 600, 1480, inkplate.RED)
-inkplate.draw_fast_vline(800, 60, 1080, inkplate.GREEN)
+# draw_circle(x, y, radius, colour): x, y is the centre.
+inkplate.draw_circle(480, 330, 100, RED)
 
-inkplate.draw_circle(400, 300, 120, inkplate.BLUE)
-inkplate.fill_circle(1200, 300, 120, inkplate.GREEN)
-inkplate.draw_circle(1200, 300, 120, inkplate.BLACK)
+# draw_round_rect(x, y, width, height, radius, colour): a rectangle with round corners.
+inkplate.draw_round_rect(700, 230, 200, 200, 40, BLUE)
 
-inkplate.fill_round_rect(220, 760, 420, 300, 35, inkplate.YELLOW)
-inkplate.draw_round_rect(220, 760, 420, 300, 35, inkplate.BLACK)
+# draw_triangle(x1, y1, x2, y2, x3, y3, colour): joins three points.
+inkplate.draw_triangle(1120, 230, 1020, 430, 1220, 430, GREEN)
 
-inkplate.fill_rect(980, 760, 420, 300, inkplate.WHITE)
-inkplate.draw_rect(980, 760, 420, 300, inkplate.BLACK)
+# draw_line(x1, y1, x2, y2, colour): joins two points.
+inkplate.draw_line(1340, 430, 1540, 230, BLACK)
 
-inkplate.draw_triangle(800, 140, 680, 360, 920, 360, inkplate.RED)
-inkplate.fill_triangle(800, 520, 650, 720, 950, 720, inkplate.BLUE)
-inkplate.draw_triangle(800, 520, 650, 720, 950, 720, inkplate.BLACK)
+# Row 2, the solid shapes. They have the same sizes as the outlines above,
+# and the middle of each one is on the line y = 800.
+inkplate.fill_rect(60, 700, 200, 200, YELLOW)
+inkplate.fill_circle(480, 800, 100, RED)
+inkplate.fill_round_rect(700, 700, 200, 200, 40, BLUE)
+inkplate.fill_triangle(1120, 700, 1020, 900, 1220, 900, GREEN)
 
-inkplate.draw_fast_hline(200, 180, 1200, inkplate.YELLOW)
-inkplate.draw_fast_hline(200, 1020, 1200, inkplate.YELLOW)
-inkplate.draw_fast_vline(220, 200, 800, inkplate.BLUE)
-inkplate.draw_fast_vline(1380, 200, 800, inkplate.BLUE)
+# draw_pixel(x, y, colour) sets a single pixel, which is tiny, so five of them
+# make a small plus.
+inkplate.draw_pixel(1440, 800, BLACK)
+inkplate.draw_pixel(1432, 800, BLACK)
+inkplate.draw_pixel(1448, 800, BLACK)
+inkplate.draw_pixel(1440, 792, BLACK)
+inkplate.draw_pixel(1440, 808, BLACK)
 
-inkplate.fill_circle(100, 100, 18, inkplate.RED)
-inkplate.fill_circle(1500, 100, 18, inkplate.GREEN)
-inkplate.fill_circle(100, 1100, 18, inkplate.BLUE)
-inkplate.fill_circle(1500, 1100, 18, inkplate.BLACK)
-
-inkplate.draw_rect(50, 50, 75, 75, inkplate.BLUE)
-inkplate.draw_circle(200, 200, 30, inkplate.GREEN)
-inkplate.fill_circle(300, 300, 30, inkplate.BLACK)
-inkplate.draw_fast_hline(20, 100, 50, inkplate.RED)
-inkplate.draw_fast_vline(100, 20, 50, inkplate.BLACK)
-inkplate.draw_line(100, 100, 400, 400, inkplate.BLACK)
-inkplate.draw_round_rect(100, 10, 100, 100, 10, inkplate.YELLOW)
-inkplate.fill_round_rect(10, 100, 100, 100, 10, inkplate.BLACK)
-inkplate.draw_triangle(300, 100, 400, 150, 400, 100, inkplate.BLACK)
-
-
+# Send the frame buffer to the screen
 inkplate.display()
