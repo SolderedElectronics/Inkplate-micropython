@@ -205,7 +205,14 @@ class ImageGS4Mixin:
             if response.status_code != 200:
                 raise ValueError(f"HTTP Error {response.status_code}")
 
-            jpg_data = response.content
+            # Read the body in chunks. response.content waits for the whole file in one read, which
+            # times out on a large picture over TLS.
+            jpg_data = bytearray()
+            while True:
+                chunk = response.raw.read(4096)
+                if not chunk:
+                    break
+                jpg_data.extend(chunk)
             response.close()
             t1 = time.ticks_ms()
             inkplate.jpeg_draw_gs4(
