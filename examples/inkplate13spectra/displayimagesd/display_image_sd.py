@@ -1,78 +1,43 @@
-"""Initialize an SD card and render an image located on it."""
+"""Show a picture from the microSD card on the Inkplate 13, in colour.
 
-# Include needed libraries
+Connection: a microSD card in the slot on the board, with a file called cosmic-cliffs.jpg on it.
+Picture:    Cosmic Cliffs, NASA / ESA / CSA / STScI, public domain. The manual has it cropped to 1600 x 1200, the original is at
+            https://commons.wikimedia.org/wiki/File:NASA%E2%80%99s_Webb_Reveals_Cosmic_Cliffs,_Glittering_Landscape_of_Star_Birth.jpg
+Board:      Soldered Inkplate 13, running the Inkplate MicroPython firmware
+Library:    inkplate13spectra, installed with mpremote mip
+
+Author: Borna Zelenika @ soldered.com
+"""
+
+# Pull in the os module for files, and the Inkplate library
+import os
 from inkplate13_spectra import Inkplate
 
-from os import listdir, stat
-
-# Create Inkplate object
+# The display object
 inkplate = Inkplate()
 
-# Initialize the display, needs to be called only once
+# The name of the picture on the card. It can be a JPG, PNG or BMP file.
+PICTURE_NAME = "/sd/cosmic-cliffs.jpg"
+
+# Start the display and turn it to landscape. begin() leaves the frame buffer empty and white.
 inkplate.begin()
+inkplate.set_rotation(1)
+inkplate.set_text_color(inkplate.BLACK)
+inkplate.set_text_size(2)
 
-# Initializes the SD card.
-#
-# Parameters:
-# - fastboot (bool, default=False):
-#     If True, performs a soft reboot immediately after SD card initialization
-#     (only on cold start or hard reset). This significantly improves SD card
-#     read speeds—typically doubling performance.
-#
-# Note:
-# - This function must be called before accessing files on the SD card.
-# - The fastboot option has no effect if the device is already running.
-inkplate.init_sd_card(fast_boot=True)
-
-# This prints all the files on card
-print(listdir("/sd"))
-
-
-# Draw an image on the screen.
-#
-# Parameters:
-# - path: File path to the image. Supports local paths (e.g., from SD card) or URLs.
-#         Supported formats: JPG, PNG, BMP.
-#
-# - x0: X-coordinate of the top-left corner where the image will be displayed.
-#
-# - y0: Y-coordinate of the top-left corner where the image will be displayed.
-#
-# - invert (bool, default=False): If True, inverts the image colors.
-#
-# - dither (bool, default=False): If True, applies a dithering algorithm to
-#   the image for better grayscale rendering.
-#
-# - kernel_type (int): Specifies the dithering algorithm to use.
-#     Available options:
-#       Inkplate.KERNEL_FLOYD_STEINBERG = 0
-#       Inkplate.KERNEL_JJN             = 1
-#       Inkplate.KERNEL_STUCKI          = 2
-#       Inkplate.KERNEL_BURKES          = 3
-#
-# Performance Notes:
-# - JPG: ~52 seconds (or ~90s with dithering)
-#
-# Example usage:
-IMAGE_PATH = "sd/image.jpg"
-try:
-    stat(IMAGE_PATH)
-except OSError:
-    print("Image not found on SD card: {}".format(IMAGE_PATH))
-    print("Copy an image to that path on the SD card, or change IMAGE_PATH above.")
+# Mount the card, under the folder /sd. If it did not mount, say so.
+inkplate.init_sd_card()
+if "sd" not in os.listdir("/"):
+    inkplate.print_text(50, 50, "SD card error!")
 else:
-    inkplate.draw_image(
-        IMAGE_PATH,
-        0,
-        0,
-        invert=False,
-        dither=True,
-        kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,
-    )
+    # Draw the picture with its top left corner at 0, 0. The picture is 1600 x 1200 pixels,
+    # so it fills the 1600 x 1200 screen. dither=True mixes dots of the
+    # six colours, which makes the colours look smoother. If this fails, say so.
+    try:
+        inkplate.draw_image(PICTURE_NAME, 0, 0, dither=True)
+    except OSError:
+        inkplate.print_text(50, 50, "Could not open " + PICTURE_NAME)
 
-# Show the image from the buffer
+# Send the frame buffer to the screen, then let the card sleep
 inkplate.display()
-
 inkplate.sd_card_sleep()
-# To turn it back on, use:
-# inkplate.sd_card_wake()
