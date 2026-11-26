@@ -1,89 +1,46 @@
-"""Connect to WiFi and render an image from a URL."""
+"""Download a picture from the web and show it on the Inkplate 6, in eight levels of gray.
 
-# Include needed libraries
-import network
+Connection: none. Needs a Wi-Fi network.
+Picture:    A coastal town, from the Inkplate examples on GitHub, 800 x 600 pixels.
+
+Author: Borna Zelenika @ soldered.com
+"""
+
+# Pull in the modules for the pauses and the Wi-Fi, and the Inkplate library
 import time
+import network
 from inkplate6 import Inkplate
 
-# WiFi credentials (replace with your own)
-SSID = "YOUR_SSID_HERE"
-PASSWORD = "YOUR_PASSWORD_HERE"
+# The name and the password of your Wi-Fi network
+ssid = ""
+password = ""
 
+# The web address of the picture. It has to point straight at a JPG, PNG or BMP file.
+PICTURE_URL = "https://learn.soldered.com/inkplate-6/files/coastal-town.jpg"
 
-# Connects to a WiFi network using given SSID and PASSWORD.
-#
-# Returns:
-# - True if successfully connected
-# - False if connection fails within the timeout period
-#
-# Notes:
-# - Timeout is set to 30 seconds
-# - Prints network IP config on success
-def do_connect():
-    sta_if = network.WLAN(network.STA_IF)
-    if not sta_if.isconnected():
-        print("Connecting to network...")
-        sta_if.active(True)
-        sta_if.connect(SSID, PASSWORD)
-
-        timeout = 30  # seconds
-        start = time.ticks_ms()
-        while not sta_if.isconnected():
-            if time.ticks_diff(time.ticks_ms(), start) > timeout * 1000:
-                print("Failed to connect within timeout")
-                return False
-            time.sleep(0.5)
-    print("Network config:", sta_if.ifconfig())
-    return True
-
-
-# Create Inkplate object in 2-bit (real 8-level GS3) grayscale mode
+# Gray mode: eight levels, 0 (black) to 7 (white). Pictures need it to look right.
 inkplate = Inkplate(Inkplate.INKPLATE_2BIT)
 
-# Initialize the display, needs to be called only once
+# Start the display. begin() leaves the frame buffer empty and white.
 inkplate.begin()
+inkplate.set_text_color(0)
+inkplate.set_text_size(2)
 
-# Connect to WiFi
-if not do_connect():
-    raise SystemExit("WiFi connection failed")
+# Join the Wi-Fi network
+station = network.WLAN(network.STA_IF)
+station.active(True)
+station.connect(ssid, password)
+while not station.isconnected():
+    time.sleep(0.5)
 
-# Draw an image on the screen.
-#
-# Parameters:
-# - path: File path to the image. Supports local paths (e.g., from SD card) or URLs.
-#         Supported formats: JPG, PNG, BMP.
-#
-# - x0: X-coordinate of the top-left corner where the image will be displayed.
-#
-# - y0: Y-coordinate of the top-left corner where the image will be displayed.
-#
-# - invert (bool, default=False): If True, inverts the image colors.
-#
-# - dither (bool, default=False): If True, applies a dithering algorithm to
-#   the image for better grayscale rendering.
-#
-# - kernel_type (int): Specifies the dithering algorithm to use.
-#     Available options:
-#       Inkplate.KERNEL_FLOYD_STEINBERG = 0
-#       Inkplate.KERNEL_JJN             = 1
-#       Inkplate.KERNEL_STUCKI          = 2
-#       Inkplate.KERNEL_BURKES          = 3
-#
-# Performance Notes:
-# - JPG: ~3 seconds (or ~7s with dithering)
-# - PNG: ~10 seconds (or ~14s with dithering)
-# - BMP: ~15 seconds (or ~20s with dithering)
-# - Maximum image file size: ~800kB
-#
-# Example usage:
-inkplate.draw_image(
-    "https://i.imgur.com/8yvGmvs.jpeg",  # URL to image
-    0,
-    0,  # X, Y position
-    invert=False,  # Do not invert colors
-    dither=True,  # Enable dithering
-    kernel_type=Inkplate.KERNEL_FLOYD_STEINBERG,  # Dithering algorithm
-)
+# Download the picture and draw it with its top left corner at 0, 0, which fills the screen,
+# because the picture is 800 x 600 pixels. dither=True mixes black and white dots, which makes
+# the grays look smoother. If the download or the drawing fails, say so.
+try:
+    inkplate.draw_image(PICTURE_URL, 0, 0, dither=True)
+except OSError:
+    inkplate.print_text(50, 50, "Could not download the picture")
 
-# Show the image from the internal buffer
+# Send the frame buffer to the screen, then turn the Wi-Fi off to save power
 inkplate.display()
+station.active(False)
